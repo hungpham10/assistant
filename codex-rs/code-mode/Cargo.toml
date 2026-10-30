@@ -1,0 +1,34 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-code-mode"
+version.workspace = true
+
+[lib]
+doctest = false
+name = "codex_code_mode"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+codex-code-mode-protocol = { workspace = true }
+codex-protocol = { workspace = true }
+deno_core_icudata = { workspace = true, optional = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "macros", "process", "rt", "sync", "time"] }
+tokio-util = { workspace = true, features = ["rt"] }
+tracing = { workspace = true }
+v8 = { workspace = true, optional = true }
+
+[features]
+# Open Interpreter ships code mode, so normal builds must include its V8
+# runtime. Development-only builds can still opt out with --no-default-features.
+default = ["v8-runtime"]
+sandbox = ["v8?/v8_enable_sandbox"]
+v8-runtime = ["dep:v8", "dep:deno_core_icudata"]
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
