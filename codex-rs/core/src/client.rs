@@ -2844,9 +2844,11 @@ impl ModelClientSession {
                 ))
                 .await
             }
-            StreamTransportRoute::GoogleGenerateContent => Err(codex_core::error::CodexErr::UnsupportedOperation(
-                "google generateContent wire not implemented yet".to_string(),
-            )),
+            StreamTransportRoute::GoogleGenerateContent => {
+                Err(codex_core::error::CodexErr::UnsupportedOperation(
+                    "google generateContent wire not implemented yet".to_string(),
+                ))
+            }
         }
     }
 

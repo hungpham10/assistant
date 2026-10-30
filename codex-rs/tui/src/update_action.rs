@@ -242,16 +242,14 @@ mod tests {
     #[test]
     fn assistant_standalone_update_commands_rerun_latest_installer() {
         assert_eq!(
-            UpdateAction::StandaloneUnix
-                .command_args_for_source(ProductUpdateSource::Assistant),
+            UpdateAction::StandaloneUnix.command_args_for_source(ProductUpdateSource::Assistant),
             (
                 "sh",
                 ProductUpdateSource::Assistant.standalone_unix_update_args(),
             )
         );
         assert_eq!(
-            UpdateAction::StandaloneWindows
-                .command_args_for_source(ProductUpdateSource::Assistant),
+            UpdateAction::StandaloneWindows.command_args_for_source(ProductUpdateSource::Assistant),
             (
                 "powershell",
                 ProductUpdateSource::Assistant.standalone_windows_update_args(),

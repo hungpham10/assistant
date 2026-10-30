@@ -56,7 +56,9 @@ See the Codex keymap documentation for supported actions and examples."
 fn keymap_parse_help() -> &'static str {
     match Product::current() {
         Product::Codex => "See the Codex keymap documentation for supported actions and examples.",
-        Product::OpenInterpreter | Product::Assistant => "Use supported Assistant keymap actions and examples.",
+        Product::OpenInterpreter | Product::Assistant => {
+            "Use supported Assistant keymap actions and examples."
+        }
     }
 }
 

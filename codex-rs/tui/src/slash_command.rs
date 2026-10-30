@@ -89,7 +89,8 @@ impl SlashCommand {
                 codex_product_info::Product::Codex => {
                     "create an AGENTS.md file with instructions for Codex"
                 }
-                codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "create an AGENTS.md file with instructions for Assistant"
                 }
             },
@@ -103,14 +104,16 @@ impl SlashCommand {
             SlashCommand::Fork => "fork the current chat",
             SlashCommand::App => match codex_product_info::Product::current() {
                 codex_product_info::Product::Codex => "continue this session in Codex Desktop",
-                codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "continue this session in Assistant Desktop"
                 }
             },
             SlashCommand::Quit | SlashCommand::Exit => match codex_product_info::Product::current()
             {
                 codex_product_info::Product::Codex => "exit Codex",
-                codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => "exit Assistant",
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => "exit Assistant",
             },
             SlashCommand::Copy => "copy last response as markdown",
             SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",

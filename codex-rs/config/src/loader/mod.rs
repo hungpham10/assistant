@@ -924,7 +924,9 @@ impl ProjectTrustContext {
 fn project_config_dir_name() -> &'static str {
     match codex_product_info::Product::current() {
         codex_product_info::Product::Codex => ".codex",
-        codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => ".assistant",
+        codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
+            ".assistant"
+        }
     }
 }
 

@@ -8,11 +8,11 @@ pub const OPEN_INTERPRETER_BRAND_ENV_VAR: &str = ASSISTANT_BRAND_ENV_VAR;
 /// checks must not interpret that product version as the embedded Codex version.
 pub const ASSISTANT_CODEX_COMPATIBILITY_VERSION: &str = "0.144.5";
 #[deprecated(note = "use ASSISTANT_CODEX_COMPATIBILITY_VERSION")]
-pub const OPEN_INTERPRETER_CODEX_COMPATIBILITY_VERSION: &str = ASSISTANT_CODEX_COMPATIBILITY_VERSION;
+pub const OPEN_INTERPRETER_CODEX_COMPATIBILITY_VERSION: &str =
+    ASSISTANT_CODEX_COMPATIBILITY_VERSION;
 
 const CODEX_RELEASE_NOTES_URL: &str = "https://github.com/openai/codex/releases/latest";
-const ASSISTANT_RELEASE_NOTES_URL: &str =
-    "https://github.com/hungpham10/assistant/releases/latest";
+const ASSISTANT_RELEASE_NOTES_URL: &str = "https://github.com/hungpham10/assistant/releases/latest";
 #[allow(dead_code)]
 const OPEN_INTERPRETER_RELEASE_NOTES_URL: &str = ASSISTANT_RELEASE_NOTES_URL;
 const CODEX_LATEST_RELEASE_URL: &str = "https://api.github.com/repos/openai/codex/releases/latest";
@@ -49,8 +49,7 @@ const CODEX_STANDALONE_UNIX_UPDATE_ARGS: &[&str] = &["-c", CODEX_STANDALONE_UNIX
 const ASSISTANT_STANDALONE_UNIX_UPDATE_ARGS: &[&str] =
     &["-c", ASSISTANT_STANDALONE_UNIX_UPDATE_COMMAND];
 #[allow(dead_code)]
-const OPEN_INTERPRETER_STANDALONE_UNIX_UPDATE_ARGS: &[&str] =
-    ASSISTANT_STANDALONE_UNIX_UPDATE_ARGS;
+const OPEN_INTERPRETER_STANDALONE_UNIX_UPDATE_ARGS: &[&str] = ASSISTANT_STANDALONE_UNIX_UPDATE_ARGS;
 const CODEX_STANDALONE_WINDOWS_UPDATE_ARGS: &[&str] = &[
     "-ExecutionPolicy",
     "Bypass",
@@ -159,7 +158,9 @@ impl Product {
     pub fn standalone_windows_update_args(self) -> &'static [&'static str] {
         match self {
             Product::Codex => CODEX_STANDALONE_WINDOWS_UPDATE_ARGS,
-            Product::OpenInterpreter | Product::Assistant => ASSISTANT_STANDALONE_WINDOWS_UPDATE_ARGS,
+            Product::OpenInterpreter | Product::Assistant => {
+                ASSISTANT_STANDALONE_WINDOWS_UPDATE_ARGS
+            }
         }
     }
 }
@@ -214,8 +215,7 @@ fn executable_is_in_assistant_package(exe: &std::path::Path) -> bool {
         .collect::<Vec<_>>()
         .windows(3)
         .any(|window| {
-            window[0] == "variant"
-                && (window[2] == "assistant" || window[2] == "open-interpreter")
+            window[0] == "variant" && (window[2] == "assistant" || window[2] == "open-interpreter")
         })
 }
 
@@ -319,9 +319,11 @@ mod tests {
             Product::Assistant.codex_compatibility_version(),
             ASSISTANT_CODEX_COMPATIBILITY_VERSION
         );
-        assert!(Product::Assistant
-            .install_command()
-            .contains("hungpham10/assistant"));
+        assert!(
+            Product::Assistant
+                .install_command()
+                .contains("hungpham10/assistant")
+        );
         assert_eq!(
             Product::Assistant.installer_env(),
             &[("ASSISTANT_NON_INTERACTIVE", "1")]

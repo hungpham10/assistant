@@ -968,7 +968,8 @@ fn product_about() -> String {
         "{}\n\nIf no subcommand is specified, options will be forwarded to the interactive CLI.",
         match codex_product_info::Product::current() {
             codex_product_info::Product::Codex => "Codex CLI",
-            codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => "Assistant",
+            codex_product_info::Product::OpenInterpreter
+            | codex_product_info::Product::Assistant => "Assistant",
         }
     )
 }
