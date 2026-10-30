@@ -172,6 +172,7 @@ fn map_wire_api(wire_api: WireApi) -> WireApiDto {
         WireApi::Responses => WireApiDto::Responses,
         WireApi::Chat => WireApiDto::Chat,
         WireApi::Messages => WireApiDto::Messages,
+        WireApi::Google => WireApiDto::Google,
     }
 }
 
@@ -192,6 +193,7 @@ fn provider_description(provider_id: &str, provider: &ModelProviderInfo) -> Stri
             WireApi::Responses => "Responses API".to_string(),
             WireApi::Chat => "Chat Completions".to_string(),
             WireApi::Messages => "Anthropic Messages".to_string(),
+            WireApi::Google => "Google Gemini".to_string(),
         }
     };
     codex_model_provider_info::default_harness_for_provider_model(

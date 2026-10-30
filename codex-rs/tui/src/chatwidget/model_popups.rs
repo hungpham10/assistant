@@ -1083,6 +1083,7 @@ fn provider_description(
             WireApi::Responses => "No API key required".to_string(),
             WireApi::Chat => "Chat-compatible endpoint".to_string(),
             WireApi::Messages => "Anthropic Messages endpoint".to_string(),
+            WireApi::Google => "Google Gemini endpoint".to_string(),
         }
     };
     let harness = default_harness_for_provider_model(provider_id, provider, /*model*/ None);
@@ -1190,7 +1191,7 @@ fn harness_choices_for_provider_model(
     } else {
         match wire_api {
             WireApi::Messages => vec!["claude-code", "claude-code-bare"],
-            WireApi::Chat => all_harnesses.to_vec(),
+            WireApi::Chat | WireApi::Google => all_harnesses.to_vec(),
             WireApi::Responses => vec![""],
         }
     };
