@@ -302,7 +302,7 @@ jobs:
             > codex-package_SHA256SUMS
 
       - name: Publish release
-        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: Open Interpreter ${{ needs.prepare.outputs.version }}
