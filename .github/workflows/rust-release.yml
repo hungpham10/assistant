@@ -1,0 +1,316 @@
+# Release workflow for Open Interpreter.
+#
+# To release, bump the workspace version in codex-rs/Cargo.toml, then:
+# ```
+# git tag -a rust-v0.0.17 -m "Release 0.0.17"
+# git push origin rust-v0.0.17
+# ```
+#
+# Builds run on GitHub-hosted runners and publish the standalone package
+# archives that scripts/install/install.sh and install.ps1 download:
+# open-interpreter-package-<target>.tar.gz plus codex-package_SHA256SUMS.
+#
+# A manual dispatch with publish=false is the release smoke test: it builds
+# the selected targets and uploads workflow artifacts without creating a
+# GitHub release.
+
+name: rust-release
+on:
+  push:
+    tags:
+      - "rust-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version without the rust-v prefix"
+        required: true
+        default: "0.0.0"
+      targets:
+        description: "Release targets to build: all or comma-separated target triples"
+        required: true
+        default: "all"
+      publish:
+        description: "Publish a GitHub release after building. Only valid with targets=all."
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  CODEX_ZSH_RELEASE_TAG: codex-zsh-v0.1.0
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare release matrix
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      publish: ${{ steps.matrix.outputs.publish }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - name: Resolve and validate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            [[ "${tag}" =~ ^rust-v[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+              || { echo "❌  Tag ${tag} does not match rust-vX.Y.Z"; exit 1; }
+            version="${tag#rust-v}"
+            cargo_version="$(grep -m1 '^version = ' codex-rs/Cargo.toml | cut -d'"' -f2)"
+            [[ "${version}" == "${cargo_version}" ]] \
+              || { echo "❌  Tag version ${version} does not match Cargo.toml ${cargo_version}"; exit 1; }
+          else
+            version="${{ inputs.version }}"
+            tag="rust-v${version}"
+          fi
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Select targets
+        id: matrix
+        shell: bash
+        env:
+          TARGETS: ${{ github.event_name == 'workflow_dispatch' && inputs.targets || 'all' }}
+          PUBLISH: ${{ github.event_name == 'push' && 'true' || inputs.publish }}
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY' >> "$GITHUB_OUTPUT"
+          require "json"
+
+          all = [
+            {"runner"=>"macos-15-xlarge", "target"=>"aarch64-apple-darwin"},
+            {"runner"=>"macos-15-xlarge", "target"=>"x86_64-apple-darwin"},
+            {"runner"=>"ubuntu-24.04", "target"=>"x86_64-unknown-linux-musl"},
+            {"runner"=>"ubuntu-24.04-arm", "target"=>"aarch64-unknown-linux-musl"},
+            {"runner"=>"windows-2025", "target"=>"x86_64-pc-windows-msvc"},
+            {"runner"=>"windows-11-arm", "target"=>"aarch64-pc-windows-msvc"},
+          ]
+
+          targets = ENV.fetch("TARGETS").split(",").map(&:strip).reject(&:empty?)
+          selected = if targets == ["all"]
+            all
+          else
+            known = all.to_h { |entry| [entry.fetch("target"), entry] }
+            unknown = targets - known.keys
+            abort "unknown release target(s): #{unknown.join(", ")}" unless unknown.empty?
+            targets.map { |target| known.fetch(target) }
+          end
+
+          publish = ENV.fetch("PUBLISH") == "true"
+          abort "publish=true requires targets=all" if publish && selected.length != all.length
+
+          puts "matrix=#{JSON.generate({"include"=>selected})}"
+          puts "publish=#{publish}"
+          RUBY
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: prepare
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    defaults:
+      run:
+        working-directory: codex-rs
+    env:
+      # Compiler cache, matching cargo-ci for Linux release builds.
+      #
+      # Windows release builds do not use RUSTC_WRAPPER=sccache because the
+      # hosted runner's sccache server can drop the compile connection during
+      # long linker-plugin-lto builds.
+      #
+      # macOS release builds run on xlarge runners without sccache. The arm64
+      # runner cross-targeting x86_64 can produce mixed-architecture archives
+      # under sccache, and the standard arm64 runner can stall in release builds.
+      USE_SCCACHE: ${{ startsWith(matrix.runner, 'ubuntu') && 'true' || 'false' }}
+      SCCACHE_GHA_ENABLED: "true"
+      SCCACHE_CACHE_SIZE: 10G
+      # Cargo's libgit2 transport hangs fetching git dependencies with nested
+      # submodules (it wedged a release build for 5+ hours on a macOS runner).
+      # Use the system git CLI like the other cargo workflows.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582 # 1.95.0
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: mozilla-actions/sccache-action@9e7fa8a12102821edf02ca5dbea1acd0f89a2696 # v0.0.10
+        if: env.USE_SCCACHE == 'true'
+
+      - name: Enable sccache wrapper
+        if: env.USE_SCCACHE == 'true'
+        shell: bash
+        run: echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+
+      - name: Install zstd
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/facebook/zstd/releases/download/v1.5.7/zstd-v1.5.7-win64.zip"
+          $zipPath = Join-Path $env:RUNNER_TEMP "zstd.zip"
+          $extractDir = Join-Path $env:RUNNER_TEMP "zstd"
+          Invoke-WebRequest -Uri $url -OutFile $zipPath
+          Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+          $zstd = Get-ChildItem -Path $extractDir -Recurse -Filter zstd.exe | Select-Object -First 1
+          if ($null -eq $zstd) {
+            throw "zstd.exe not found in downloaded archive"
+          }
+          $zstd.Directory.FullName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install musl build tools
+        if: contains(matrix.target, 'unknown-linux-musl')
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash "${GITHUB_WORKSPACE}/.github/scripts/install-musl-build-tools.sh"
+
+      # rusty_v8 does not publish every target (notably aarch64 musl) at its
+      # default upstream URL. Use the same checksum-verified Codex artifacts as
+      # the full CI release builds so the public release matrix is reproducible.
+      - name: Configure rusty_v8 artifact overrides and verify checksums
+        if: runner.os != 'Windows'
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: ${{ matrix.target }}
+
+      - name: Build bwrap and export digest
+        if: contains(matrix.target, 'linux')
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          cargo build --locked --target "$target" --release --bin bwrap
+
+          bwrap_path="target/${target}/release/bwrap"
+          [[ -f "$bwrap_path" ]] || { echo "bwrap binary ${bwrap_path} not found"; exit 1; }
+
+          # The runtime embeds this digest at build time and verifies the
+          # bundled bwrap resource before use. Strip bwrap before hashing so
+          # the digest covers the exact bytes that the release packages.
+          strip --strip-debug --strip-unneeded "$bwrap_path"
+          digest="$(sha256sum "$bwrap_path" | awk '{print $1}')"
+          echo "CODEX_BWRAP_SHA256=${digest}" >> "$GITHUB_ENV"
+
+      - name: Build release binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          target="${{ matrix.target }}"
+          if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
+            export LIBSQLITE3_FLAGS=SQLITE_DISABLE_INTRINSIC
+          fi
+          build_args=(--bin codex --bin codex-code-mode-host)
+          if [[ "$target" == *windows* ]]; then
+            build_args+=(--bin codex-command-runner --bin codex-windows-sandbox-setup)
+          fi
+          cargo build --locked --target "$target" --release "${build_args[@]}" &
+          cargo_pid="$!"
+          while kill -0 "${cargo_pid}" 2>/dev/null; do
+            echo "cargo release build still running for ${target} at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+            sleep 60
+          done
+          wait "${cargo_pid}"
+
+      - name: Strip release binaries
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          for binary in \
+            "target/${{ matrix.target }}/release/codex" \
+            "target/${{ matrix.target }}/release/codex-code-mode-host"
+          do
+            if [[ "${{ runner.os }}" == "macOS" ]]; then
+              strip -S "$binary"
+            else
+              strip --strip-debug --strip-unneeded "$binary"
+            fi
+          done
+
+      - name: Build package archive
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bash "${GITHUB_WORKSPACE}/.github/scripts/build-codex-package-archive.sh" \
+            --target "$TARGET" \
+            --bundle open-interpreter \
+            --entrypoint-dir "target/${TARGET}/release" \
+            --archive-dir "dist/${TARGET}"
+
+      - uses: actions/upload-artifact@2848b2cda0e5190984587ec6bb1f36730ca78d50
+        with:
+          name: ${{ matrix.target }}
+          path: codex-rs/dist/${{ matrix.target }}/*
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - prepare
+      - build
+    if: ${{ needs.prepare.outputs.publish == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Stage installer scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Publish the real Open Interpreter installers directly. The website
+          # /install routes serve the same scripts, so there is no secondary
+          # installer asset name to keep in sync.
+          cp scripts/install/install.sh dist/install.sh
+          cp scripts/install/install.ps1 dist/install.ps1
+
+      - name: Create checksum manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd dist
+          # The installers download this exact filename to verify package
+          # archives, for both product asset stems.
+          sha256sum open-interpreter-package-*.tar.gz open-interpreter-package-*.tar.zst \
+            > codex-package_SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: Open Interpreter ${{ needs.prepare.outputs.version }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/open-interpreter-package-*.tar.gz
+            dist/open-interpreter-package-*.tar.zst
+            dist/codex-package_SHA256SUMS
+            dist/install.sh
+            dist/install.ps1

@@ -1,0 +1,88 @@
+name: public-ci
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-smoke:
+    name: Repository smoke
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+
+      - name: Validate workflow YAML
+        run: |
+          set -euo pipefail
+          ruby -e 'require "yaml"; Dir[".github/workflows/*.yml"].sort.each { |path| YAML.load_file(path); puts path }'
+
+      - name: Validate localized documentation parity
+        run: node scripts/check-doc-locales.mjs
+
+      - name: Validate installer scripts
+        run: |
+          set -euo pipefail
+          bash -n scripts/install/install.sh
+          bash -n scripts/install/install-open-interpreter.sh
+          shellcheck -s sh scripts/install/install.sh
+          shellcheck -s sh scripts/install/install-open-interpreter.sh
+          grep -q 'open-interpreter-package' scripts/install/install.sh
+          grep -q 'open-interpreter-package' scripts/install/install.ps1
+          grep -q 'openinterpreter/openinterpreter' scripts/install/install.sh
+          grep -q 'openinterpreter/openinterpreter' scripts/install/install.ps1
+
+      - name: Test packaging and installer scripts
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s scripts/codex_package -p 'test_*.py'
+          python3 -m unittest discover -s scripts/install -p 'test_*.py'
+
+      - name: Validate release workflow shape
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY'
+          require "yaml"
+
+          release = YAML.load_file(".github/workflows/rust-release.yml")
+          tags = release.fetch(true).fetch("push").fetch("tags")
+          raise "release workflow missing tag trigger" unless tags.any? { |tag| tag.include?("v*.*.*") }
+
+          text = File.read(".github/workflows/rust-release.yml")
+          raise "release workflow must build the open-interpreter bundle" unless text.include?("open-interpreter")
+          RUBY
+
+      - name: Confirm inherited heavyweight workflows are manual-only
+        run: |
+          set -euo pipefail
+          ruby <<'RUBY'
+          require "yaml"
+
+          manual_only = %w[
+            bazel.yml
+            blob-size-policy.yml
+            cargo-deny.yml
+            ci.yml
+            codespell.yml
+            python-sdk-release.yml
+            rust-ci.yml
+            rust-ci-full.yml
+            rusty-v8-release.yml
+            sdk.yml
+            v8-canary.yml
+          ]
+
+          manual_only.each do |file|
+            path = File.join(".github/workflows", file)
+            next unless File.exist?(path)
+            workflow = YAML.load_file(path)
+            triggers = workflow.fetch(true)
+            unexpected = triggers.keys - ["workflow_dispatch"]
+            raise "#{file} should stay manual-only, found #{unexpected.inspect}" unless unexpected.empty?
+          end
+          RUBY
