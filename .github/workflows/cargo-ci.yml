@@ -62,7 +62,7 @@ jobs:
       - name: Install nightly rustfmt
         run: rustup toolchain install nightly --profile minimal --component rustfmt
       - name: cargo fmt --check
-        run: cargo fmt --toolchain nightly --check
+        run: cargo +nightly fmt --check
       # Hard gate: build the whole workspace including all test code (catches
       # cargo-only breakage and test-compile errors). Uses the ci-test profile so
       # the test step below reuses these exact artifacts (target/ci-test) and only
