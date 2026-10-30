@@ -13,6 +13,9 @@
 </p>
 
 > [!NOTE]
+> **Fork notice:** This project is a fork of [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) v0.0.34.
+
+> [!NOTE]
 > **Today: Kimi K3 is here.** We have reimplemented the provider-recommended
 > [Kimi Code](https://www.kimi.com/coding/en) harness in Rust, giving you
 > maximum K3 performance with a Codex-like interface.
