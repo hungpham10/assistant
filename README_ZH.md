@@ -1,4 +1,4 @@
-<!-- README translation source: README.md sha256=d280292ff5ec7bb2770265f5b05542250bc3ef209976b9953aa1fe1f03fc13ce -->
+<!-- README translation source: README.md sha256=28c16566466d08dd117a6b4055911dbb9226c8aa0c968ce17a1336ae9b5ba21c -->
 
 <h1 align="center">Open Interpreter</h1>
 
@@ -20,6 +20,9 @@
 > 让你在熟悉的 Codex 风格界面中充分发挥 K3 的性能。
 > [**Kimi 文档 →**](https://www.openinterpreter.com/docs/terminal/kimi-k3?utm_source=github&utm_medium=referral&utm_campaign=readme&utm_content=kimi_k3_note)
 
+> [!NOTE]
+> **分支说明：** 本项目是 [Open Interpreter](https://github.com/OpenInterpreter/open-interpreter) v0.0.34 的 fork。
+
 <br>
 
 <p align="center">
@@ -33,13 +36,15 @@
 macOS 和 Linux：
 
 ```bash
-curl -fsSL https://www.openinterpreter.com/install | sh
+curl -fsSL https://github.com/hungpham10/assistant/releases/latest/download/install.sh \
+  | OPEN_INTERPRETER_GITHUB_REPO=hungpham10/assistant sh
 ```
 
 Windows：
 
 ```powershell
-irm https://www.openinterpreter.com/install.ps1 | iex
+$env:OPEN_INTERPRETER_GITHUB_REPO = "hungpham10/assistant"
+irm https://github.com/hungpham10/assistant/releases/latest/download/install.ps1 | iex
 ```
 
 安装完成后，在终端中输入 `i` 或 `interpreter` 即可开始会话。

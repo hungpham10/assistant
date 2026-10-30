@@ -34,13 +34,15 @@
 macOS and Linux:
 
 ```bash
-curl -fsSL https://www.openinterpreter.com/install | sh
+curl -fsSL https://github.com/hungpham10/assistant/releases/latest/download/install.sh \
+  | OPEN_INTERPRETER_GITHUB_REPO=hungpham10/assistant sh
 ```
 
 Windows:
 
 ```powershell
-irm https://www.openinterpreter.com/install.ps1 | iex
+$env:OPEN_INTERPRETER_GITHUB_REPO = "hungpham10/assistant"
+irm https://github.com/hungpham10/assistant/releases/latest/download/install.ps1 | iex
 ```
 
 Then type `i` or `interpreter` in your terminal to start a session.
