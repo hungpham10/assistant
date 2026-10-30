@@ -57,8 +57,12 @@ jobs:
           # Stable key so the cache survives job/workflow renames (the default
           # add-job-id-key bakes the job name into the key and busts on rename).
           shared-key: codex-rs
+      # nightly is required because rustfmt.toml enables imports_granularity,
+      # which is an unstable-only option (stable rustfmt warns and skips it).
+      - name: Install nightly rustfmt
+        run: rustup toolchain install nightly --profile minimal --component rustfmt
       - name: cargo fmt --check
-        run: cargo fmt -- --config imports_granularity=Item --check
+        run: cargo fmt --toolchain nightly --check
       # Hard gate: build the whole workspace including all test code (catches
       # cargo-only breakage and test-compile errors). Uses the ci-test profile so
       # the test step below reuses these exact artifacts (target/ci-test) and only
