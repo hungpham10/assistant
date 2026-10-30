@@ -41,7 +41,7 @@ def just_formatter_group(*, check: bool) -> FormatterGroup:
 
 
 def rust_formatter_group(*, check: bool) -> FormatterGroup:
-    args = ["cargo", "fmt", "--toolchain", "nightly", "--",
+    args = ["cargo", "+nightly", "fmt", "--",
             "--config", "imports_granularity=Item"]
     if check:
         args.append("--check")
