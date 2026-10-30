@@ -275,7 +275,7 @@ mcp_test_support = { path = "mcp-server/tests/common" }
 age = "0.11.1"
 allocative = "0.3.3"
 agent-client-protocol = { version = "=0.12.1", features = ["unstable"] }
-ansi-to-tui = "7.0.0"
+ansi-to-tui = "8.0.1"
 anyhow = "1"
 arboard = { version = "3", features = ["wayland-data-control"] }
 arc-swap = "1.9.0"
