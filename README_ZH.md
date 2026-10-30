@@ -1,4 +1,4 @@
-<!-- README translation source: README.md sha256=3e51f07f762d9c90dbb96887f859906cda9d3b242c5d98afecaadae2e5cbb73e -->
+<!-- README translation source: README.md sha256=d280292ff5ec7bb2770265f5b05542250bc3ef209976b9953aa1fe1f03fc13ce -->
 
 <h1 align="center">Open Interpreter</h1>
 
