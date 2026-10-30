@@ -294,7 +294,7 @@ fn proto_wire_api(wire_api: WireApi) -> proto::WireApi {
         WireApi::Responses => proto::WireApi::Responses,
         // The cloud thread-config protocol predates the local-only chat and
         // messages wire APIs and cannot express them.
-        WireApi::Chat | WireApi::Messages => proto::WireApi::Unspecified,
+        WireApi::Chat | WireApi::Messages | WireApi::Google => proto::WireApi::Unspecified,
     }
 }
 
