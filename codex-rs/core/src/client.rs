@@ -2943,7 +2943,7 @@ impl ModelClientSession {
                     function_declarations.push(GoogleFunctionDeclaration {
                         name: tool.name.clone(),
                         description: Some(tool.description.clone()),
-                        parameters: Some(tool.parameters.clone()),
+                        parameters: serde_json::to_value(&tool.parameters).ok(),
                     });
                 }
             }
