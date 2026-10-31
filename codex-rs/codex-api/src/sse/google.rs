@@ -52,7 +52,9 @@ pub async fn process_sse(
             Ok(None) => return,
             Err(_) => {
                 let _ = tx_event
-                    .send(Err(ApiError::Stream("idle timeout waiting for response".to_string())))
+                    .send(Err(ApiError::Stream(
+                        "idle timeout waiting for response".to_string(),
+                    )))
                     .await;
                 return;
             }
@@ -74,9 +76,11 @@ pub async fn process_sse(
                                             let item = ResponseItem::Message {
                                                 id: None,
                                                 role: "assistant".to_string(),
-                                                content: vec![ContentItem::Thought { text: text.clone() }]
-                                                    .into_iter()
-                                                    .collect(),
+                                                content: vec![ContentItem::Thought {
+                                                    text: text.clone(),
+                                                }]
+                                                .into_iter()
+                                                .collect(),
                                                 phase: None,
                                                 internal_chat_message_metadata_passthrough: None,
                                             };

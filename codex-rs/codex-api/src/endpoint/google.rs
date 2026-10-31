@@ -63,9 +63,8 @@ impl<T: HttpTransport> GoogleGenerateContentClient<T> {
         request: GoogleGenerateContentRequest,
         mut extra_headers: HeaderMap,
     ) -> Result<ResponseStream, ApiError> {
-        let body = serde_json::to_value(&request).map_err(|err| {
-            ApiError::Stream(format!("failed to encode google request: {err}"))
-        })?;
+        let body = serde_json::to_value(&request)
+            .map_err(|err| ApiError::Stream(format!("failed to encode google request: {err}")))?;
         let path = format!("v1beta/models/{model}:streamGenerateContent?alt=sse");
         extra_headers.insert(
             http::header::ACCEPT,
@@ -73,16 +72,10 @@ impl<T: HttpTransport> GoogleGenerateContentClient<T> {
         );
         let stream_response = self
             .session
-            .stream_with(
-                Method::POST,
-                &path,
-                extra_headers,
-                Some(body),
-                |req| {
-                    req.headers.remove("originator");
-                    req.compression = RequestCompression::None;
-                },
-            )
+            .stream_with(Method::POST, &path, extra_headers, Some(body), |req| {
+                req.headers.remove("originator");
+                req.compression = RequestCompression::None;
+            })
             .await?;
 
         Ok(spawn_google_response_stream(

@@ -26,7 +26,9 @@ pub struct GoogleContent {
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]
 pub enum GooglePart {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     FunctionCall {
         function_call: GoogleFunctionCall,
     },

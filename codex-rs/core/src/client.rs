@@ -33,13 +33,18 @@ use std::sync::atomic::Ordering;
 use codex_api::AgentIdentityTelemetry;
 use codex_api::AnthropicMessageRequest;
 use codex_api::AnthropicMessagesClient as ApiAnthropicMessagesClient;
-use codex_api::GoogleGenerateContentClient as ApiGoogleGenerateContentClient;
-use codex_api::{GoogleContent, GoogleFunctionCall, GoogleFunctionDeclaration, GoogleGenerateContentRequest, GooglePart, GoogleTool};
 use codex_api::ApiError;
 use codex_api::AuthProvider;
 use codex_api::CompactClient as ApiCompactClient;
 use codex_api::CompactionInput as ApiCompactionInput;
 use codex_api::Compression;
+use codex_api::GoogleContent;
+use codex_api::GoogleFunctionCall;
+use codex_api::GoogleFunctionDeclaration;
+use codex_api::GoogleGenerateContentClient as ApiGoogleGenerateContentClient;
+use codex_api::GoogleGenerateContentRequest;
+use codex_api::GooglePart;
+use codex_api::GoogleTool;
 use codex_api::MemoriesClient as ApiMemoriesClient;
 use codex_api::MemorySummarizeInput as ApiMemorySummarizeInput;
 use codex_api::MemorySummarizeOutput as ApiMemorySummarizeOutput;
@@ -2857,7 +2862,6 @@ impl ModelClientSession {
         }
     }
 
-
     async fn stream_google_generate_content_api(
         &self,
         prompt: &Prompt,
@@ -2875,7 +2879,11 @@ impl ModelClientSession {
             let provider_info = self.client.state.provider.info();
             let api_key = provider_info.api_key().and_then(|api_key| {
                 api_key
-                    .or_else(|| auth.as_ref().and_then(CodexAuth::api_key).map(str::to_string))
+                    .or_else(|| {
+                        auth.as_ref()
+                            .and_then(CodexAuth::api_key)
+                            .map(str::to_string)
+                    })
                     .or(provider_info.experimental_bearer_token.clone())
                     .ok_or_else(|| {
                         CodexErr::InvalidRequest(
@@ -2920,7 +2928,10 @@ impl ModelClientSession {
                             parts,
                         });
                     }
-                } else if let ResponseItem::FunctionCall { name, arguments, .. } = item {
+                } else if let ResponseItem::FunctionCall {
+                    name, arguments, ..
+                } = item
+                {
                     // Function calls in history
                 }
             }
