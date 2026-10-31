@@ -15,7 +15,9 @@ workspace = true
 [dependencies]
 codex-api = { workspace = true }
 codex-agent-identity = { workspace = true }
-codex-aws-auth = { workspace = true }
+# AWS SDK auth (SigV4 via aws-config) is disabled by default to keep builds
+# lean; Bedrock bearer-token auth still works without it.
+codex-aws-auth = { workspace = true, optional = true }
 codex-http-client = { workspace = true }
 codex-feedback = { workspace = true }
 codex-login = { workspace = true }
@@ -27,6 +29,10 @@ codex-response-debug-context = { workspace = true }
 http = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
 tracing = { workspace = true, features = ["log"] }
+
+[features]
+# Optional AWS SDK-backed SigV4 auth for Amazon Bedrock (heavy dep tree).
+aws-sdk-auth = ["dep:codex-aws-auth"]
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

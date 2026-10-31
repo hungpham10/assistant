@@ -22,8 +22,7 @@ eventsource-stream = { workspace = true }
 gethostname = { workspace = true }
 opentelemetry = { workspace = true, features = ["logs", "metrics", "trace"] }
 opentelemetry-appender-tracing = { workspace = true }
-opentelemetry-otlp = { workspace = true, features = [
-    "grpc-tonic",
+opentelemetry-otlp = { workspace = true, default-features = false, features = [
     "http-proto",
     "http-json",
     "logs",
@@ -31,8 +30,6 @@ opentelemetry-otlp = { workspace = true, features = [
     "trace",
     "reqwest-blocking-client",
     "reqwest-rustls",
-    "tls",
-    "tls-roots",
 ]}
 opentelemetry-semantic-conventions = { workspace = true }
 opentelemetry_sdk = { workspace = true, features = [
@@ -56,6 +53,16 @@ tokio-tungstenite = { workspace = true }
 tracing = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[features]
+# Optional OTLP-over-gRPC exporter; pulls in the heavy tonic/prost tree.
+# The default OTLP HTTP exporters cover config.toml use without it.
+default = []
+grpc-exporter = [
+    "opentelemetry-otlp/grpc-tonic",
+    "opentelemetry-otlp/tls",
+    "opentelemetry-otlp/tls-roots",
+]
 
 [dev-dependencies]
 opentelemetry_sdk = { workspace = true, features = [

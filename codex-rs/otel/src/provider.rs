@@ -20,8 +20,11 @@ use opentelemetry_otlp::Protocol;
 use opentelemetry_otlp::SpanExporter;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::WithTonicConfig;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::metadata::MetadataMap;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::transport::ClientTlsConfig;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::error::OTelSdkResult;
@@ -300,6 +303,7 @@ fn build_logger(
     match crate::config::resolve_exporter(exporter) {
         OtelExporter::None => return Ok(builder.build()),
         OtelExporter::Statsig => unreachable!("statsig exporter should be resolved"),
+        #[cfg(feature = "grpc-exporter")]
         OtelExporter::OtlpGrpc {
             endpoint,
             headers,
@@ -326,6 +330,13 @@ fn build_logger(
                 .build()?;
 
             builder = builder.with_batch_exporter(exporter);
+        }
+        #[cfg(not(feature = "grpc-exporter"))]
+        OtelExporter::OtlpGrpc { endpoint, .. } => {
+            return Err(format!(
+                "OTLP gRPC exporter requested for {endpoint} but this build excludes the `grpc-exporter` feature; use an OTLP HTTP exporter instead"
+            )
+            .into());
         }
         OtelExporter::OtlpHttp {
             endpoint,
@@ -368,6 +379,7 @@ fn build_tracer_provider(
     let span_exporter = match crate::config::resolve_exporter(exporter) {
         OtelExporter::None => return Ok(tracer_provider_builder(resource, span_attributes).build()),
         OtelExporter::Statsig => unreachable!("statsig exporter should be resolved"),
+        #[cfg(feature = "grpc-exporter")]
         OtelExporter::OtlpGrpc {
             endpoint,
             headers,
@@ -392,6 +404,14 @@ fn build_tracer_provider(
                 .with_metadata(MetadataMap::from_headers(header_map))
                 .with_tls_config(tls_config)
                 .build()?
+        }
+        #[cfg(not(feature = "grpc-exporter"))]
+        OtelExporter::OtlpGrpc { endpoint, .. } => {
+            return Err(format!(
+                "OTLP gRPC exporter requested for {endpoint} but this build excludes \
+the `grpc-exporter` feature; use an OTLP HTTP exporter instead"
+            )
+            .into());
         }
         OtelExporter::OtlpHttp {
             endpoint,

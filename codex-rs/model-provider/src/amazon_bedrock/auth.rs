@@ -1,13 +1,21 @@
 use std::sync::Arc;
 
+#[cfg(feature = "aws-sdk-auth")]
 use codex_api::AuthError;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_api::AuthProvider;
 use codex_api::SharedAuthProvider;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_aws_auth::AwsAuthContext;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_aws_auth::AwsAuthError;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_aws_auth::AwsRequestToSign;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_http_client::Request;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_http_client::RequestBody;
+#[cfg(feature = "aws-sdk-auth")]
 use codex_http_client::RequestCompression;
 use codex_login::auth::BedrockApiKeyAuth;
 use codex_model_provider_info::ModelProviderAwsAuthInfo;
@@ -17,6 +25,7 @@ use http::HeaderMap;
 
 use crate::BearerAuthProvider;
 
+#[cfg(feature = "aws-sdk-auth")]
 use super::mantle::aws_auth_config;
 use super::mantle::region_from_config;
 
@@ -25,9 +34,18 @@ const AWS_REGION_ENV_VAR: &str = "AWS_REGION";
 const AWS_DEFAULT_REGION_ENV_VAR: &str = "AWS_DEFAULT_REGION";
 
 pub(super) enum BedrockAuthMethod {
-    ManagedBearerToken { token: String, region: String },
-    EnvBearerToken { token: String, region: String },
-    AwsSdkAuth { context: AwsAuthContext },
+    ManagedBearerToken {
+        token: String,
+        region: String,
+    },
+    EnvBearerToken {
+        token: String,
+        region: String,
+    },
+    #[cfg(feature = "aws-sdk-auth")]
+    AwsSdkAuth {
+        context: AwsAuthContext,
+    },
 }
 
 pub(super) async fn resolve_auth_method(
@@ -46,11 +64,22 @@ pub(super) async fn resolve_auth_method(
         return Ok(BedrockAuthMethod::EnvBearerToken { token, region });
     }
 
-    let config = aws_auth_config(aws);
-    let context = AwsAuthContext::load(config)
-        .await
-        .map_err(aws_auth_error_to_codex_error)?;
-    Ok(BedrockAuthMethod::AwsSdkAuth { context })
+    #[cfg(feature = "aws-sdk-auth")]
+    {
+        let config = aws_auth_config(aws);
+        let context = AwsAuthContext::load(config)
+            .await
+            .map_err(aws_auth_error_to_codex_error)?;
+        Ok(BedrockAuthMethod::AwsSdkAuth { context })
+    }
+    #[cfg(not(feature = "aws-sdk-auth"))]
+    {
+        Err(CodexErr::Fatal(
+            "Amazon Bedrock AWS SDK (SigV4) auth is disabled in this build; \
+set `AWS_BEARER_TOKEN_BEDROCK` or rebuild with `--features codex-model-provider/aws-sdk-auth`"
+                .to_string(),
+        ))
+    }
 }
 
 pub(super) async fn resolve_provider_auth(
@@ -66,6 +95,7 @@ pub(super) async fn resolve_provider_auth(
             token_header_name: None,
             use_bearer_prefix: true,
         })),
+        #[cfg(feature = "aws-sdk-auth")]
         BedrockAuthMethod::AwsSdkAuth { context } => {
             Ok(Arc::new(BedrockMantleSigV4AuthProvider::new(context)))
         }
@@ -98,10 +128,12 @@ fn bearer_token_region(
         })
 }
 
+#[cfg(feature = "aws-sdk-auth")]
 fn aws_auth_error_to_codex_error(error: AwsAuthError) -> CodexErr {
     CodexErr::Fatal(format!("failed to resolve Amazon Bedrock auth: {error}"))
 }
 
+#[cfg(feature = "aws-sdk-auth")]
 fn aws_auth_error_to_auth_error(error: AwsAuthError) -> AuthError {
     if error.is_retryable() {
         AuthError::Transient(error.to_string())
@@ -110,6 +142,7 @@ fn aws_auth_error_to_auth_error(error: AwsAuthError) -> AuthError {
     }
 }
 
+#[cfg(feature = "aws-sdk-auth")]
 fn remove_headers_not_preserved_by_bedrock_mantle(headers: &mut HeaderMap) {
     // The Bedrock Mantle front door does not preserve legacy OpenAI
     // compatibility headers that use snake_case, such as `session_id` and
@@ -126,11 +159,13 @@ fn remove_headers_not_preserved_by_bedrock_mantle(headers: &mut HeaderMap) {
 }
 
 /// AWS SigV4 auth provider for Bedrock Mantle OpenAI-compatible requests.
+#[cfg(feature = "aws-sdk-auth")]
 #[derive(Debug)]
 struct BedrockMantleSigV4AuthProvider {
     context: AwsAuthContext,
 }
 
+#[cfg(feature = "aws-sdk-auth")]
 impl BedrockMantleSigV4AuthProvider {
     fn new(context: AwsAuthContext) -> Self {
         Self { context }
@@ -159,6 +194,7 @@ impl BedrockMantleSigV4AuthProvider {
     }
 }
 
+#[cfg(feature = "aws-sdk-auth")]
 impl AuthProvider for BedrockMantleSigV4AuthProvider {
     fn add_auth_headers(&self, _headers: &mut HeaderMap) {}
 
@@ -265,6 +301,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "aws-sdk-auth")]
     #[test]
     fn bedrock_mantle_sigv4_strips_headers_not_preserved_by_mantle() {
         let mut headers = HeaderMap::new();

@@ -7,6 +7,7 @@ use std::io::{self};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+#[cfg(feature = "sentry")]
 use std::time::Duration;
 
 use anyhow::Result;
@@ -42,6 +43,7 @@ const MIN_ATTACHMENT_BYTES: usize = 4 * 1024; // Skip fragments below this.
 // from the workstation app and other surfaces, so events from this binary are
 // distinguished by the `app` tag, the `release` prefix below, and the
 // `[interpreter-cli]` prefix in the event title.
+#[cfg(feature = "sentry")]
 const SENTRY_DSN: &str = "https://08dfb810b5cbe0897400cd839f715727@o4506046614667264.ingest.us.sentry.io/4510858434969600";
 const SENTRY_APP_TAG: &str = "interpreter-cli";
 const UPLOAD_TIMEOUT_SECS: u64 = 10;
@@ -425,6 +427,7 @@ impl FeedbackSnapshot {
     }
 
     /// Upload feedback to Sentry with optional attachments.
+    #[cfg(feature = "sentry")]
     pub fn upload_feedback(&self, options: FeedbackUploadOptions<'_>) -> Result<()> {
         use std::str::FromStr;
         use std::sync::Arc;
@@ -508,6 +511,16 @@ impl FeedbackSnapshot {
         Ok(())
     }
 
+    /// Stub used when the `sentry` cargo feature is disabled: feedback cannot
+    /// be uploaded but callers keep a working API surface.
+    #[cfg(not(feature = "sentry"))]
+    pub fn upload_feedback(&self, _options: FeedbackUploadOptions<'_>) -> Result<()> {
+        Err(anyhow!(
+            "feedback upload is disabled in this build (rebuild with \
+`--features codex-feedback/sentry` to enable Sentry upload)"
+        ))
+    }
+
     fn upload_tags(
         &self,
         classification: &str,
@@ -559,6 +572,7 @@ impl FeedbackSnapshot {
         tags
     }
 
+    #[cfg(feature = "sentry")]
     fn feedback_attachments(
         &self,
         include_logs: bool,
@@ -636,6 +650,7 @@ impl FeedbackSnapshot {
 
 /// Append a feedback attachment while staying within Sentry's per-event upload
 /// budget. Oversized buffers keep their tail, where the newest log lines live.
+#[cfg(feature = "sentry")]
 fn push_capped(
     attachments: &mut Vec<sentry::protocol::Attachment>,
     remaining: &mut usize,
@@ -659,6 +674,7 @@ fn push_capped(
     });
 }
 
+#[cfg(feature = "sentry")]
 fn cap_attachment_buffer(buffer: Vec<u8>, max: usize) -> Vec<u8> {
     if buffer.len() <= max {
         return buffer;
@@ -793,6 +809,7 @@ mod tests {
         pretty_assertions::assert_eq!(snap.tags.get("cached").map(String::as_str), Some("true"));
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn feedback_attachments_gate_connectivity_diagnostics() {
         let extra_filename = format!("codex-feedback-extra-{}.jsonl", ThreadId::new());
@@ -868,6 +885,7 @@ mod tests {
         fs::remove_file(extra_path).expect("extra attachment should be removed");
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn cap_attachment_buffer_keeps_tail_with_marker() {
         let data: Vec<u8> = (0..2048u16).map(|n| n as u8).collect();
@@ -881,6 +899,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn feedback_attachments_cap_oversized_logs() {
         let big = vec![b'x'; MAX_ATTACHMENT_BYTES + 4096];

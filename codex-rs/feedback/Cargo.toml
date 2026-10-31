@@ -11,9 +11,15 @@ workspace = true
 anyhow = { workspace = true }
 codex-login = { workspace = true }
 codex-protocol = { workspace = true }
-sentry = { version = "0.46" }
+# Sentry crash/feedback upload is disabled by default in this fork to keep
+# builds lean; re-enable with `--features codex-feedback/sentry`.
+sentry = { version = "0.46", optional = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+
+[features]
+default = []
+sentry = ["dep:sentry"]
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
