@@ -1258,7 +1258,7 @@ fn harness_choice(harness: &str, is_recommended: bool) -> HarnessChoice {
 fn native_harness_label(product: Product) -> &'static str {
     match product {
         Product::Codex => "Codex",
-        Product::OpenInterpreter => "Open Interpreter",
+        Product::OpenInterpreter | Product::Assistant => "Open Interpreter",
     }
 }
 

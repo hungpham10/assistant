@@ -413,7 +413,7 @@ fn issue_url_for_category_and_product(
             FeedbackAudience::External => {
                 let issue_url = match product {
                     codex_product_info::Product::Codex => CODEX_CLI_BUG_ISSUE_URL,
-                    codex_product_info::Product::OpenInterpreter => {
+                    codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
                         OPEN_INTERPRETER_CLI_BUG_ISSUE_URL
                     }
                 };

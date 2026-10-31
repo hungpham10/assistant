@@ -984,7 +984,7 @@ impl StepStateProvider for AuthModeWidget {
 fn chatgpt_sign_in_intro(product: Product) -> &'static str {
     match product {
         Product::Codex => "Sign in with ChatGPT to use Codex as part of your paid plan",
-        Product::OpenInterpreter => {
+        Product::OpenInterpreter | Product::Assistant => {
             "Sign in with ChatGPT to use Open Interpreter as part of your paid plan"
         }
     }
@@ -1011,7 +1011,7 @@ fn chatgpt_success_mistakes_copy(product: Product) -> String {
 fn chatgpt_success_docs_link(product: Product) -> (&'static str, &'static str) {
     match product {
         Product::Codex => ("https://developers.openai.com/codex/security", "Codex docs"),
-        Product::OpenInterpreter => ("https://docs.openinterpreter.com", "Open Interpreter docs"),
+        Product::OpenInterpreter | Product::Assistant => ("https://docs.openinterpreter.com", "Open Interpreter docs"),
     }
 }
 
