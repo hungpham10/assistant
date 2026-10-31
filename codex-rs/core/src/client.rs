@@ -444,7 +444,7 @@ pub(crate) struct RealtimeWebrtcCallStart {
 /// transceiver is responsible for accepting that same call-create identity on the direct
 /// `api.openai.com` sideband path.
 fn sideband_websocket_auth_headers(api_auth: &dyn AuthProvider) -> ApiHeaderMap {
-    let mut headers = ApiHeaderMap::new();
+    let mut headers = ApiApiHeaderMap::new();
     api_auth.add_auth_headers(&mut headers);
     headers
 }
@@ -648,7 +648,7 @@ impl ModelClient {
             text,
         };
 
-        let mut extra_headers = ApiHeaderMap::new();
+        let mut extra_headers = ApiApiHeaderMap::new();
         if let Ok(header_value) = HeaderValue::from_str(&responses_metadata.installation_id) {
             extra_headers.insert(X_CODEX_INSTALLATION_ID_HEADER, header_value);
         }
@@ -770,7 +770,7 @@ impl ModelClient {
     }
 
     fn build_subagent_headers(&self) -> ApiHeaderMap {
-        let mut extra_headers = ApiHeaderMap::new();
+        let mut extra_headers = ApiApiHeaderMap::new();
         add_originator_header(&mut extra_headers, self.state.originator.as_str());
         if let Some(subagent) = subagent_header_value(&self.state.session_source)
             && let Ok(val) = HeaderValue::from_str(&subagent)
@@ -1832,7 +1832,7 @@ impl ModelClientSession {
             session_id: Some(thread_id.clone()),
             thread_id: Some(thread_id),
             session_source: Some(self.client.state.session_source.clone()),
-            extra_headers: ApiHeaderMap::new(),
+            extra_headers: ApiApiHeaderMap::new(),
             compression: Compression::None,
             turn_state: None,
         }
@@ -2985,7 +2985,7 @@ impl ModelClientSession {
             )
             .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             match client
-                .stream_request(&model_info.slug, request, HeaderMap::new())
+                .stream_request(&model_info.slug, request, ApiHeaderMap::new())
                 .await
             {
                 Ok(stream) => {
@@ -3043,7 +3043,7 @@ fn claude_code_profile_for_route(profile: ClaudeCodeProfileRoute) -> ClaudeCodeP
 }
 
 fn claude_code_headers(beta_header: &'static str) -> ApiHeaderMap {
-    let mut extra_headers = ApiHeaderMap::new();
+    let mut extra_headers = ApiApiHeaderMap::new();
     extra_headers.insert(
         "anthropic-version",
         HeaderValue::from_static(ANTHROPIC_API_VERSION),
@@ -3076,7 +3076,7 @@ fn claude_code_headers(beta_header: &'static str) -> ApiHeaderMap {
 }
 
 fn zcode_headers() -> ApiHeaderMap {
-    let mut extra_headers = ApiHeaderMap::new();
+    let mut extra_headers = ApiApiHeaderMap::new();
     extra_headers.insert(
         "anthropic-version",
         HeaderValue::from_static(ANTHROPIC_API_VERSION),
@@ -3118,7 +3118,7 @@ fn build_responses_headers(
     beta_features_header: Option<&str>,
     turn_state: Option<&Arc<OnceLock<String>>>,
 ) -> ApiHeaderMap {
-    let mut headers = ApiHeaderMap::new();
+    let mut headers = ApiApiHeaderMap::new();
     if let Some(value) = beta_features_header
         && !value.is_empty()
         && let Ok(header_value) = HeaderValue::from_str(value)
