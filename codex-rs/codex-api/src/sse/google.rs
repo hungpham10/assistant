@@ -15,7 +15,6 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::timeout;
 use tracing::debug;
-use tracing::trace;
 
 pub fn spawn_google_response_stream(
     stream_response: StreamResponse,
@@ -42,6 +41,8 @@ pub async fn process_sse(
     _telemetry: Option<Arc<dyn SseTelemetry>>,
 ) {
     let mut stream = stream.eventsource();
+    let mut response_id = String::new();
+    let mut last_usage: Option<TokenUsage> = None;
     loop {
         let event = match timeout(idle_timeout, stream.next()).await {
             Ok(Some(Ok(event))) => event,
@@ -49,7 +50,16 @@ pub async fn process_sse(
                 let _ = tx_event.send(Err(ApiError::Stream(e.to_string()))).await;
                 return;
             }
-            Ok(None) => return,
+            Ok(None) => {
+                let _ = tx_event
+                    .send(Ok(ResponseEvent::Completed {
+                        response_id,
+                        token_usage: last_usage,
+                        end_turn: Some(true),
+                    }))
+                    .await;
+                return;
+            }
             Err(_) => {
                 let _ = tx_event
                     .send(Err(ApiError::Stream(
@@ -76,15 +86,12 @@ pub async fn process_sse(
                                             let item = ResponseItem::Message {
                                                 id: None,
                                                 role: "assistant".to_string(),
-                                                content: vec![ContentItem::Thought {
+                                                content: vec![ContentItem::OutputText {
                                                     text: text.clone(),
-                                                }]
-                                                .into_iter()
-                                                .collect(),
+                                                }],
                                                 phase: None,
                                                 internal_chat_message_metadata_passthrough: None,
                                             };
-                                            // Try to emit as thought/message - keep it simple
                                             let _ = tx_event
                                                 .send(Ok(ResponseEvent::OutputItemDone(item)))
                                                 .await;
@@ -96,11 +103,14 @@ pub async fn process_sse(
                                                 ResponseItem::FunctionCall {
                                                     id: None,
                                                     name: function_call.name,
+                                                    namespace: None,
                                                     arguments: function_call
                                                         .args
                                                         .unwrap_or(serde_json::json!({}))
                                                         .to_string(),
                                                     call_id: String::new(),
+                                                    internal_chat_message_metadata_passthrough:
+                                                        None,
                                                 },
                                             )))
                                             .await;
@@ -121,15 +131,13 @@ pub async fn process_sse(
                             .get("candidatesTokenCount")
                             .and_then(|v| v.as_i64())
                             .unwrap_or(0);
-                        let _ = tx_event
-                            .send(Ok(ResponseEvent::TokenCount(TokenUsage {
-                                input_tokens: prompt_tokens,
-                                cached_input_tokens: 0,
-                                output_tokens: completion_tokens,
-                                reasoning_output_tokens: 0,
-                                total_tokens: prompt_tokens + completion_tokens,
-                            })))
-                            .await;
+                        last_usage = Some(TokenUsage {
+                            input_tokens: prompt_tokens,
+                            cached_input_tokens: 0,
+                            output_tokens: completion_tokens,
+                            reasoning_output_tokens: 0,
+                            total_tokens: prompt_tokens + completion_tokens,
+                        });
                     }
                 }
             }
