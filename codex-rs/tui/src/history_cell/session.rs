@@ -484,8 +484,8 @@ impl SessionHeaderHistoryCell {
 
 fn should_show_version(product: codex_product_info::Product, version: &str) -> bool {
     match product {
-        codex_product_info::Product::Codex | codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
-            !version.trim().is_empty()
-        }
+        codex_product_info::Product::Codex
+        | codex_product_info::Product::OpenInterpreter
+        | codex_product_info::Product::Assistant => !version.trim().is_empty(),
     }
 }

@@ -1910,7 +1910,8 @@ impl App {
                         }
                         let native_harness_label = match codex_product_info::Product::current() {
                             codex_product_info::Product::Codex => "Codex",
-                            codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => "Open Interpreter",
+                            codex_product_info::Product::OpenInterpreter
+                            | codex_product_info::Product::Assistant => "Open Interpreter",
                         };
                         let harness_label = harness.as_deref().unwrap_or(native_harness_label);
                         message.push_str(&format!(" with {harness_label} harness"));

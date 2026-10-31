@@ -1011,7 +1011,9 @@ fn chatgpt_success_mistakes_copy(product: Product) -> String {
 fn chatgpt_success_docs_link(product: Product) -> (&'static str, &'static str) {
     match product {
         Product::Codex => ("https://developers.openai.com/codex/security", "Codex docs"),
-        Product::OpenInterpreter | Product::Assistant => ("https://docs.openinterpreter.com", "Open Interpreter docs"),
+        Product::OpenInterpreter | Product::Assistant => {
+            ("https://docs.openinterpreter.com", "Open Interpreter docs")
+        }
     }
 }
 
