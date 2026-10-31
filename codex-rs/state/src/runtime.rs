@@ -69,6 +69,7 @@ mod remote_control;
 #[cfg(test)]
 mod test_support;
 mod threads;
+mod turn_usage;
 
 pub use external_agent_config_imports::ExternalAgentConfigImportDetailsRecord;
 pub use external_agent_config_imports::ExternalAgentConfigImportFailureRecord;
@@ -87,6 +88,9 @@ pub use recovery::sqlite_error_detail_is_corruption;
 pub use recovery::sqlite_error_detail_is_lock;
 pub use remote_control::RemoteControlEnrollmentRecord;
 pub use threads::ThreadFilterOptions;
+pub use turn_usage::TurnUsageByModel;
+pub use turn_usage::TurnUsageRecord;
+pub use turn_usage::TurnUsageSummary;
 
 // "Partition" is the retained-log-content bucket we cap at 10 MiB:
 // - one bucket per non-null thread_id
