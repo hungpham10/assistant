@@ -21,6 +21,7 @@ use codex_login::auth::BedrockApiKeyAuth;
 use codex_model_provider_info::ModelProviderAwsAuthInfo;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result;
+#[cfg(feature = "aws-sdk-auth")]
 use http::HeaderMap;
 
 use crate::BearerAuthProvider;

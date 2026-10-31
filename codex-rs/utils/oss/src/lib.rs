@@ -6,7 +6,9 @@
 //! downstream callers (TUI, exec) need no changes.
 
 use codex_core::config::Config;
+#[cfg(feature = "oss-providers")]
 use codex_model_provider_info::LMSTUDIO_OSS_PROVIDER_ID;
+#[cfg(feature = "oss-providers")]
 use codex_model_provider_info::OLLAMA_OSS_PROVIDER_ID;
 
 /// Returns the default model for a given OSS provider.
@@ -23,7 +25,7 @@ pub fn get_default_model_for_oss_provider(provider_id: &str) -> Option<&'static 
 /// Ensures the specified OSS provider is ready (models downloaded, service reachable).
 pub async fn ensure_oss_provider_ready(
     provider_id: &str,
-    config: &Config,
+    #[cfg_attr(not(feature = "oss-providers"), allow(unused_variables))] config: &Config,
 ) -> Result<(), std::io::Error> {
     match provider_id {
         #[cfg(feature = "oss-providers")]

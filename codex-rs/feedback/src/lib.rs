@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
+#[cfg(feature = "sentry")]
 use std::collections::btree_map::Entry;
 use std::fs;
 use std::io::Write;
@@ -36,8 +37,11 @@ const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
 // The Sentry Rust SDK posts the envelope uncompressed. Sentry rejects raw
 // request bodies over 40 MiB with 413 and drops the whole upload, so keep both
 // individual files and the combined attachment payload under that limit.
+#[cfg(feature = "sentry")]
 const MAX_ATTACHMENT_BYTES: usize = 28 * 1024 * 1024; // 28 MiB per file.
+#[cfg(feature = "sentry")]
 const MAX_TOTAL_ATTACHMENT_BYTES: usize = 32 * 1024 * 1024; // 32 MiB combined.
+#[cfg(feature = "sentry")]
 const MIN_ATTACHMENT_BYTES: usize = 4 * 1024; // Skip fragments below this.
 // Open Interpreter Sentry org. The same Sentry project also receives events
 // from the workstation app and other surfaces, so events from this binary are
@@ -45,7 +49,9 @@ const MIN_ATTACHMENT_BYTES: usize = 4 * 1024; // Skip fragments below this.
 // `[interpreter-cli]` prefix in the event title.
 #[cfg(feature = "sentry")]
 const SENTRY_DSN: &str = "https://08dfb810b5cbe0897400cd839f715727@o4506046614667264.ingest.us.sentry.io/4510858434969600";
+#[cfg(feature = "sentry")]
 const SENTRY_APP_TAG: &str = "interpreter-cli";
+#[cfg(feature = "sentry")]
 const UPLOAD_TIMEOUT_SECS: u64 = 10;
 const FEEDBACK_TAGS_TARGET: &str = "feedback_tags";
 const MAX_FEEDBACK_TAGS: usize = 64;
@@ -349,6 +355,7 @@ impl RingBuffer {
 
 pub struct FeedbackSnapshot {
     bytes: Vec<u8>,
+    #[cfg_attr(not(feature = "sentry"), allow(dead_code))]
     tags: BTreeMap<String, String>,
     feedback_diagnostics: FeedbackDiagnostics,
     pub thread_id: String,
@@ -521,6 +528,7 @@ impl FeedbackSnapshot {
         ))
     }
 
+    #[cfg(feature = "sentry")]
     fn upload_tags(
         &self,
         classification: &str,
@@ -691,6 +699,7 @@ fn cap_attachment_buffer(buffer: Vec<u8>, max: usize) -> Vec<u8> {
     out
 }
 
+#[cfg(feature = "sentry")]
 fn display_classification(classification: &str) -> String {
     match classification {
         "bug" => "Bug".to_string(),
