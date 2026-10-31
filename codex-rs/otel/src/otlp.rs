@@ -1,15 +1,22 @@
 use crate::config::OtelTlsConfig;
 use codex_utils_absolute_path::AbsolutePathBuf;
+#[cfg(feature = "grpc-exporter")]
 use http::Uri;
 use opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT;
 use opentelemetry_otlp::OTEL_EXPORTER_OTLP_TIMEOUT_DEFAULT;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::transport::Certificate as TonicCertificate;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::transport::ClientTlsConfig;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::transport::Identity as TonicIdentity;
 use reqwest::Certificate as ReqwestCertificate;
 use reqwest::Identity as ReqwestIdentity;
+#[cfg(feature = "grpc-exporter")]
 use reqwest::header::HeaderMap;
+#[cfg(feature = "grpc-exporter")]
 use reqwest::header::HeaderName;
+#[cfg(feature = "grpc-exporter")]
 use reqwest::header::HeaderValue;
 use std::env;
 use std::error::Error;
@@ -19,6 +26,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::time::Duration;
 
+#[cfg(feature = "grpc-exporter")]
 pub(crate) fn build_header_map(headers: &std::collections::HashMap<String, String>) -> HeaderMap {
     let mut header_map = HeaderMap::new();
     for (key, value) in headers {
@@ -31,6 +39,7 @@ pub(crate) fn build_header_map(headers: &std::collections::HashMap<String, Strin
     header_map
 }
 
+#[cfg(feature = "grpc-exporter")]
 pub(crate) fn build_grpc_tls_config(
     endpoint: &str,
     tls_config: ClientTlsConfig,

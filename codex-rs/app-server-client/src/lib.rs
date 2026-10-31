@@ -48,6 +48,7 @@ use codex_arg0::Arg0DispatchPaths;
 use codex_config::CloudConfigBundleLoader;
 use codex_config::LoaderOverrides;
 use codex_config::NoopThreadConfigLoader;
+#[cfg(feature = "remote-thread-config")]
 use codex_config::RemoteThreadConfigLoader;
 use codex_config::ThreadConfigLoader;
 use codex_config::config_toml::ConfigToml;
@@ -357,7 +358,16 @@ pub struct InProcessClientStartArgs {
 
 fn configured_thread_config_loader(config: &Config) -> Arc<dyn ThreadConfigLoader> {
     match config.experimental_thread_config_endpoint.as_deref() {
+        #[cfg(feature = "remote-thread-config")]
         Some(endpoint) => Arc::new(RemoteThreadConfigLoader::new(endpoint)),
+        #[cfg(not(feature = "remote-thread-config"))]
+        Some(_) => {
+            tracing::warn!(
+                "experimental_thread_config_endpoint is set but this build excludes the \
+`remote-thread-config` feature; using the no-op loader"
+            );
+            Arc::new(NoopThreadConfigLoader)
+        }
         None => Arc::new(NoopThreadConfigLoader),
     }
 }

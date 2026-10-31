@@ -154,6 +154,7 @@ pub use state::ConfigLoadOptions;
 pub use state::LoaderOverrides;
 pub use strict_config::config_error_from_ignored_toml_fields;
 pub use thread_config::NoopThreadConfigLoader;
+#[cfg(feature = "remote-thread-config")]
 pub use thread_config::RemoteThreadConfigLoader;
 pub use thread_config::SessionThreadConfig;
 pub use thread_config::StaticThreadConfigLoader;

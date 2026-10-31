@@ -7,11 +7,17 @@ license.workspace = true
 [lints]
 workspace = true
 
+# Local OSS providers (LM Studio / Ollama) are disabled by default to keep
+# builds lean. Re-enable with `--features oss-providers`.
+[features]
+default = []
+oss-providers = ["dep:codex-lmstudio", "dep:codex-ollama"]
+
 [dependencies]
 codex-core = { workspace = true }
-codex-lmstudio = { workspace = true }
+codex-lmstudio = { workspace = true, optional = true }
 codex-model-provider-info = { workspace = true }
-codex-ollama = { workspace = true }
+codex-ollama = { workspace = true, optional = true }
 
 [lib]
 doctest = false

@@ -7,21 +7,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     git \
+    tar \
     && rm -rf /var/lib/apt/lists/*
 
-# Download binary from release or copy local
-COPY codex-${TARGETARCH}* /usr/local/bin/codex 2>/dev/null || true
-COPY codex /usr/local/bin/codex 2>/dev/null || true
-
-RUN if [ ! -f /usr/local/bin/codex ]; then \
-      ARCH=${TARGETARCH}; \
-      if [ "$ARCH" = "amd64" ]; then ARCH=x86_64; fi; \
-      if [ "$ARCH" = "arm64" ]; then ARCH=aarch64; fi; \
-      curl -L -o /usr/local/bin/codex "https://github.com/hungpham10/assistant/releases/download/rust-v${VERSION}/codex-${ARCH}-unknown-linux-musl" && \
-      chmod +x /usr/local/bin/codex; \
-    else \
-      chmod +x /usr/local/bin/codex; \
-    fi
-
 WORKDIR /workspace
+
+RUN set -e && \
+    ARCH=${TARGETARCH} && \
+    if [ "$ARCH" = "amd64" ]; then TARGET="x86_64-unknown-linux-musl"; fi && \
+    if [ "$ARCH" = "arm64" ]; then TARGET="aarch64-unknown-linux-musl"; fi && \
+    curl -L -o /tmp/codex.tar.gz "https://github.com/hungpham10/assistant/releases/download/rust-v${VERSION}/open-interpreter-package-${TARGET}.tar.gz" && \
+    tar -xzf /tmp/codex.tar.gz -C /tmp && \
+    find /tmp -name 'codex' -type f | head -1 | xargs -I{} install -m 755 {} /usr/local/bin/codex && \
+    rm -rf /tmp/codex.tar.gz /tmp/codex*
+
 ENTRYPOINT ["codex"]

@@ -109,6 +109,10 @@ uuid = { workspace = true, features = ["serde", "v7"] }
 [target.'cfg(windows)'.dependencies]
 codex-windows-sandbox = { workspace = true }
 
+[features]
+# Passthrough: enables gRPC remote thread-config loading via codex-config.
+remote-thread-config = ["codex-config/remote-thread-config"]
+
 [dev-dependencies]
 app_test_support = { workspace = true }
 axum = { workspace = true, default-features = false, features = [

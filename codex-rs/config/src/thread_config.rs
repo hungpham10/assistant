@@ -11,8 +11,10 @@ use toml::Value as TomlValue;
 
 use crate::ConfigLayerEntry;
 
+#[cfg(feature = "remote-thread-config")]
 mod remote;
 
+#[cfg(feature = "remote-thread-config")]
 pub use remote::RemoteThreadConfigLoader;
 
 /// Context available to implementations when loading thread-scoped config.

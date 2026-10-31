@@ -20,8 +20,12 @@ use opentelemetry_otlp::OTEL_EXPORTER_OTLP_METRICS_TIMEOUT;
 use opentelemetry_otlp::Protocol;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::WithTonicConfig;
+#[cfg(feature = "grpc-exporter")]
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::metadata::MetadataMap;
+#[cfg(feature = "grpc-exporter")]
 use opentelemetry_otlp::tonic_types::transport::ClientTlsConfig;
 use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::metrics::InstrumentKind;
@@ -494,6 +498,7 @@ fn build_otlp_metric_exporter(
             crate::config::resolve_exporter(&OtelExporter::Statsig),
             temporality,
         ),
+        #[cfg(feature = "grpc-exporter")]
         OtelExporter::OtlpGrpc {
             endpoint,
             headers,
@@ -524,6 +529,13 @@ fn build_otlp_metric_exporter(
                 .build()
                 .map_err(|source| MetricsError::ExporterBuild { source })
         }
+        #[cfg(not(feature = "grpc-exporter"))]
+        OtelExporter::OtlpGrpc { endpoint, .. } => Err(MetricsError::InvalidConfig {
+            message: format!(
+                "OTLP gRPC exporter requested for {endpoint} but this build excludes the \
+`grpc-exporter` feature; use an OTLP HTTP exporter instead"
+            ),
+        }),
         OtelExporter::OtlpHttp {
             endpoint,
             headers,

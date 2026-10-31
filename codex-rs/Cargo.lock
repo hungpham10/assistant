@@ -2481,7 +2481,6 @@ dependencies = [
  "assert_matches",
  "clap",
  "clap_complete",
- "codex-acp-server",
  "codex-api",
  "codex-app-server",
  "codex-app-server-daemon",
@@ -10110,7 +10109,6 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tonic",
- "tracing",
 ]
 
 [[package]]

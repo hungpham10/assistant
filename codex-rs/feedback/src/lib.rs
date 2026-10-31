@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use std::collections::VecDeque;
+#[cfg(feature = "sentry")]
 use std::collections::btree_map::Entry;
 use std::fs;
 use std::io::Write;
@@ -7,6 +8,7 @@ use std::io::{self};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Mutex;
+#[cfg(feature = "sentry")]
 use std::time::Duration;
 
 use anyhow::Result;
@@ -35,15 +37,21 @@ const DEFAULT_MAX_BYTES: usize = 4 * 1024 * 1024; // 4 MiB
 // The Sentry Rust SDK posts the envelope uncompressed. Sentry rejects raw
 // request bodies over 40 MiB with 413 and drops the whole upload, so keep both
 // individual files and the combined attachment payload under that limit.
+#[cfg(feature = "sentry")]
 const MAX_ATTACHMENT_BYTES: usize = 28 * 1024 * 1024; // 28 MiB per file.
+#[cfg(feature = "sentry")]
 const MAX_TOTAL_ATTACHMENT_BYTES: usize = 32 * 1024 * 1024; // 32 MiB combined.
+#[cfg(feature = "sentry")]
 const MIN_ATTACHMENT_BYTES: usize = 4 * 1024; // Skip fragments below this.
 // Open Interpreter Sentry org. The same Sentry project also receives events
 // from the workstation app and other surfaces, so events from this binary are
 // distinguished by the `app` tag, the `release` prefix below, and the
 // `[interpreter-cli]` prefix in the event title.
+#[cfg(feature = "sentry")]
 const SENTRY_DSN: &str = "https://08dfb810b5cbe0897400cd839f715727@o4506046614667264.ingest.us.sentry.io/4510858434969600";
+#[cfg(feature = "sentry")]
 const SENTRY_APP_TAG: &str = "interpreter-cli";
+#[cfg(feature = "sentry")]
 const UPLOAD_TIMEOUT_SECS: u64 = 10;
 const FEEDBACK_TAGS_TARGET: &str = "feedback_tags";
 const MAX_FEEDBACK_TAGS: usize = 64;
@@ -347,6 +355,7 @@ impl RingBuffer {
 
 pub struct FeedbackSnapshot {
     bytes: Vec<u8>,
+    #[cfg_attr(not(feature = "sentry"), allow(dead_code))]
     tags: BTreeMap<String, String>,
     feedback_diagnostics: FeedbackDiagnostics,
     pub thread_id: String,
@@ -425,6 +434,7 @@ impl FeedbackSnapshot {
     }
 
     /// Upload feedback to Sentry with optional attachments.
+    #[cfg(feature = "sentry")]
     pub fn upload_feedback(&self, options: FeedbackUploadOptions<'_>) -> Result<()> {
         use std::str::FromStr;
         use std::sync::Arc;
@@ -508,6 +518,17 @@ impl FeedbackSnapshot {
         Ok(())
     }
 
+    /// Stub used when the `sentry` cargo feature is disabled: feedback cannot
+    /// be uploaded but callers keep a working API surface.
+    #[cfg(not(feature = "sentry"))]
+    pub fn upload_feedback(&self, _options: FeedbackUploadOptions<'_>) -> Result<()> {
+        Err(anyhow!(
+            "feedback upload is disabled in this build (rebuild with \
+`--features codex-feedback/sentry` to enable Sentry upload)"
+        ))
+    }
+
+    #[cfg(feature = "sentry")]
     fn upload_tags(
         &self,
         classification: &str,
@@ -559,6 +580,7 @@ impl FeedbackSnapshot {
         tags
     }
 
+    #[cfg(feature = "sentry")]
     fn feedback_attachments(
         &self,
         include_logs: bool,
@@ -636,6 +658,7 @@ impl FeedbackSnapshot {
 
 /// Append a feedback attachment while staying within Sentry's per-event upload
 /// budget. Oversized buffers keep their tail, where the newest log lines live.
+#[cfg(feature = "sentry")]
 fn push_capped(
     attachments: &mut Vec<sentry::protocol::Attachment>,
     remaining: &mut usize,
@@ -659,6 +682,7 @@ fn push_capped(
     });
 }
 
+#[cfg(feature = "sentry")]
 fn cap_attachment_buffer(buffer: Vec<u8>, max: usize) -> Vec<u8> {
     if buffer.len() <= max {
         return buffer;
@@ -675,6 +699,7 @@ fn cap_attachment_buffer(buffer: Vec<u8>, max: usize) -> Vec<u8> {
     out
 }
 
+#[cfg(feature = "sentry")]
 fn display_classification(classification: &str) -> String {
     match classification {
         "bug" => "Bug".to_string(),
@@ -793,6 +818,7 @@ mod tests {
         pretty_assertions::assert_eq!(snap.tags.get("cached").map(String::as_str), Some("true"));
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn feedback_attachments_gate_connectivity_diagnostics() {
         let extra_filename = format!("codex-feedback-extra-{}.jsonl", ThreadId::new());
@@ -868,6 +894,7 @@ mod tests {
         fs::remove_file(extra_path).expect("extra attachment should be removed");
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn cap_attachment_buffer_keeps_tail_with_marker() {
         let data: Vec<u8> = (0..2048u16).map(|n| n as u8).collect();
@@ -881,6 +908,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn feedback_attachments_cap_oversized_logs() {
         let big = vec![b'x'; MAX_ATTACHMENT_BYTES + 4096];
