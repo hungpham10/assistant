@@ -70,7 +70,6 @@ const OPEN_INTERPRETER_STANDALONE_WINDOWS_UPDATE_ARGS: &[&str] =
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Product {
     Codex,
-    #[deprecated(note = "use Assistant")]
     OpenInterpreter,
     Assistant,
 }
