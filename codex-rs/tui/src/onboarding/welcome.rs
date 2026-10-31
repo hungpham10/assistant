@@ -125,7 +125,7 @@ fn welcome_line(product: Product) -> Line<'static> {
             "Codex".bold(),
             ", OpenAI's command-line coding agent".into(),
         ]),
-        Product::OpenInterpreter => Line::from(vec![
+        Product::OpenInterpreter | Product::Assistant => Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
             "Open Interpreter".bold(),
