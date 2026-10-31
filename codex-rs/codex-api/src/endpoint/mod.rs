@@ -1,5 +1,6 @@
 pub(crate) mod anthropic_messages;
 pub(crate) mod compact;
+pub(crate) mod google;
 pub(crate) mod images;
 pub(crate) mod memories;
 pub(crate) mod models;
@@ -12,6 +13,7 @@ mod session;
 
 pub use anthropic_messages::AnthropicMessagesClient;
 pub use compact::CompactClient;
+pub use google::GoogleGenerateContentClient;
 pub use images::ImagesClient;
 pub use memories::MemoriesClient;
 pub use models::ModelsClient;

@@ -34,8 +34,8 @@ jobs:
           shellcheck -s sh scripts/install/install-open-interpreter.sh
           grep -q 'open-interpreter-package' scripts/install/install.sh
           grep -q 'open-interpreter-package' scripts/install/install.ps1
-          grep -q 'openinterpreter/openinterpreter' scripts/install/install.sh
-          grep -q 'openinterpreter/openinterpreter' scripts/install/install.ps1
+          grep -q 'hungpham10/assistant' scripts/install/install.sh
+          grep -q 'hungpham10/assistant' scripts/install/install.ps1
 
       - name: Test packaging and installer scripts
         run: |

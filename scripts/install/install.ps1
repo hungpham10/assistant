@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Release = $(if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_RELEASE)) { $env:CODEX_RELEASE } else { $env:OPEN_INTERPRETER_RELEASE }),
-    [string]$Repo = $(if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_GITHUB_REPO)) { if ([string]::IsNullOrWhiteSpace($env:CODEX_GITHUB_REPO)) { "openinterpreter/openinterpreter" } else { $env:CODEX_GITHUB_REPO } } else { $env:OPEN_INTERPRETER_GITHUB_REPO }),
+    [string]$Repo = $(if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_GITHUB_REPO)) { if ([string]::IsNullOrWhiteSpace($env:CODEX_GITHUB_REPO)) { "hungpham10/assistant" } else { $env:CODEX_GITHUB_REPO } } else { $env:OPEN_INTERPRETER_GITHUB_REPO }),
     [string]$ProductName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_PRODUCT_NAME)) { "Open Interpreter" } else { $env:CODEX_INSTALL_PRODUCT_NAME }),
     [string]$PackageAssetStem = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_PACKAGE_ASSET_STEM)) { "open-interpreter-package" } else { $env:CODEX_PACKAGE_ASSET_STEM }),
     [string]$CommandName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_COMMAND_NAME)) { "interpreter" } else { $env:CODEX_COMMAND_NAME }),

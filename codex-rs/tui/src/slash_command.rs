@@ -123,7 +123,8 @@ impl SlashCommand {
                 codex_product_info::Product::Codex => {
                     "use skills to improve how Codex performs specific tasks"
                 }
-                codex_product_info::Product::OpenInterpreter => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "use skills to improve how Open Interpreter performs specific tasks"
                 }
             },
@@ -149,7 +150,8 @@ impl SlashCommand {
             }
             SlashCommand::Personality => match codex_product_info::Product::current() {
                 codex_product_info::Product::Codex => "choose a communication style for Codex",
-                codex_product_info::Product::OpenInterpreter => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "choose a communication style for Open Interpreter"
                 }
             },
@@ -161,7 +163,8 @@ impl SlashCommand {
             }
             SlashCommand::Permissions => match codex_product_info::Product::current() {
                 codex_product_info::Product::Codex => "choose what Codex is allowed to do",
-                codex_product_info::Product::OpenInterpreter => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "choose what Open Interpreter is allowed to do"
                 }
             },

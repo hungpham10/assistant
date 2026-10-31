@@ -1015,7 +1015,8 @@ impl App {
                 codex_product_info::Product::Codex => {
                     "See the Codex keymap documentation for supported actions and examples."
                 }
-                codex_product_info::Product::OpenInterpreter => {
+                codex_product_info::Product::OpenInterpreter
+                | codex_product_info::Product::Assistant => {
                     "Use supported Open Interpreter keymap actions and examples."
                 }
             };

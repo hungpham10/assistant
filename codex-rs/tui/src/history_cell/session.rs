@@ -119,7 +119,7 @@ impl HistoryCell for TooltipHistoryCell {
 pub(super) fn productize_tip(tip: String, product: codex_product_info::Product) -> Option<String> {
     match product {
         codex_product_info::Product::Codex => Some(tip),
-        codex_product_info::Product::OpenInterpreter => {
+        codex_product_info::Product::OpenInterpreter | codex_product_info::Product::Assistant => {
             tooltips::productize_open_interpreter_tooltip(&tip)
         }
     }
@@ -484,8 +484,8 @@ impl SessionHeaderHistoryCell {
 
 fn should_show_version(product: codex_product_info::Product, version: &str) -> bool {
     match product {
-        codex_product_info::Product::Codex | codex_product_info::Product::OpenInterpreter => {
-            !version.trim().is_empty()
-        }
+        codex_product_info::Product::Codex
+        | codex_product_info::Product::OpenInterpreter
+        | codex_product_info::Product::Assistant => !version.trim().is_empty(),
     }
 }

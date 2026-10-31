@@ -76,7 +76,7 @@ impl WidgetRef for &WelcomeWidget {
     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
         let product = Product::current();
-        if product == Product::OpenInterpreter {
+        if product == Product::OpenInterpreter || product == Product::Assistant {
             Paragraph::new(vec!["".into(), welcome_line(product)])
                 .wrap(Wrap { trim: false })
                 .render(area, buf);
@@ -125,7 +125,7 @@ fn welcome_line(product: Product) -> Line<'static> {
             "Codex".bold(),
             ", OpenAI's command-line coding agent".into(),
         ]),
-        Product::OpenInterpreter => Line::from(vec![
+        Product::OpenInterpreter | Product::Assistant => Line::from(vec![
             "  ".into(),
             "Welcome to ".into(),
             "Open Interpreter".bold(),
