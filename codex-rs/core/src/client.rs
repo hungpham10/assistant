@@ -39,7 +39,6 @@ use codex_api::CompactClient as ApiCompactClient;
 use codex_api::CompactionInput as ApiCompactionInput;
 use codex_api::Compression;
 use codex_api::GoogleContent;
-use codex_api::GoogleFunctionCall;
 use codex_api::GoogleFunctionDeclaration;
 use codex_api::GoogleGenerateContentClient as ApiGoogleGenerateContentClient;
 use codex_api::GoogleGenerateContentRequest;
@@ -2918,7 +2917,7 @@ impl ModelClientSession {
                 if let ResponseItem::Message { role, content, .. } = item {
                     let mut parts = Vec::new();
                     for c in content {
-                        if let ContentItem::InputText { text } | ContentItem::Thought { text } = c {
+                        if let ContentItem::InputText { text } = c {
                             parts.push(GooglePart::Text { text: text.clone() });
                         }
                     }
@@ -2928,11 +2927,6 @@ impl ModelClientSession {
                             parts,
                         });
                     }
-                } else if let ResponseItem::FunctionCall {
-                    name, arguments, ..
-                } = item
-                {
-                    // Function calls in history
                 }
             }
             if contents.is_empty() && !prompt.base_instructions.text.is_empty() {
@@ -2943,29 +2937,23 @@ impl ModelClientSession {
                     }],
                 });
             }
+            let mut function_declarations = Vec::new();
+            for t in &prompt.tools {
+                if let codex_tools::ToolSpec::Function(tool) = t {
+                    function_declarations.push(GoogleFunctionDeclaration {
+                        name: tool.name.clone(),
+                        description: Some(tool.description.clone()),
+                        parameters: Some(tool.parameters.clone()),
+                    });
+                }
+            }
             let request = GoogleGenerateContentRequest {
                 contents,
-                tools: if prompt.tools.is_empty() {
+                tools: if function_declarations.is_empty() {
                     None
                 } else {
                     Some(vec![GoogleTool {
-                        function_declarations: Some(
-                            prompt
-                                .tools
-                                .iter()
-                                .filter_map(|t| {
-                                    if let Some(func) = &t.function {
-                                        Some(GoogleFunctionDeclaration {
-                                            name: func.name.clone(),
-                                            description: Some(func.description.clone()),
-                                            parameters: Some(func.parameters.clone()),
-                                        })
-                                    } else {
-                                        None
-                                    }
-                                })
-                                .collect(),
-                        ),
+                        function_declarations: Some(function_declarations),
                     }])
                 },
                 system_instruction: None,
