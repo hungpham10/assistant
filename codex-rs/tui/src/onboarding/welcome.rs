@@ -76,7 +76,7 @@ impl WidgetRef for &WelcomeWidget {
     fn render_ref(&self, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
         let product = Product::current();
-        if product == Product::OpenInterpreter {
+        if product == Product::OpenInterpreter || product == Product::Assistant {
             Paragraph::new(vec!["".into(), welcome_line(product)])
                 .wrap(Wrap { trim: false })
                 .render(area, buf);
