@@ -33,6 +33,8 @@ use std::sync::atomic::Ordering;
 use codex_api::AgentIdentityTelemetry;
 use codex_api::AnthropicMessageRequest;
 use codex_api::AnthropicMessagesClient as ApiAnthropicMessagesClient;
+use codex_api::GoogleGenerateContentClient as ApiGoogleGenerateContentClient;
+use codex_api::{GoogleContent, GoogleFunctionCall, GoogleFunctionDeclaration, GoogleGenerateContentRequest, GooglePart, GoogleTool};
 use codex_api::ApiError;
 use codex_api::AuthProvider;
 use codex_api::CompactClient as ApiCompactClient;
@@ -2844,9 +2846,162 @@ impl ModelClientSession {
                 ))
                 .await
             }
-            StreamTransportRoute::GoogleGenerateContent => Err(CodexErr::UnsupportedOperation(
-                "google generateContent wire not implemented yet".to_string(),
-            )),
+            StreamTransportRoute::GoogleGenerateContent => {
+                Box::pin(self.stream_google_generate_content_api(
+                    prompt,
+                    model_info,
+                    session_telemetry,
+                ))
+                .await
+            }
+        }
+    }
+
+
+    async fn stream_google_generate_content_api(
+        &self,
+        prompt: &Prompt,
+        model_info: &ModelInfo,
+        session_telemetry: &SessionTelemetry,
+    ) -> Result<ResponseStream> {
+        let auth_manager = self.client.state.provider.auth_manager();
+        let mut auth_recovery = auth_manager
+            .as_ref()
+            .map(AuthManager::unauthorized_recovery);
+        let mut pending_retry = PendingUnauthorizedRetry::default();
+        loop {
+            let auth = self.client.state.provider.auth().await;
+            let auth_mode = auth.as_ref().map(CodexAuth::auth_mode);
+            let provider_info = self.client.state.provider.info();
+            let api_key = provider_info.api_key().and_then(|api_key| {
+                api_key
+                    .or_else(|| auth.as_ref().and_then(CodexAuth::api_key).map(str::to_string))
+                    .or(provider_info.experimental_bearer_token.clone())
+                    .ok_or_else(|| {
+                        CodexErr::InvalidRequest(
+                            "Google API key required for google wire_api".to_string(),
+                        )
+                    })
+            })?;
+            let api_provider = self.client.state.provider.api_provider().await?;
+            let request_auth_context = AuthRequestTelemetryContext::new(
+                auth_mode.or(Some(AuthMode::ApiKey)),
+                &CoreAuthProvider {
+                    token: Some(api_key.clone()),
+                    account_id: None,
+                    is_fedramp_account: false,
+                    token_header_name: Some("x-goog-api-key"),
+                    use_bearer_prefix: false,
+                },
+                /*agent_identity_telemetry*/ None,
+                pending_retry,
+            );
+            let (request_telemetry, sse_telemetry) = Self::build_streaming_telemetry(
+                session_telemetry,
+                request_auth_context,
+                RequestRouteTelemetry::for_endpoint("google/generateContent"),
+                self.client.state.auth_env_telemetry.clone(),
+            );
+
+            // Build Google request from prompt
+            let mut contents: Vec<GoogleContent> = Vec::new();
+            // Add user messages
+            for item in &prompt.input {
+                if let ResponseItem::Message { role, content, .. } = item {
+                    let mut parts = Vec::new();
+                    for c in content {
+                        if let ContentItem::InputText { text } | ContentItem::Thought { text } = c {
+                            parts.push(GooglePart::Text { text: text.clone() });
+                        }
+                    }
+                    if !parts.is_empty() {
+                        contents.push(GoogleContent {
+                            role: Some(role.clone()),
+                            parts,
+                        });
+                    }
+                } else if let ResponseItem::FunctionCall { name, arguments, .. } = item {
+                    // Function calls in history
+                }
+            }
+            if contents.is_empty() && !prompt.base_instructions.text.is_empty() {
+                contents.push(GoogleContent {
+                    role: Some("user".to_string()),
+                    parts: vec![GooglePart::Text {
+                        text: prompt.base_instructions.text.clone(),
+                    }],
+                });
+            }
+            let request = GoogleGenerateContentRequest {
+                contents,
+                tools: if prompt.tools.is_empty() {
+                    None
+                } else {
+                    Some(vec![GoogleTool {
+                        function_declarations: Some(
+                            prompt
+                                .tools
+                                .iter()
+                                .filter_map(|t| {
+                                    if let Some(func) = &t.function {
+                                        Some(GoogleFunctionDeclaration {
+                                            name: func.name.clone(),
+                                            description: Some(func.description.clone()),
+                                            parameters: Some(func.parameters.clone()),
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect(),
+                        ),
+                    }])
+                },
+                system_instruction: None,
+                generation_config: None,
+            };
+
+            let client = ApiGoogleGenerateContentClient::new(
+                ReqwestTransport::new(build_reqwest_client()),
+                api_provider.clone(),
+                Arc::new(CoreAuthProvider {
+                    token: Some(api_key),
+                    account_id: None,
+                    is_fedramp_account: false,
+                    token_header_name: Some("x-goog-api-key"),
+                    use_bearer_prefix: false,
+                }),
+            )
+            .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
+            match client
+                .stream_request(&model_info.slug, request, HeaderMap::new())
+                .await
+            {
+                Ok(stream) => {
+                    let (stream, _) = map_response_stream(
+                        stream,
+                        session_telemetry.clone(),
+                        InferenceTraceAttempt::disabled(),
+                        Arc::clone(&self.client.state.provider),
+                    );
+                    return Ok(stream);
+                }
+                Err(ApiError::Transport(
+                    unauthorized_transport @ TransportError::Http { status, .. },
+                )) if status == StatusCode::UNAUTHORIZED => {
+                    pending_retry = PendingUnauthorizedRetry::from_recovery(
+                        handle_unauthorized(
+                            unauthorized_transport,
+                            &mut auth_recovery,
+                            session_telemetry,
+                            &self.client.state.provider,
+                        )
+                        .await?,
+                    );
+                    continue;
+                }
+                Err(err) => return Err(self.client.state.provider.map_api_error(err)),
+            }
         }
     }
 
