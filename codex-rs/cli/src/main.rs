@@ -59,6 +59,7 @@ mod remote_control_cmd;
 #[cfg(target_os = "windows")]
 mod sandbox_setup;
 mod state_db_recovery;
+mod usage_cmd;
 #[cfg(not(windows))]
 mod wsl_paths;
 
@@ -68,6 +69,7 @@ use crate::plugin_cmd::PluginSubcommand;
 use crate::remote_control_cmd::RemoteControlCommand;
 use doctor::DoctorCommand;
 use state_db_recovery as local_state_db;
+use usage_cmd::UsageCommand;
 
 use codex_config::LoaderOverrides;
 use codex_core::build_models_manager;
@@ -146,6 +148,9 @@ enum Subcommand {
 
     /// Start Codex as an MCP server (stdio).
     McpServer(McpServerCommand),
+
+    /// Show recorded per-turn token usage.
+    Usage(UsageCommand),
 
     /// [experimental] Run the app server or related tooling.
     AppServer(AppServerCommand),
@@ -1071,6 +1076,14 @@ async fn cli_main(
                 strict_config || root_strict_config,
             )
             .await?;
+        }
+        Some(Subcommand::Usage(usage)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "usage",
+            )?;
+            usage_cmd::run_usage_command(usage).await?;
         }
         Some(Subcommand::Mcp(mut mcp_cli)) => {
             reject_remote_mode_for_subcommand(
@@ -2145,6 +2158,7 @@ fn unsupported_subcommand_name_for_strict_config(
             Some(app_server_subcommand_name(app_server.subcommand.as_ref()))
         }
         Some(Subcommand::RemoteControl(remote_control)) => Some(remote_control.subcommand_name()),
+        Some(Subcommand::Usage(_)) => Some("usage"),
         Some(Subcommand::Mcp(_)) => Some("mcp"),
         Some(Subcommand::Plugin(_)) => Some("plugin"),
         #[cfg(any(target_os = "macos", target_os = "windows"))]

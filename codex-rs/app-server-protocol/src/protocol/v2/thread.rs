@@ -721,6 +721,23 @@ pub struct ThreadSetNameParams {
     pub name: String,
 }
 
+/// Enable or disable one tool for a running thread session.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadSetToolEnabledParams {
+    pub thread_id: String,
+    /// Tool key: a plain name (`apply_patch`) or a namespace wildcard
+    /// (`server:*`).
+    pub name: String,
+    pub enabled: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadSetToolEnabledResponse {}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

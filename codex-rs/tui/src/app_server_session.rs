@@ -89,6 +89,8 @@ use codex_app_server_protocol::ThreadRollbackParams;
 use codex_app_server_protocol::ThreadRollbackResponse;
 use codex_app_server_protocol::ThreadSetNameParams;
 use codex_app_server_protocol::ThreadSetNameResponse;
+use codex_app_server_protocol::ThreadSetToolEnabledParams;
+use codex_app_server_protocol::ThreadSetToolEnabledResponse;
 use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_app_server_protocol::ThreadSettingsUpdateResponse;
 use codex_app_server_protocol::ThreadShellCommandParams;
@@ -896,6 +898,28 @@ impl AppServerSession {
             })
             .await
             .wrap_err("thread/name/set failed in TUI")?;
+        Ok(())
+    }
+
+    pub(crate) async fn thread_set_tool_enabled(
+        &mut self,
+        thread_id: ThreadId,
+        name: String,
+        enabled: bool,
+    ) -> Result<()> {
+        let request_id = self.next_request_id();
+        let _: ThreadSetToolEnabledResponse = self
+            .client
+            .request_typed(ClientRequest::ThreadSetToolEnabled {
+                request_id,
+                params: ThreadSetToolEnabledParams {
+                    thread_id: thread_id.to_string(),
+                    name,
+                    enabled,
+                },
+            })
+            .await
+            .wrap_err("thread/tools/set failed in TUI")?;
         Ok(())
     }
 

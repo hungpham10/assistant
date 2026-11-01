@@ -1382,6 +1382,10 @@ pub(crate) async fn built_tools(
     Ok(Arc::new(ToolRouter::from_context(
         step_context,
         ToolRouterParams {
+            tool_selection: {
+                let state = sess.state.lock().await;
+                state.tool_selection.clone()
+            },
             mcp_tools,
             deferred_mcp_tools,
             tool_suggest_candidates,

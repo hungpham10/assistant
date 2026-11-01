@@ -38,6 +38,7 @@ pub struct ToolRouter {
 }
 
 pub(crate) struct ToolRouterParams<'a> {
+    pub(crate) tool_selection: crate::tools::selection::SessionToolSelection,
     pub(crate) mcp_tools: Option<Vec<ToolInfo>>,
     pub(crate) deferred_mcp_tools: Option<Vec<ToolInfo>>,
     pub(crate) tool_suggest_candidates: Option<ToolSuggestCandidates>,

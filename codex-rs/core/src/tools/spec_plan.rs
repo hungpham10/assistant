@@ -150,6 +150,7 @@ impl PlannedTools {
 #[derive(Clone, Copy)]
 struct CoreToolPlanContext<'a> {
     step_context: &'a StepContext,
+    tool_selection: &'a crate::tools::selection::SessionToolSelection,
     mcp_tools: Option<&'a [ToolInfo]>,
     deferred_mcp_tools: Option<&'a [ToolInfo]>,
     tool_suggest_candidates: Option<&'a crate::tools::router::ToolSuggestCandidates>,
@@ -179,6 +180,7 @@ fn build_tool_specs_and_registry(
 ) -> (Vec<ToolSpec>, ToolRegistry) {
     let turn_context = step_context.turn.as_ref();
     let ToolRouterParams {
+        tool_selection,
         mcp_tools,
         deferred_mcp_tools,
         tool_suggest_candidates,
@@ -189,6 +191,7 @@ fn build_tool_specs_and_registry(
         crate::agent::role::spawn_tool_spec::build(&std::collections::BTreeMap::new());
     let context = CoreToolPlanContext {
         step_context,
+        tool_selection: &tool_selection,
         mcp_tools: mcp_tools.as_deref(),
         deferred_mcp_tools: deferred_mcp_tools.as_deref(),
         tool_suggest_candidates: tool_suggest_candidates.as_ref(),
@@ -203,7 +206,7 @@ fn build_tool_specs_and_registry(
     apply_direct_model_only_namespace_overrides(turn_context, &mut planned_tools);
     append_tool_search_executor(&context, &mut planned_tools);
     prepend_code_mode_executors(&context, &mut planned_tools);
-    build_model_visible_specs_and_registry(turn_context, planned_tools)
+    build_model_visible_specs_and_registry(turn_context, planned_tools, &tool_selection)
 }
 
 fn apply_direct_model_only_namespace_overrides(
@@ -239,6 +242,7 @@ fn apply_direct_model_only_namespace_overrides(
 fn build_model_visible_specs_and_registry(
     turn_context: &TurnContext,
     planned_tools: PlannedTools,
+    tool_selection: &crate::tools::selection::SessionToolSelection,
 ) -> (Vec<ToolSpec>, ToolRegistry) {
     let PlannedTools {
         runtimes,
@@ -246,12 +250,27 @@ fn build_model_visible_specs_and_registry(
     } = planned_tools;
     let mut specs = Vec::new();
     let mut seen_tool_names = HashSet::new();
+    let plan_mode =
+        turn_context.collaboration_mode.mode == codex_protocol::config_types::ModeKind::Plan;
     for runtime in &runtimes {
         let tool_name = runtime.tool_name();
         if !seen_tool_names.insert(tool_name.clone()) {
             continue;
         }
-        let exposure = runtime.exposure();
+        // Session-level selection (e.g. `/tools` toggles and the Plan-mode
+        // read-only pack) only demotes what the model sees up front; the
+        // registry keeps the original exposure so dispatch still works and
+        // `tool_search` can still surface the tool.
+        let demoted = tool_selection.tool_is_demoted(&tool_name, plan_mode);
+        let exposure = if demoted {
+            crate::tools::registry::override_tool_exposure(
+                Arc::clone(runtime),
+                codex_tools::ToolExposure::Deferred,
+            )
+            .exposure()
+        } else {
+            runtime.exposure()
+        };
         if exposure.is_direct() && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure)
         {
             let spec = runtime.spec();

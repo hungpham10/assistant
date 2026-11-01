@@ -536,6 +536,11 @@ client_request_definitions! {
         serialization: thread_id(params.thread_id),
         response: v2::ThreadSetNameResponse,
     },
+    ThreadSetToolEnabled => "thread/tools/set" {
+        params: v2::ThreadSetToolEnabledParams,
+        serialization: thread_id(params.thread_id),
+        response: v2::ThreadSetToolEnabledResponse,
+    },
     ThreadGoalSet => "thread/goal/set" {
         params: v2::ThreadGoalSetParams,
         serialization: thread_id(params.thread_id),

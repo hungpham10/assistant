@@ -533,6 +533,16 @@ pub enum Op {
     /// This server sends [`EventMsg::TurnAborted`] in response.
     Interrupt,
 
+    /// Enable or disable a tool for the rest of this session. Disabled tools
+    /// are hidden from the model's initial tool list but remain callable via
+    /// `tool_search`.
+    SetToolEnabled {
+        /// Tool key: a plain name (`apply_patch`) or a namespace wildcard
+        /// (`server:*`).
+        name: String,
+        enabled: bool,
+    },
+
     /// Terminate all running background terminal processes for this thread.
     /// Use this when callers intentionally want to stop long-lived background shells.
     CleanBackgroundTerminals,
@@ -867,6 +877,7 @@ impl Op {
     pub fn kind(&self) -> &'static str {
         match self {
             Self::Interrupt => "interrupt",
+            Self::SetToolEnabled { .. } => "set_tool_enabled",
             Self::CleanBackgroundTerminals => "clean_background_terminals",
             Self::RealtimeConversationStart(_) => "realtime_conversation_start",
             Self::RealtimeConversationAudio(_) => "realtime_conversation_audio",

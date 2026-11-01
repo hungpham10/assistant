@@ -68,6 +68,11 @@ pub async fn clean_background_terminals(sess: &Arc<Session>) {
     sess.close_unified_exec_processes().await;
 }
 
+pub async fn set_tool_enabled(sess: &Session, name: String, enabled: bool) {
+    let mut state = sess.state.lock().await;
+    state.tool_selection.set_enabled(name, enabled);
+}
+
 pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {
     sess.send_event_raw(Event {
         id: sub_id,
@@ -728,6 +733,10 @@ pub(super) async fn submission_loop(
             match sub.op.clone() {
                 Op::Interrupt => {
                     interrupt(&sess).await;
+                    false
+                }
+                Op::SetToolEnabled { name, enabled } => {
+                    set_tool_enabled(&sess, name, enabled).await;
                     false
                 }
                 Op::CleanBackgroundTerminals => {

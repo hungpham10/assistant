@@ -3696,6 +3696,7 @@ impl Session {
         token_usage: Option<&TokenUsage>,
     ) -> CodexResult<()> {
         if let Some(token_usage) = token_usage {
+            self.record_turn_usage_in_state_db(turn_context, token_usage);
             let token_info = {
                 let mut state = self.state.lock().await;
                 state
@@ -3724,6 +3725,30 @@ impl Session {
             budget_result?;
         }
         Ok(())
+    }
+
+    /// Best-effort per-turn token metering into the sqlite state DB so usage
+    /// can be attributed per turn and aggregated over time windows later
+    /// (`codex usage`). Failures are logged and never affect the turn.
+    fn record_turn_usage_in_state_db(&self, turn_context: &TurnContext, token_usage: &TokenUsage) {
+        let Some(state_db) = self.services.state_db.clone() else {
+            return;
+        };
+        let record = codex_state::TurnUsageRecord {
+            thread_id: self.thread_id().to_string(),
+            turn_id: turn_context.sub_id.clone(),
+            model: turn_context.model_info.slug.clone(),
+            input_tokens: token_usage.input_tokens,
+            cached_input_tokens: token_usage.cached_input_tokens,
+            output_tokens: token_usage.output_tokens,
+            reasoning_output_tokens: token_usage.reasoning_output_tokens,
+            created_at: crate::turn_timing::now_unix_timestamp_ms() / 1000,
+        };
+        tokio::spawn(async move {
+            if let Err(err) = state_db.record_turn_usage(&record).await {
+                warn!("failed to record turn usage in state db: {err:#}");
+            }
+        });
     }
 
     pub(crate) async fn recompute_token_usage(&self, turn_context: &TurnContext) {
