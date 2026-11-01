@@ -925,6 +925,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "sentry")]
     #[test]
     fn upload_tags_include_client_tags_and_preserve_reserved_fields() {
         let mut tags = BTreeMap::new();
