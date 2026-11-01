@@ -2,10 +2,10 @@
 source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
-╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│ ✨ Update available! 0.0.34 -> 9.9.9                                                                   │
-│ Run sh -c 'curl -fsSL https://www.openinterpreter.com/install | CODEX_NON_INTERACTIVE=1 sh' to update. │
-│                                                                                                        │
-│ See full release notes:                                                                                │
-│ https://github.com/openinterpreter/openinterpreter/releases/latest                                     │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ✨ Update available! 0.0.36 -> 9.9.9                                                                                                              │
+│ Run sh -c 'curl -fsSL https://raw.githubusercontent.com/hungpham10/assistant/main/install/install.sh | ASSISTANT_NON_INTERACTIVE=1 sh' to update. │
+│                                                                                                                                                   │
+│ See full release notes:                                                                                                                           │
+│ https://github.com/hungpham10/assistant/releases/latest                                                                                           │
+╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯

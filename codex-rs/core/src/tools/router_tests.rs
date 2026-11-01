@@ -117,6 +117,7 @@ async fn parallel_support_does_not_match_namespaced_local_tool_names() -> anyhow
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools: None,
             mcp_tools: Some(mcp_tools),
@@ -216,6 +217,7 @@ async fn mcp_parallel_support_uses_handler_data() -> anyhow::Result<()> {
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools: None,
             mcp_tools: Some(vec![
@@ -267,6 +269,7 @@ async fn tools_without_handlers_do_not_support_parallel() -> anyhow::Result<()> 
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools: None,
             mcp_tools: None,
@@ -324,6 +327,7 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools: None,
             mcp_tools: None,
@@ -391,6 +395,7 @@ async fn extension_tool_executors_are_model_visible_and_dispatchable() -> anyhow
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools: None,
             mcp_tools: None,

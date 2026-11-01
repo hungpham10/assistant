@@ -158,6 +158,13 @@ pub(crate) enum KeymapEditIntent {
 pub(crate) enum AppEvent {
     /// Open the agent picker for switching active threads.
     OpenAgentPicker,
+    /// Open the `/tools` session toggle picker.
+    OpenToolsPicker,
+    /// Toggle one tool for the current session (from the `/tools` picker).
+    ToggleToolEnabled {
+        name: String,
+        enabled: bool,
+    },
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),
 

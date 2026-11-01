@@ -285,6 +285,7 @@ use crate::bottom_pane::QUIT_SHORTCUT_TIMEOUT;
 use crate::bottom_pane::QueuedInputAction;
 use crate::bottom_pane::SelectionAction;
 use crate::bottom_pane::SelectionItem;
+use crate::bottom_pane::SelectionToggle;
 use crate::bottom_pane::SelectionViewParams;
 use crate::bottom_pane::custom_prompt_view::CustomPromptView;
 use crate::bottom_pane::popup_consts::standard_popup_hint_line;
@@ -484,6 +485,23 @@ const DEFAULT_STATUS_LINE_ITEMS: [&str; 4] = [
 const MAX_AGENT_COPY_HISTORY: usize = 32;
 
 /// Common initialization parameters shared by all `ChatWidget` constructors.
+/// Builtin tools exposed to the model by default; shown by `/tools`.
+const BUILTIN_TOOL_CATALOG: &[&str] = &[
+    "shell",
+    "unified_exec",
+    "apply_patch",
+    "view_image",
+    "web_search",
+    "update_plan",
+    "request_user_input",
+    "request_permissions",
+    "spawn_agent",
+];
+
+fn builtin_tool_catalog() -> impl Iterator<Item = &'static str> {
+    BUILTIN_TOOL_CATALOG.iter().copied()
+}
+
 pub(crate) struct ChatWidgetInit {
     pub(crate) config: Config,
     pub(crate) frame_requester: FrameRequester,
@@ -588,6 +606,8 @@ pub(crate) struct ChatWidget {
     collab_agent_metadata: HashMap<ThreadId, AgentMetadata>,
     pending_collab_spawn_requests: HashMap<String, multi_agents::SpawnRequestSummary>,
     suppressed_exec_calls: HashSet<String>,
+    /// Session-scoped disabled tool keys mirrored from `/tools` toggles.
+    tools_session_disabled: HashSet<String>,
     skills_all: Vec<ProtocolSkillMetadata>,
     skills_initial_state: Option<HashMap<AbsolutePathBuf, bool>>,
     last_unified_wait: Option<UnifiedExecWaitState>,
@@ -1077,6 +1097,73 @@ impl ChatWidget {
             items,
             ..Default::default()
         });
+    }
+
+    pub(crate) fn open_tools_picker(&mut self) {
+        let items = builtin_tool_catalog()
+            .into_iter()
+            .map(|name| {
+                let enabled = !self.tools_session_disabled.contains(name);
+                let key = name.to_string();
+                SelectionItem {
+                    name: name.to_string(),
+                    toggle: Some(SelectionToggle {
+                        is_on: enabled,
+                        action: Box::new(move |enabled, tx| {
+                            tx.send(AppEvent::ToggleToolEnabled {
+                                name: key.clone(),
+                                enabled,
+                            });
+                        }),
+                    }),
+                    description: Some("builtin".to_string()),
+                    dismiss_on_select: false,
+                    ..Default::default()
+                }
+            })
+            .collect();
+        self.bottom_pane.show_selection_view(SelectionViewParams {
+            title: Some("Tools — enable/disable for this session".to_string()),
+            subtitle: Some(
+                "Disabled tools stay callable via tool_search. Enter toggles, Esc closes."
+                    .to_string(),
+            ),
+            footer_hint: Some(standard_popup_hint_line()),
+            items,
+            ..Default::default()
+        });
+        self.request_redraw();
+    }
+
+    pub(crate) fn handle_tools_toggle(&mut self, name: String, enabled: bool) {
+        if enabled {
+            self.tools_session_disabled.remove(&name);
+        } else {
+            self.tools_session_disabled.insert(name.clone());
+        }
+        self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
+            name.clone(),
+            enabled,
+        ));
+        let state_word = if enabled { "enabled" } else { "disabled" };
+        self.add_info_message(
+            format!("Tool `{name}` {state_word} for this session."),
+            /*hint*/ None,
+        );
+    }
+
+    pub(crate) fn reset_tools_override(&mut self) {
+        let keys: Vec<String> = self.tools_session_disabled.drain().collect();
+        for name in &keys {
+            self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
+                name.clone(),
+                /*enabled*/ true,
+            ));
+        }
+        self.add_info_message(
+            "Tool overrides cleared for this session.".to_string(),
+            /*hint*/ None,
+        );
     }
 
     pub(crate) fn open_memories_popup(&mut self) {

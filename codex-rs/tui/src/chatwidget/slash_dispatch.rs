@@ -484,6 +484,9 @@ impl ChatWidget {
             SlashCommand::Mcp => {
                 self.add_mcp_output(McpServerStatusDetail::ToolsAndAuthOnly);
             }
+            SlashCommand::Tools => {
+                self.open_tools_picker();
+            }
             SlashCommand::Apps => {
                 self.add_connectors_output();
             }
@@ -687,6 +690,18 @@ impl ChatWidget {
                 "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                 _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
             },
+            SlashCommand::Tools => {
+                let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                match (parts.first().copied(), parts.get(1).copied()) {
+                    (None, _) => self.open_tools_picker(),
+                    (Some("reset"), _) => self.reset_tools_override(),
+                    (Some("on"), Some(name)) => self.handle_tools_toggle(name.to_string(), true),
+                    (Some("off"), Some(name)) => self.handle_tools_toggle(name.to_string(), false),
+                    _ => {
+                        self.add_error_message("Usage: /tools [on|off <name>|reset]".to_string());
+                    }
+                }
+            }
             SlashCommand::Keymap => match trimmed.to_ascii_lowercase().as_str() {
                 "" => self.open_keymap_picker(),
                 "debug" => {
@@ -1052,6 +1067,7 @@ impl ChatWidget {
             | SlashCommand::MemoryDrop
             | SlashCommand::MemoryUpdate
             | SlashCommand::Mcp
+            | SlashCommand::Tools
             | SlashCommand::Apps
             | SlashCommand::Plugins
             | SlashCommand::Rollout

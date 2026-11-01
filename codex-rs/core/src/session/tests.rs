@@ -653,6 +653,7 @@ fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> T
     let router = Arc::new(ToolRouter::from_context(
         step_context.as_ref(),
         crate::tools::router::ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             mcp_tools: None,
             deferred_mcp_tools: None,
@@ -10536,6 +10537,7 @@ async fn fatal_tool_error_stops_turn_and_reports_error() {
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         crate::tools::router::ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: None,
             deferred_mcp_tools,
             mcp_tools: Some(tools),

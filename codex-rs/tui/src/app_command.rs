@@ -89,6 +89,10 @@ pub(crate) enum AppCommand {
         force_reload: bool,
     },
     Compact,
+    SetToolEnabled {
+        name: String,
+        enabled: bool,
+    },
     SetThreadName {
         name: String,
     },
@@ -241,6 +245,10 @@ impl AppCommand {
 
     pub(crate) fn list_skills(cwds: Vec<PathBuf>, force_reload: bool) -> Self {
         Self::ListSkills { cwds, force_reload }
+    }
+
+    pub(crate) fn set_tool_enabled(name: String, enabled: bool) -> Self {
+        Self::SetToolEnabled { name, enabled }
     }
 
     pub(crate) fn compact() -> Self {

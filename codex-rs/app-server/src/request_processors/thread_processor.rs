@@ -580,6 +580,27 @@ impl ThreadRequestProcessor {
         }
     }
 
+    pub(crate) async fn thread_set_tool_enabled(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadSetToolEnabledParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        let (_, thread) = self.load_thread(&params.thread_id).await?;
+        self.submit_core_op(
+            &request_id,
+            thread.as_ref(),
+            Op::SetToolEnabled {
+                name: params.name,
+                enabled: params.enabled,
+            },
+        )
+        .await
+        .map_err(|err| internal_error(format!("failed to update tool selection: {err}")))?;
+        self.outgoing
+            .send_response(request_id, ThreadSetToolEnabledResponse {});
+        Ok(None)
+    }
+
     pub(crate) async fn thread_metadata_update(
         &self,
         params: ThreadMetadataUpdateParams,

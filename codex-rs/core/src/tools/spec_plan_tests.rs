@@ -188,6 +188,7 @@ async fn probe_with(
     let router = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             tool_suggest_candidates: inputs.tool_suggest_candidates,
             mcp_tools: inputs.mcp_tools,
             deferred_mcp_tools: inputs.deferred_mcp_tools,
@@ -703,6 +704,7 @@ async fn environment_tools_follow_the_step_context() {
     let plan = ToolPlanProbe::from_router(ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             mcp_tools: None,
             deferred_mcp_tools: None,
             tool_suggest_candidates: None,
@@ -863,6 +865,7 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
     let first_router = ToolRouter::from_context(
         first_step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             mcp_tools: None,
             deferred_mcp_tools: Some(vec![mcp_tool("first", "mcp__first", "lookup")]),
             tool_suggest_candidates: None,
@@ -880,6 +883,7 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
     let second_router = ToolRouter::from_context(
         second_step_context.as_ref(),
         ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
             mcp_tools: None,
             deferred_mcp_tools: Some(vec![mcp_tool("second", "mcp__second", "lookup")]),
             tool_suggest_candidates: None,

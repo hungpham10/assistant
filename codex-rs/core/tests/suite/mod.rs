@@ -126,6 +126,7 @@ mod subagent_notifications;
 mod token_budget;
 mod tool_harness;
 mod tool_parallelism;
+mod tool_selection;
 mod tools;
 mod truncation;
 mod turn_state;
