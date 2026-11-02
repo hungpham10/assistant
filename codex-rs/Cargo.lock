@@ -10841,8 +10841,6 @@ dependencies = [
 [[package]]
 name = "rama-core"
 version = "0.3.0-alpha.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b93751ab27c9d151e84c1100057eab3f2a6a1378bc31b62abd416ecb1847658"
 dependencies = [
  "ahash",
  "asynk-strim",
