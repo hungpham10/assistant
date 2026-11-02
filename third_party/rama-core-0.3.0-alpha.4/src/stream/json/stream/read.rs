@@ -66,7 +66,7 @@ where
             match bytes {
                 Some(Ok(bytes)) => this.engine.input(bytes),
                 Some(Err(err)) => {
-                    let err = BoxError::from(err.into());
+                    let err: BoxError = err.into();
                     return Poll::Ready(Some(Err(err)));
                 }
                 None => {
@@ -248,10 +248,10 @@ mod tests {
     #[test]
     fn fallible_stream_operates_correctly_with_interspersed_errors() {
         let data_vec = vec![
-            Err(BoxError::from_display("test message 1")),
+            Err(std::io::Error::other("test message 1").into()),
             Ok("invalid json\n{\"key\":11,\"val"),
             Ok("ue\":22}\n{\"key\":33,\"value\":44}\ninvalid json\n"),
-            Err(BoxError::from_display("test message 2")),
+            Err(std::io::Error::other("test message 2").into()),
             Ok("{\"key\":55,\"value\":66}\n"),
         ];
         let data_stream = stream::iter(data_vec);
