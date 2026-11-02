@@ -70,7 +70,7 @@ where
 
                 Poll::Ready(Some(
                     if let Err(err) = serde_json::to_writer(this.scratch.writer(), &item) {
-                        Err(BoxError::from(err.into()))
+                        Err(err.into())
                     } else {
                         *this.written = true;
                         let out = this.scratch.split().freeze();
@@ -78,7 +78,7 @@ where
                     },
                 ))
             }
-            Some(Err(err)) => Poll::Ready(Some(Err(BoxError::from(err.into())))),
+            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
             None => Poll::Ready(None),
         }
     }

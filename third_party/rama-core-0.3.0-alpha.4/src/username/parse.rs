@@ -35,24 +35,24 @@ where
     let username = match label_it.next() {
         Some(username) => {
             if username.is_empty() {
-                return Err(BoxError::from("empty username"));
+                return Err("empty username".to_string().into());
             } else {
                 username
             }
         }
-        None => return Err(BoxError::from("missing username")),
+        None => return Err("missing username".to_string().into()),
     };
 
     for (index, label) in label_it.enumerate() {
         match parser.parse_label(label) {
             UsernameLabelState::Used => (), // optimistic smiley
             UsernameLabelState::Ignored => {
-                return Err(BoxError::from(format!(
+                return Err(format!(
                     "ignored username label #{index}: {label}",
                 )));
             }
             UsernameLabelState::Abort => {
-                return Err(BoxError::from(format!(
+                return Err(format!(
                     "invalid username label #{index}: {label}",
                 )));
             }
@@ -61,7 +61,7 @@ where
 
     parser
         .build(ext)
-        .map_err(|err| BoxError::from(err.into()))?;
+        .map_err(|err| -> BoxError { err.into() })?;
 
     Ok(username.to_owned())
 }
@@ -139,7 +139,7 @@ macro_rules! username_label_parser_tuple_impl {
             fn build(self, ext: &mut Extensions) -> Result<(), Self::Error> {
                 let ($($T,)+) = self;
                 $(
-                    $T.build(ext).map_err(|err| BoxError::from(err.into()))?;
+                    $T.build(ext).map_err(|err| -> BoxError { err.into() })?;
                 )+
                 Ok(())
             }
@@ -175,7 +175,7 @@ macro_rules! username_label_parser_tuple_exclusive_labels_impl {
             fn build(self, ext: &mut Extensions) -> Result<(), Self::Error> {
                 let ($($T,)+) = self.0;
                 $(
-                    $T.build(ext).map_err(|err| BoxError::from(err.into()))?;
+                    $T.build(ext).map_err(|err| -> BoxError { err.into() })?;
                 )+
                 Ok(())
             }
