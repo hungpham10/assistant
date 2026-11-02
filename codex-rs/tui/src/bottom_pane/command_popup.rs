@@ -628,3 +628,24 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod tools_filter_tests {
+    use super::*;
+
+    #[test]
+    fn filter_matches_tools_command() {
+        let mut popup = CommandPopup::new(CommandPopupFlags::default(), Vec::new());
+        popup.on_composer_text_change("/tools".to_string());
+
+        let cmds: Vec<String> = popup
+            .filtered_items()
+            .into_iter()
+            .map(|item| match item {
+                CommandItem::Builtin(cmd) => cmd.command().to_string(),
+                CommandItem::ServiceTier(command) => command.name,
+            })
+            .collect();
+        assert_eq!(cmds, vec!["tools".to_string()]);
+    }
+}

@@ -597,7 +597,8 @@ impl ThreadRequestProcessor {
         .await
         .map_err(|err| internal_error(format!("failed to update tool selection: {err}")))?;
         self.outgoing
-            .send_response(request_id, ThreadSetToolEnabledResponse {});
+            .send_response(request_id, ThreadSetToolEnabledResponse {})
+            .await;
         Ok(None)
     }
 

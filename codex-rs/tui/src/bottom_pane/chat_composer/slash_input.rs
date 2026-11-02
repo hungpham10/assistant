@@ -349,6 +349,16 @@ impl ChatComposer {
                 modifiers: KeyModifiers::NONE,
                 ..
             } => {
+                // Ensure popup filtering/selection reflects the latest composer
+                // text before dispatching; without this, Enter can run a stale
+                // selection (e.g. `/model`) when the composer holds a newer
+                // token like `/tools`.
+                let text = self.draft.textarea.text();
+                let first_line = text.lines().next().unwrap_or("").to_owned();
+                let cursor = self.draft.textarea.cursor();
+                let filter_text = command_popup_filter_text(&first_line, cursor)
+                    .unwrap_or_else(|| first_line.clone());
+                popup.on_composer_text_change(filter_text);
                 if let Some(sel) = popup.selected_item() {
                     if self
                         .complete_selected_slash_command_preserving_existing_draft_tail_as_inline_args(

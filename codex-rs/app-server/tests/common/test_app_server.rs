@@ -103,6 +103,7 @@ use codex_app_server_protocol::ThreadResumeParams;
 use codex_app_server_protocol::ThreadRollbackParams;
 use codex_app_server_protocol::ThreadSearchParams;
 use codex_app_server_protocol::ThreadSetNameParams;
+use codex_app_server_protocol::ThreadSetToolEnabledParams;
 use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_app_server_protocol::ThreadShellCommandParams;
 use codex_app_server_protocol::ThreadStartParams;
@@ -527,6 +528,15 @@ impl TestAppServer {
     ) -> anyhow::Result<i64> {
         let params = Some(serde_json::to_value(params)?);
         self.send_request("thread/name/set", params).await
+    }
+
+    /// Send a `thread/tools/set` JSON-RPC request.
+    pub async fn send_thread_set_tool_enabled_request(
+        &mut self,
+        params: ThreadSetToolEnabledParams,
+    ) -> anyhow::Result<i64> {
+        let params = Some(serde_json::to_value(params)?);
+        self.send_request("thread/tools/set", params).await
     }
 
     /// Send a `thread/metadata/update` JSON-RPC request.

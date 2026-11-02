@@ -1105,18 +1105,21 @@ impl ChatWidget {
             .map(|name| {
                 let enabled = !self.tools_session_disabled.contains(name);
                 let key = name.to_string();
+                let enter_key = key.clone();
                 SelectionItem {
                     name: name.to_string(),
                     toggle: Some(SelectionToggle {
                         is_on: enabled,
-                        action: Box::new(move |enabled, tx| {
-                            tx.send(AppEvent::ToggleToolEnabled {
-                                name: key.clone(),
-                                enabled,
-                            });
+                        action: Box::new(move |_enabled, tx| {
+                            tx.send(AppEvent::ToggleToolEnabled { name: key.clone() });
                         }),
                     }),
                     description: Some("builtin".to_string()),
+                    actions: vec![Box::new(move |tx| {
+                        tx.send(AppEvent::ToggleToolEnabled {
+                            name: enter_key.clone(),
+                        });
+                    })],
                     dismiss_on_select: false,
                     ..Default::default()
                 }
@@ -1125,17 +1128,34 @@ impl ChatWidget {
         self.bottom_pane.show_selection_view(SelectionViewParams {
             title: Some("Tools — enable/disable for this session".to_string()),
             subtitle: Some(
-                "Disabled tools stay callable via tool_search. Enter toggles, Esc closes."
+                "Disabled tools stay callable via tool_search. Space or Enter toggles; Esc closes."
                     .to_string(),
             ),
-            footer_hint: Some(standard_popup_hint_line()),
             items,
             ..Default::default()
         });
         self.request_redraw();
     }
 
-    pub(crate) fn handle_tools_toggle(&mut self, name: String, enabled: bool) {
+    pub(crate) fn handle_tools_toggle(&mut self, name: String) {
+        let enabled = if self.tools_session_disabled.remove(&name) {
+            true
+        } else {
+            self.tools_session_disabled.insert(name.clone());
+            false
+        };
+        self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
+            name.clone(),
+            enabled,
+        ));
+        let state_word = if enabled { "enabled" } else { "disabled" };
+        self.add_info_message(
+            format!("Tool `{name}` {state_word} for this session."),
+            /*hint*/ None,
+        );
+    }
+
+    pub(crate) fn set_tool_enabled_state(&mut self, name: String, enabled: bool) {
         if enabled {
             self.tools_session_disabled.remove(&name);
         } else {

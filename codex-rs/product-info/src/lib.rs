@@ -218,11 +218,6 @@ fn executable_is_in_assistant_package(exe: &std::path::Path) -> bool {
         })
 }
 
-#[deprecated(note = "use executable_is_in_assistant_package")]
-fn executable_is_in_open_interpreter_package(exe: &std::path::Path) -> bool {
-    executable_is_in_assistant_package(exe)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
