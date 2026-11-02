@@ -1,4 +1,4 @@
-# Release workflow for Open Interpreter.
+# Release workflow for Assistant.
 #
 # To release, bump the workspace version in codex-rs/Cargo.toml, then:
 # ```
@@ -224,7 +224,7 @@ jobs:
           if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
             export LIBSQLITE3_FLAGS=SQLITE_DISABLE_INTRINSIC
           fi
-          build_args=(--bin codex --bin codex-code-mode-host)
+          build_args=(--bin codex --no-default-features --features minimal)
           if [[ "$target" == *windows* ]]; then
             build_args+=(--bin codex-command-runner --bin codex-windows-sandbox-setup)
           fi
@@ -242,13 +242,14 @@ jobs:
         run: |
           set -euo pipefail
           for binary in \
-            "target/${{ matrix.target }}/release/codex" \
-            "target/${{ matrix.target }}/release/codex-code-mode-host"
+            "target/${{ matrix.target }}/release/codex"
           do
-            if [[ "${{ runner.os }}" == "macOS" ]]; then
-              strip -S "$binary"
-            else
-              strip --strip-debug --strip-unneeded "$binary"
+            if [[ -f "$binary" ]]; then
+              if [[ "${{ runner.os }}" == "macOS" ]]; then
+                strip -S "$binary"
+              else
+                strip --strip-debug --strip-unneeded "$binary"
+              fi
             fi
           done
 
@@ -290,7 +291,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Publish the real Open Interpreter installers directly. The website
+          # Publish the real Assistant installers directly. The website
           # /install routes serve the same scripts, so there is no secondary
           # installer asset name to keep in sync.
           cp scripts/install/install.sh dist/install.sh
@@ -307,10 +308,10 @@ jobs:
             > codex-package_SHA256SUMS
 
       - name: Publish release
-        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
-          name: Open Interpreter ${{ needs.prepare.outputs.version }}
+          name: Assistant ${{ needs.prepare.outputs.version }}
           draft: false
           prerelease: false
           files: |

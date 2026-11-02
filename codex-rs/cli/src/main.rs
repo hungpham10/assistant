@@ -5,12 +5,17 @@ use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::Shell;
 use clap_complete::generate;
+#[cfg(feature = "app-server")]
 use codex_app_server_daemon::BootstrapOptions as AppServerBootstrapOptions;
+#[cfg(feature = "app-server")]
 use codex_app_server_daemon::LifecycleCommand as AppServerLifecycleCommand;
+#[cfg(feature = "app-server")]
 use codex_app_server_daemon::RemoteControlMode as AppServerRemoteControlMode;
 use codex_arg0::Arg0DispatchPaths;
 use codex_arg0::arg0_dispatch_or_else;
+#[cfg(feature = "apply")]
 use codex_chatgpt::apply_command::ApplyCommand;
+#[cfg(feature = "apply")]
 use codex_chatgpt::apply_command::run_apply_command;
 use codex_cli::read_access_token_from_stdin;
 use codex_cli::read_api_key_from_stdin;
@@ -20,13 +25,17 @@ use codex_cli::run_login_with_api_key;
 use codex_cli::run_login_with_chatgpt;
 use codex_cli::run_login_with_device_code;
 use codex_cli::run_logout;
+#[cfg(feature = "cloud")]
 use codex_cloud_tasks::Cli as CloudTasksCli;
 use codex_exec::Cli as ExecCli;
 use codex_exec::Command as ExecCommand;
 use codex_exec::ReviewArgs;
 use codex_execpolicy::ExecPolicyCheckCommand;
+#[cfg(feature = "internal-tools")]
 use codex_responses_api_proxy::Args as ResponsesApiProxyArgs;
+#[cfg(feature = "internal-tools")]
 use codex_rollout_trace::REDUCED_STATE_FILE_NAME;
+#[cfg(feature = "internal-tools")]
 use codex_rollout_trace::replay_bundle;
 use codex_state::StateRuntime;
 use codex_state::memories_db_path;
@@ -46,15 +55,25 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use supports_color::Stream;
 
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(all(
+    feature = "desktop-app",
+    any(target_os = "macos", target_os = "windows")
+))]
 mod app_cmd;
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(all(
+    feature = "desktop-app",
+    any(target_os = "macos", target_os = "windows")
+))]
 mod desktop_app;
 mod doctor;
+#[cfg(feature = "exec-server")]
 mod exec_server_telemetry;
+#[cfg(feature = "plugins")]
 mod marketplace_cmd;
 mod mcp_cmd;
+#[cfg(feature = "plugins")]
 mod plugin_cmd;
+#[cfg(feature = "app-server")]
 mod remote_control_cmd;
 #[cfg(target_os = "windows")]
 mod sandbox_setup;
@@ -64,8 +83,11 @@ mod usage_cmd;
 mod wsl_paths;
 
 use crate::mcp_cmd::McpCli;
+#[cfg(feature = "plugins")]
 use crate::plugin_cmd::PluginCli;
+#[cfg(feature = "plugins")]
 use crate::plugin_cmd::PluginSubcommand;
+#[cfg(feature = "app-server")]
 use crate::remote_control_cmd::RemoteControlCommand;
 use doctor::DoctorCommand;
 use state_db_recovery as local_state_db;
@@ -85,6 +107,7 @@ use codex_home::CodexHomeUserInstructionsProvider;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_login::read_codex_access_token_from_env;
+#[cfg(feature = "internal-tools")]
 use codex_memories_write::clear_memory_roots_contents;
 use codex_models_manager::bundled_models_response;
 use codex_models_manager::manager::RefreshStrategy;
@@ -144,22 +167,29 @@ enum Subcommand {
     Mcp(McpCli),
 
     /// Manage Codex plugins.
+    #[cfg(feature = "plugins")]
     Plugin(PluginCli),
 
     /// Start Codex as an MCP server (stdio).
+    #[cfg(feature = "mcp-server")]
     McpServer(McpServerCommand),
 
     /// Show recorded per-turn token usage.
     Usage(UsageCommand),
 
     /// [experimental] Run the app server or related tooling.
+    #[cfg(feature = "app-server")]
     AppServer(AppServerCommand),
 
     /// [experimental] Manage the app-server daemon with remote control enabled.
+    #[cfg(feature = "app-server")]
     RemoteControl(RemoteControlCommand),
 
     /// Launch the Codex desktop app (opens the app installer if missing).
-    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    #[cfg(all(
+        feature = "desktop-app",
+        any(target_os = "macos", target_os = "windows")
+    ))]
     App(app_cmd::AppCommand),
 
     /// Generate shell completion scripts.
@@ -178,10 +208,12 @@ enum Subcommand {
     Debug(DebugCommand),
 
     /// Execpolicy tooling.
+    #[cfg(feature = "internal-tools")]
     #[clap(hide = true)]
     Execpolicy(ExecpolicyCommand),
 
     /// Apply the latest diff produced by Codex agent as a `git apply` to your local working tree.
+    #[cfg(feature = "apply")]
     #[clap(visible_alias = "a")]
     Apply(ApplyCommand),
 
@@ -189,30 +221,38 @@ enum Subcommand {
     Resume(ResumeCommand),
 
     /// Archive a saved session by id or session name.
+    #[cfg(feature = "session-management")]
     Archive(SessionArchiveCommand),
 
     /// Permanently delete a saved session by id or session name.
+    #[cfg(feature = "session-management")]
     Delete(DeleteCommand),
 
     /// Unarchive a saved session by id or session name.
+    #[cfg(feature = "session-management")]
     Unarchive(SessionArchiveCommand),
 
     /// Fork a previous interactive session (picker by default; use --last to fork the most recent).
+    #[cfg(feature = "session-management")]
     Fork(ForkCommand),
 
     /// [EXPERIMENTAL] Browse tasks from Codex Cloud and apply changes locally.
+    #[cfg(feature = "cloud")]
     #[clap(name = "cloud", alias = "cloud-tasks")]
     Cloud(CloudTasksCli),
 
     /// Internal: run the responses API proxy.
+    #[cfg(feature = "internal-tools")]
     #[clap(hide = true)]
     ResponsesApiProxy(ResponsesApiProxyArgs),
 
     /// Internal: relay stdio to a Unix domain socket.
+    #[cfg(feature = "internal-tools")]
     #[clap(hide = true, name = "stdio-to-uds")]
     StdioToUds(StdioToUdsCommand),
 
     /// [EXPERIMENTAL] Run the standalone exec-server service.
+    #[cfg(feature = "exec-server")]
     ExecServer(ExecServerCommand),
 
     /// Inspect feature flags.
@@ -238,20 +278,24 @@ enum DebugSubcommand {
     Models(DebugModelsCommand),
 
     /// Tooling: helps debug the app server.
+    #[cfg(feature = "app-server")]
     AppServer(DebugAppServerCommand),
 
     /// Render the model-visible prompt input list as JSON.
     PromptInput(DebugPromptInputCommand),
 
     /// Replay a rollout trace bundle and write reduced state JSON.
+    #[cfg(feature = "internal-tools")]
     #[clap(hide = true)]
     TraceReduce(DebugTraceReduceCommand),
 
     /// Internal: reset local memory state for a fresh start.
+    #[cfg(feature = "internal-tools")]
     #[clap(hide = true)]
     ClearMemories,
 }
 
+#[cfg(feature = "app-server")]
 #[derive(Debug, Parser)]
 struct DebugAppServerCommand {
     #[command(subcommand)]
@@ -298,6 +342,7 @@ struct ReviewCommand {
     args: ReviewArgs,
 }
 
+#[cfg(feature = "mcp-server")]
 #[derive(Debug, Parser)]
 struct McpServerCommand {
     /// Error out when config.toml contains fields that are not recognized by this version of Codex.
@@ -305,6 +350,7 @@ struct McpServerCommand {
     strict_config: bool,
 }
 
+#[cfg(feature = "internal-tools")]
 #[derive(Debug, Parser)]
 struct DebugTraceReduceCommand {
     /// Trace bundle directory containing manifest.json and trace.jsonl.
@@ -451,6 +497,7 @@ struct UnsupportedSandboxArgs {
     pub command: Vec<String>,
 }
 
+#[cfg(feature = "internal-tools")]
 #[derive(Debug, Parser)]
 struct ExecpolicyCommand {
     #[command(subcommand)]
@@ -519,6 +566,7 @@ struct LogoutCommand {
     config_overrides: CliConfigOverrides,
 }
 
+#[cfg(feature = "app-server")]
 #[derive(Debug, Parser)]
 struct AppServerCommand {
     /// Omit to run the app server; specify a subcommand for tooling.
@@ -568,6 +616,7 @@ struct AppServerCommand {
     auth: codex_app_server::AppServerWebsocketAuthArgs,
 }
 
+#[cfg(feature = "exec-server")]
 #[derive(Debug, Parser)]
 struct ExecServerCommand {
     /// Error out when config.toml contains fields that are not recognized by this version of Codex.
@@ -595,6 +644,7 @@ struct ExecServerCommand {
     use_agent_identity_auth: bool,
 }
 
+#[cfg(feature = "app-server")]
 #[derive(Debug, clap::Subcommand)]
 #[allow(clippy::enum_variant_names)]
 enum AppServerSubcommand {
@@ -871,6 +921,7 @@ fn delete_action(target: &str, force: bool) -> anyhow::Result<codex_tui::Session
     Ok(codex_tui::SessionArchiveAction::Delete(confirmation))
 }
 
+#[cfg(feature = "app-server")]
 async fn run_debug_app_server_command(cmd: DebugAppServerCommand) -> anyhow::Result<()> {
     match cmd.subcommand {
         DebugAppServerSubcommand::SendMessageV2(cmd) => {
@@ -982,7 +1033,10 @@ fn product_usage() -> String {
 }
 
 fn main() -> anyhow::Result<()> {
+    #[cfg(feature = "app-server")]
     let remote_control_disabled = codex_app_server::take_remote_control_disabled_env();
+    #[cfg(not(feature = "app-server"))]
+    let remote_control_disabled = false;
     arg0_dispatch_or_else(move |arg0_paths: Arg0DispatchPaths| async move {
         cli_main(arg0_paths, remote_control_disabled).await?;
         Ok(())
@@ -991,7 +1045,7 @@ fn main() -> anyhow::Result<()> {
 
 async fn cli_main(
     arg0_paths: Arg0DispatchPaths,
-    remote_control_disabled: bool,
+    #[allow(unused_variables)] remote_control_disabled: bool,
 ) -> anyhow::Result<()> {
     let MultitoolCli {
         config_overrides: mut root_config_overrides,
@@ -1064,6 +1118,7 @@ async fn cli_main(
             );
             codex_exec::run_main(exec_cli, arg0_paths.clone()).await?;
         }
+        #[cfg(feature = "mcp-server")]
         Some(Subcommand::McpServer(McpServerCommand { strict_config })) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1097,6 +1152,8 @@ async fn cli_main(
                 loader_overrides_for_profile(interactive.config_profile_v2.as_ref())?;
             mcp_cli.run(loader_overrides).await?;
         }
+        #[cfg(feature = "plugins")]
+        #[cfg(feature = "plugins")]
         Some(Subcommand::Plugin(plugin_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1133,6 +1190,8 @@ async fn cli_main(
                 }
             }
         }
+        #[cfg(feature = "app-server")]
+        #[cfg(feature = "app-server")]
         Some(Subcommand::AppServer(app_server_cli)) => {
             let AppServerCommand {
                 subcommand,
@@ -1253,6 +1312,7 @@ async fn cli_main(
                 }
             }
         }
+        #[cfg(feature = "app-server")]
         Some(Subcommand::RemoteControl(remote_control_cli)) => {
             let subcommand_name = remote_control_cli.subcommand_name();
             reject_remote_mode_for_subcommand(
@@ -1268,6 +1328,10 @@ async fn cli_main(
             .await?;
         }
         #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(all(
+            feature = "desktop-app",
+            any(target_os = "macos", target_os = "windows")
+        ))]
         Some(Subcommand::App(app_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1305,6 +1369,7 @@ async fn cli_main(
             .await?;
             handle_app_exit(exit_info)?;
         }
+        #[cfg(feature = "session-management")]
         Some(Subcommand::Archive(cmd)) => {
             let output = run_session_archive_cli_command(
                 codex_tui::SessionArchiveAction::Archive,
@@ -1318,6 +1383,7 @@ async fn cli_main(
             .await?;
             println!("{output}");
         }
+        #[cfg(feature = "session-management")]
         Some(Subcommand::Delete(DeleteCommand { session, force })) => {
             let action = delete_action(&session.target, force)?;
             let output = run_session_archive_cli_command(
@@ -1332,6 +1398,7 @@ async fn cli_main(
             .await?;
             println!("{output}");
         }
+        #[cfg(feature = "session-management")]
         Some(Subcommand::Unarchive(cmd)) => {
             let output = run_session_archive_cli_command(
                 codex_tui::SessionArchiveAction::Unarchive,
@@ -1345,6 +1412,7 @@ async fn cli_main(
             .await?;
             println!("{output}");
         }
+        #[cfg(feature = "session-management")]
         Some(Subcommand::Fork(ForkCommand {
             session_id,
             last,
@@ -1458,6 +1526,7 @@ async fn cli_main(
             )
             .await?;
         }
+        #[cfg(feature = "cloud")]
         Some(Subcommand::Cloud(mut cloud_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1532,6 +1601,7 @@ async fn cli_main(
                 )?;
                 run_debug_models_command(cmd, root_config_overrides).await?;
             }
+            #[cfg(feature = "app-server")]
             DebugSubcommand::AppServer(cmd) => {
                 reject_remote_mode_for_subcommand(
                     root_remote.as_deref(),
@@ -1554,6 +1624,7 @@ async fn cli_main(
                 )
                 .await?;
             }
+            #[cfg(feature = "internal-tools")]
             DebugSubcommand::TraceReduce(cmd) => {
                 reject_remote_mode_for_subcommand(
                     root_remote.as_deref(),
@@ -1562,6 +1633,7 @@ async fn cli_main(
                 )?;
                 run_debug_trace_reduce_command(cmd).await?;
             }
+            #[cfg(feature = "internal-tools")]
             DebugSubcommand::ClearMemories => {
                 reject_remote_mode_for_subcommand(
                     root_remote.as_deref(),
@@ -1571,6 +1643,7 @@ async fn cli_main(
                 run_debug_clear_memories_command(&root_config_overrides).await?;
             }
         },
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::Execpolicy(ExecpolicyCommand { sub })) => match sub {
             ExecpolicySubcommand::Check(cmd) => {
                 reject_remote_mode_for_subcommand(
@@ -1581,6 +1654,7 @@ async fn cli_main(
                 run_execpolicycheck(cmd)?
             }
         },
+        #[cfg(feature = "apply")]
         Some(Subcommand::Apply(mut apply_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1593,6 +1667,7 @@ async fn cli_main(
             );
             run_apply_command(apply_cli, /*cwd*/ None).await?;
         }
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::ResponsesApiProxy(args)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1602,6 +1677,7 @@ async fn cli_main(
             tokio::task::spawn_blocking(move || codex_responses_api_proxy::run_main(args))
                 .await??;
         }
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::StdioToUds(cmd)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1611,6 +1687,7 @@ async fn cli_main(
             let socket_path = cmd.socket_path;
             codex_stdio_to_uds::run(socket_path.as_path()).await?;
         }
+        #[cfg(feature = "exec-server")]
         Some(Subcommand::ExecServer(cmd)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -1695,21 +1772,26 @@ fn profile_v2_for_subcommand<'a>(
         Subcommand::Exec(_)
         | Subcommand::Review(_)
         | Subcommand::Resume(_)
-        | Subcommand::Archive(_)
-        | Subcommand::Delete(_)
-        | Subcommand::Unarchive(_)
-        | Subcommand::Fork(_)
         | Subcommand::Mcp(_)
         | Subcommand::Sandbox(_)
         | Subcommand::Debug(DebugCommand {
             subcommand: DebugSubcommand::PromptInput(_),
         }) => Ok(Some(profile_v2)),
+        #[cfg(feature = "session-management")]
+        Subcommand::Archive(_) => Ok(Some(profile_v2)),
+        #[cfg(feature = "session-management")]
+        Subcommand::Delete(_) => Ok(Some(profile_v2)),
+        #[cfg(feature = "session-management")]
+        Subcommand::Unarchive(_) => Ok(Some(profile_v2)),
+        #[cfg(feature = "session-management")]
+        Subcommand::Fork(_) => Ok(Some(profile_v2)),
         _ => anyhow::bail!(
             "--profile only applies to runtime commands and `codex mcp`: `codex`, `codex exec`, `codex review`, `codex resume`, `codex archive`, `codex delete`, `codex unarchive`, `codex fork`, `codex mcp`, `codex sandbox`, and `codex debug prompt-input`."
         ),
     }
 }
 
+#[cfg(feature = "exec-server")]
 async fn run_exec_server_command(
     cmd: ExecServerCommand,
     arg0_paths: &Arg0DispatchPaths,
@@ -1931,6 +2013,7 @@ fn maybe_print_under_development_feature_warning(codex_home: &std::path::Path, f
     );
 }
 
+#[cfg(feature = "internal-tools")]
 async fn run_debug_trace_reduce_command(cmd: DebugTraceReduceCommand) -> anyhow::Result<()> {
     let output = cmd
         .output
@@ -2051,6 +2134,7 @@ async fn run_debug_models_command(
     Ok(())
 }
 
+#[cfg(feature = "internal-tools")]
 async fn run_debug_clear_memories_command(
     root_config_overrides: &CliConfigOverrides,
 ) -> anyhow::Result<()> {
@@ -2145,39 +2229,58 @@ fn unsupported_subcommand_name_for_strict_config(
         None
         | Some(Subcommand::Exec(_))
         | Some(Subcommand::Review(_))
-        | Some(Subcommand::McpServer(_))
-        | Some(Subcommand::ExecServer(_))
         | Some(Subcommand::Resume(_))
-        | Some(Subcommand::Archive(_))
-        | Some(Subcommand::Delete(_))
-        | Some(Subcommand::Unarchive(_))
-        | Some(Subcommand::Fork(_))
         | Some(Subcommand::Doctor(_)) => None,
+        #[cfg(feature = "mcp-server")]
+        Some(Subcommand::McpServer(_)) => None,
+        #[cfg(feature = "exec-server")]
+        Some(Subcommand::ExecServer(_)) => None,
+        #[cfg(feature = "session-management")]
+        Some(Subcommand::Archive(_)) => None,
+        #[cfg(feature = "session-management")]
+        Some(Subcommand::Delete(_)) => None,
+        #[cfg(feature = "session-management")]
+        Some(Subcommand::Unarchive(_)) => None,
+        #[cfg(feature = "session-management")]
+        Some(Subcommand::Fork(_)) => None,
+        #[cfg(feature = "app-server")]
         Some(Subcommand::AppServer(app_server)) if app_server.subcommand.is_none() => None,
+        #[cfg(feature = "app-server")]
         Some(Subcommand::AppServer(app_server)) => {
             Some(app_server_subcommand_name(app_server.subcommand.as_ref()))
         }
+        #[cfg(feature = "app-server")]
         Some(Subcommand::RemoteControl(remote_control)) => Some(remote_control.subcommand_name()),
         Some(Subcommand::Usage(_)) => Some("usage"),
         Some(Subcommand::Mcp(_)) => Some("mcp"),
+        #[cfg(feature = "plugins")]
         Some(Subcommand::Plugin(_)) => Some("plugin"),
-        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        #[cfg(all(
+            feature = "desktop-app",
+            any(target_os = "macos", target_os = "windows")
+        ))]
         Some(Subcommand::App(_)) => Some("app"),
         Some(Subcommand::Login(_)) => Some("login"),
         Some(Subcommand::Logout(_)) => Some("logout"),
         Some(Subcommand::Completion(_)) => Some("completion"),
         Some(Subcommand::Update) => Some("update"),
+        #[cfg(feature = "cloud")]
         Some(Subcommand::Cloud(_)) => Some("cloud"),
         Some(Subcommand::Sandbox(_)) => Some("sandbox"),
         Some(Subcommand::Debug(_)) => Some("debug"),
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::Execpolicy(_)) => Some("execpolicy"),
+        #[cfg(feature = "apply")]
         Some(Subcommand::Apply(_)) => Some("apply"),
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::ResponsesApiProxy(_)) => Some("responses-api-proxy"),
+        #[cfg(feature = "internal-tools")]
         Some(Subcommand::StdioToUds(_)) => Some("stdio-to-uds"),
         Some(Subcommand::Features(_)) => Some("features"),
     }
 }
 
+#[cfg(feature = "app-server")]
 fn reject_strict_config_for_app_server_subcommand(
     strict_config: bool,
     subcommand: Option<&AppServerSubcommand>,
@@ -2201,6 +2304,7 @@ fn reject_strict_config_for_unsupported_subcommand(
     Ok(())
 }
 
+#[cfg(feature = "app-server")]
 fn reject_remote_mode_for_app_server_subcommand(
     remote: Option<&str>,
     remote_auth_token_env: Option<&str>,
@@ -2210,6 +2314,7 @@ fn reject_remote_mode_for_app_server_subcommand(
     reject_remote_mode_for_subcommand(remote, remote_auth_token_env, subcommand_name)
 }
 
+#[cfg(feature = "app-server")]
 fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'static str {
     match subcommand {
         None => "app-server",
@@ -2236,12 +2341,14 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
     }
 }
 
+#[cfg(feature = "app-server")]
 async fn print_app_server_daemon_output(command: AppServerLifecycleCommand) -> anyhow::Result<()> {
     let output = codex_app_server_daemon::run(command).await?;
     println!("{}", serde_json::to_string(&output)?);
     Ok(())
 }
 
+#[cfg(feature = "app-server")]
 async fn print_app_server_remote_control_output(
     mode: AppServerRemoteControlMode,
 ) -> anyhow::Result<()> {
