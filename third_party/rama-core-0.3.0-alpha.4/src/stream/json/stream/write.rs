@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 
 use crate::bytes::{BufMut as _, Bytes, BytesMut};
 use pin_project_lite::pin_project;
-use rama_error::{BoxError, OpaqueError};
+use rama_error::{BoxError};
 use serde::Serialize;
 
 use crate::futures::{Stream, ready};
@@ -104,7 +104,7 @@ mod tests {
     #[test]
     fn pending_stream_results_in_pending_item() {
         let mut ndjson_stream =
-            JsonWriteStream::new(stream::pending::<Result<TestStruct, OpaqueError>>());
+            JsonWriteStream::new(stream::pending::<Result<TestStruct, BoxError>>());
 
         let mut next = task::spawn(ndjson_stream.next());
 
@@ -114,8 +114,8 @@ mod tests {
     #[test]
     fn empty_stream_results_in_empty_results() {
         let collected = tokio_test::block_on(
-            JsonWriteStream::new(stream::empty::<Result<TestStruct, OpaqueError>>())
-                .collect::<Vec<Result<Bytes, OpaqueError>>>(),
+            JsonWriteStream::new(stream::empty::<Result<TestStruct, BoxError>>())
+                .collect::<Vec<Result<Bytes, BoxError>>>(),
         );
         assert!(collected.is_empty());
     }
@@ -125,7 +125,7 @@ mod tests {
         let stream = stream::once(async { Ok::<_, Infallible>(TestStruct { key: 1, value: 2 }) });
 
         let collected = tokio_test::block_on(
-            JsonWriteStream::new(stream).collect::<Vec<Result<Bytes, OpaqueError>>>(),
+            JsonWriteStream::new(stream).collect::<Vec<Result<Bytes, BoxError>>>(),
         );
 
         let mut result = collected.into_iter();
@@ -141,7 +141,7 @@ mod tests {
         ]);
 
         let collected = tokio_test::block_on(
-            JsonWriteStream::new(stream).collect::<Vec<Result<Bytes, OpaqueError>>>(),
+            JsonWriteStream::new(stream).collect::<Vec<Result<Bytes, BoxError>>>(),
         );
 
         let mut result = collected.into_iter();
