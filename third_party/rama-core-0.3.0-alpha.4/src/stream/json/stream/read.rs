@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
-use rama_error::{BoxError, ErrorContext as _, BoxError};
+use rama_error::{BoxError, ErrorContext as _};
 use serde::Deserialize;
 
 use crate::futures::{Stream, ready};
