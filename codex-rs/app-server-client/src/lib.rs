@@ -61,10 +61,10 @@ use tokio::time::timeout;
 use toml::Value as TomlValue;
 use tracing::warn;
 
-pub use codex_app_server::in_process::StateDbHandle;
 pub use codex_app_server::app_server_control_socket_path;
 pub use codex_app_server::in_process::DEFAULT_IN_PROCESS_CHANNEL_CAPACITY;
 pub use codex_app_server::in_process::InProcessServerEvent;
+pub use codex_app_server::in_process::StateDbHandle;
 pub use codex_core::otel_init::build_provider as build_otel_provider;
 pub use codex_exec_server::EnvironmentManager;
 pub use codex_exec_server::ExecServerRuntimePaths;

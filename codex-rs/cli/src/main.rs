@@ -55,9 +55,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use supports_color::Stream;
 
-#[cfg(all(feature = "desktop-app", any(target_os = "macos", target_os = "windows")))]
+#[cfg(all(
+    feature = "desktop-app",
+    any(target_os = "macos", target_os = "windows")
+))]
 mod app_cmd;
-#[cfg(all(feature = "desktop-app", any(target_os = "macos", target_os = "windows")))]
+#[cfg(all(
+    feature = "desktop-app",
+    any(target_os = "macos", target_os = "windows")
+))]
 mod desktop_app;
 mod doctor;
 #[cfg(feature = "exec-server")]
@@ -180,7 +186,10 @@ enum Subcommand {
     RemoteControl(RemoteControlCommand),
 
     /// Launch the Codex desktop app (opens the app installer if missing).
-    #[cfg(all(feature = "desktop-app", any(target_os = "macos", target_os = "windows")))]
+    #[cfg(all(
+        feature = "desktop-app",
+        any(target_os = "macos", target_os = "windows")
+    ))]
     App(app_cmd::AppCommand),
 
     /// Generate shell completion scripts.
@@ -1319,7 +1328,10 @@ async fn cli_main(
             .await?;
         }
         #[cfg(any(target_os = "macos", target_os = "windows"))]
-        #[cfg(all(feature = "desktop-app", any(target_os = "macos", target_os = "windows")))]
+        #[cfg(all(
+            feature = "desktop-app",
+            any(target_os = "macos", target_os = "windows")
+        ))]
         Some(Subcommand::App(app_cli)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -2243,7 +2255,10 @@ fn unsupported_subcommand_name_for_strict_config(
         Some(Subcommand::Mcp(_)) => Some("mcp"),
         #[cfg(feature = "plugins")]
         Some(Subcommand::Plugin(_)) => Some("plugin"),
-        #[cfg(all(feature = "desktop-app", any(target_os = "macos", target_os = "windows")))]
+        #[cfg(all(
+            feature = "desktop-app",
+            any(target_os = "macos", target_os = "windows")
+        ))]
         Some(Subcommand::App(_)) => Some("app"),
         Some(Subcommand::Login(_)) => Some("login"),
         Some(Subcommand::Logout(_)) => Some("logout"),
