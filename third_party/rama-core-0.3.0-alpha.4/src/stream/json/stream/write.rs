@@ -3,7 +3,7 @@ use std::task::{Context, Poll};
 
 use crate::bytes::{BufMut as _, Bytes, BytesMut};
 use pin_project_lite::pin_project;
-use rama_error::{BoxError};
+use rama_error::{BoxError, OpaqueError};
 use serde::Serialize;
 
 use crate::futures::{Stream, ready};
@@ -55,7 +55,7 @@ where
     T: Serialize,
     E: Into<BoxError>,
 {
-    type Item = Result<Bytes, OpaqueError>;
+    type Item = Result<Bytes, BoxError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -70,7 +70,7 @@ where
 
                 Poll::Ready(Some(
                     if let Err(err) = serde_json::to_writer(this.scratch.writer(), &item) {
-                        Err(OpaqueError::from_boxed(err.into()))
+                        Err(BoxError::from(err.into()))
                     } else {
                         *this.written = true;
                         let out = this.scratch.split().freeze();
@@ -78,7 +78,7 @@ where
                     },
                 ))
             }
-            Some(Err(err)) => Poll::Ready(Some(Err(OpaqueError::from_boxed(err.into())))),
+            Some(Err(err)) => Poll::Ready(Some(Err(BoxError::from(err.into())))),
             None => Poll::Ready(None),
         }
     }
