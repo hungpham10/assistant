@@ -163,7 +163,6 @@ pub(crate) enum AppEvent {
     /// Toggle one tool for the current session (from the `/tools` picker).
     ToggleToolEnabled {
         name: String,
-        enabled: bool,
     },
     /// Switch the active thread to the selected agent.
     SelectAgentThread(ThreadId),

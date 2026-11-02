@@ -12,8 +12,9 @@ fn set_enabled_moves_between_deny_and_enable() {
     assert!(selection.enable.contains("apply_patch"));
     assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
 
-    selection.reset();
-    assert!(selection.is_empty());
+    selection.deny.clear();
+    selection.enable.clear();
+    assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
     assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
 }
 

@@ -11,7 +11,6 @@ use codex_client::RequestTelemetry;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::Method;
-use serde_json::Value;
 use std::sync::Arc;
 use tracing::instrument;
 

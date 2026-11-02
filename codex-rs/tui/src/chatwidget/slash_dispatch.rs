@@ -695,8 +695,12 @@ impl ChatWidget {
                 match (parts.first().copied(), parts.get(1).copied()) {
                     (None, _) => self.open_tools_picker(),
                     (Some("reset"), _) => self.reset_tools_override(),
-                    (Some("on"), Some(name)) => self.handle_tools_toggle(name.to_string(), true),
-                    (Some("off"), Some(name)) => self.handle_tools_toggle(name.to_string(), false),
+                    (Some("on"), Some(name)) => {
+                        self.set_tool_enabled_state(name.to_string(), /*enabled*/ true)
+                    }
+                    (Some("off"), Some(name)) => {
+                        self.set_tool_enabled_state(name.to_string(), /*enabled*/ false)
+                    }
                     _ => {
                         self.add_error_message("Usage: /tools [on|off <name>|reset]".to_string());
                     }

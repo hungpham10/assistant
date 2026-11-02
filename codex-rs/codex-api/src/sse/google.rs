@@ -41,7 +41,7 @@ pub async fn process_sse(
     _telemetry: Option<Arc<dyn SseTelemetry>>,
 ) {
     let mut stream = stream.eventsource();
-    let mut response_id = String::new();
+    let response_id = String::new();
     let mut last_usage: Option<TokenUsage> = None;
     loop {
         let event = match timeout(idle_timeout, stream.next()).await {

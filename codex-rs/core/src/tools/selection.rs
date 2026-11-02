@@ -46,23 +46,6 @@ impl SessionToolSelection {
         }
     }
 
-    /// Clears all session overrides.
-    pub(crate) fn reset(&mut self) {
-        self.deny.clear();
-        self.enable.clear();
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.deny.is_empty() && self.enable.is_empty()
-    }
-
-    /// Keys currently disabled, sorted for display.
-    pub(crate) fn disabled_keys(&self) -> Vec<&str> {
-        let mut keys: Vec<&str> = self.deny.iter().map(String::as_str).collect();
-        keys.sort_unstable();
-        keys
-    }
-
     /// Decides whether a tool should be demoted from the initial
     /// model-visible list. `plan_mode` applies the read-only builtin rule.
     pub(crate) fn tool_is_demoted(&self, name: &ToolName, plan_mode: bool) -> bool {

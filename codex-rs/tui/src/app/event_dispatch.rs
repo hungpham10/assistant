@@ -2257,8 +2257,8 @@ impl App {
             AppEvent::OpenToolsPicker => {
                 self.chat_widget.open_tools_picker();
             }
-            AppEvent::ToggleToolEnabled { name, enabled } => {
-                self.chat_widget.handle_tools_toggle(name, enabled);
+            AppEvent::ToggleToolEnabled { name } => {
+                self.chat_widget.handle_tools_toggle(name);
             }
             AppEvent::OpenAgentPicker => {
                 self.open_agent_picker(app_server).await;

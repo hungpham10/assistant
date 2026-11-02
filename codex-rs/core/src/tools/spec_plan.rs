@@ -150,7 +150,6 @@ impl PlannedTools {
 #[derive(Clone, Copy)]
 struct CoreToolPlanContext<'a> {
     step_context: &'a StepContext,
-    tool_selection: &'a crate::tools::selection::SessionToolSelection,
     mcp_tools: Option<&'a [ToolInfo]>,
     deferred_mcp_tools: Option<&'a [ToolInfo]>,
     tool_suggest_candidates: Option<&'a crate::tools::router::ToolSuggestCandidates>,
@@ -191,7 +190,6 @@ fn build_tool_specs_and_registry(
         crate::agent::role::spawn_tool_spec::build(&std::collections::BTreeMap::new());
     let context = CoreToolPlanContext {
         step_context,
-        tool_selection: &tool_selection,
         mcp_tools: mcp_tools.as_deref(),
         deferred_mcp_tools: deferred_mcp_tools.as_deref(),
         tool_suggest_candidates: tool_suggest_candidates.as_ref(),
