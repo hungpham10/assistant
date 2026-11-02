@@ -562,6 +562,7 @@ inherits = "test"
 opt-level = 0
 
 [patch.crates-io]
+rama-core = { path = "../third_party/rama-core-0.3.0-alpha.4" }
 rama-http = { path = "../third_party/rama-http-0.3.0-alpha.4" }
 # Uncomment to debug local changes.
 # ratatui = { path = "../../ratatui" }
