@@ -1,5 +1,5 @@
 use super::DEFAULT_USERNAME_LABEL_SEPARATOR;
-use crate::error::{BoxError, OpaqueError};
+use crate::error::{BoxError};
 use crate::extensions::Extensions;
 use rama_utils::macros::all_the_tuples_no_last_special_case;
 use std::convert::Infallible;
@@ -61,7 +61,7 @@ where
 
     parser
         .build(ext)
-        .map_err(|err| OpaqueError::from_boxed(err.into()))?;
+        .map_err(|err| BoxError::from(err.into()))?;
 
     Ok(username.to_owned())
 }
@@ -139,7 +139,7 @@ macro_rules! username_label_parser_tuple_impl {
             fn build(self, ext: &mut Extensions) -> Result<(), Self::Error> {
                 let ($($T,)+) = self;
                 $(
-                    $T.build(ext).map_err(|err| OpaqueError::from_boxed(err.into()))?;
+                    $T.build(ext).map_err(|err| BoxError::from(err.into()))?;
                 )+
                 Ok(())
             }
@@ -175,7 +175,7 @@ macro_rules! username_label_parser_tuple_exclusive_labels_impl {
             fn build(self, ext: &mut Extensions) -> Result<(), Self::Error> {
                 let ($($T,)+) = self.0;
                 $(
-                    $T.build(ext).map_err(|err| OpaqueError::from_boxed(err.into()))?;
+                    $T.build(ext).map_err(|err| BoxError::from(err.into()))?;
                 )+
                 Ok(())
             }
