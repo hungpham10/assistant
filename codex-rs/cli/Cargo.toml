@@ -17,18 +17,58 @@ doctest = false
 [lints]
 workspace = true
 
+[features]
+# Giữ nguyên hành vi hiện tại cho dev/CI/Bazel.
+default = ["full"]
+
+# Toàn bộ surface như upstream.
+full = [
+    "app-server",
+    "mcp-server",
+    "cloud",
+    "apply",
+    "plugins",
+    "session-management",
+    "exec-server",
+    "internal-tools",
+    "desktop-app",
+]
+
+# Console-only: TUI + exec + review + login + logout + completion + update
+# + doctor + sandbox + resume + usage + features.
+minimal = []
+
+app-server = [
+    "dep:codex-app-server",
+    "dep:codex-app-server-daemon",
+    "dep:codex-app-server-test-client",
+]
+mcp-server = ["dep:codex-mcp-server"]
+cloud = ["dep:codex-cloud-tasks"]
+apply = ["dep:codex-chatgpt"]
+internal-tools = [
+    "dep:codex-responses-api-proxy",
+    "dep:codex-stdio-to-uds",
+    "dep:codex-memories-write",
+]
+# Các feature dưới đây chỉ gate code, không kéo crate riêng.
+plugins = []
+session-management = []
+exec-server = []
+desktop-app = []
+
 [dependencies]
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive", "env"] }
 clap_complete = { workspace = true }
-codex-app-server = { workspace = true }
-codex-app-server-daemon = { workspace = true }
+codex-app-server = { workspace = true, optional = true }
+codex-app-server-daemon = { workspace = true, optional = true }
 codex-app-server-protocol = { workspace = true }
-codex-app-server-test-client = { workspace = true }
+codex-app-server-test-client = { workspace = true, optional = true }
 codex-arg0 = { workspace = true }
 codex-api = { workspace = true }
-codex-chatgpt = { workspace = true }
-codex-cloud-tasks = { path = "../cloud-tasks" }
+codex-chatgpt = { workspace = true, optional = true }
+codex-cloud-tasks = { path = "../cloud-tasks", optional = true }
 codex-utils-cli = { workspace = true }
 codex-config = { workspace = true }
 codex-core = { workspace = true }
@@ -41,21 +81,21 @@ codex-features = { workspace = true }
 codex-git-utils = { workspace = true }
 codex-install-context = { workspace = true }
 codex-login = { workspace = true }
-codex-memories-write = { workspace = true }
+codex-memories-write = { workspace = true, optional = true }
 codex-mcp = { workspace = true }
-codex-mcp-server = { workspace = true }
+codex-mcp-server = { workspace = true, optional = true }
 codex-model-provider = { workspace = true }
 codex-models-manager = { workspace = true }
 codex-plugin = { workspace = true }
 codex-product-info = { workspace = true }
 codex-protocol = { workspace = true }
-codex-responses-api-proxy = { workspace = true }
+codex-responses-api-proxy = { workspace = true, optional = true }
 codex-rmcp-client = { workspace = true }
 codex-rollout = { workspace = true }
 codex-rollout-trace = { workspace = true }
 codex-sandboxing = { workspace = true }
 codex-state = { workspace = true }
-codex-stdio-to-uds = { workspace = true }
+codex-stdio-to-uds = { workspace = true, optional = true }
 codex-terminal-detection = { workspace = true }
 codex-tui = { workspace = true }
 codex-utils-absolute-path = { workspace = true }
@@ -106,3 +146,27 @@ predicates = { workspace = true }
 pretty_assertions = { workspace = true }
 sqlx = { workspace = true }
 wiremock = { workspace = true }
+
+[[test]]
+name = "app_server"
+path = "tests/app_server.rs"
+required-features = ["app-server"]
+
+[[test]]
+name = "exec_server"
+path = "tests/exec_server.rs"
+required-features = ["exec-server"]
+
+[[test]]
+name = "features"
+path = "tests/features.rs"
+required-features = ["mcp-server"]
+
+[[test]]
+name = "acp_protocol"
+path = "tests/acp_protocol.rs"
+
+[[test]]
+name = "debug_clear_memories"
+path = "tests/debug_clear_memories.rs"
+required-features = ["internal-tools"]

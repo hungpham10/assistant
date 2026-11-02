@@ -40,6 +40,7 @@ pub(super) async fn background_server_check(config: &Config) -> DoctorCheck {
         &state_dir.join(UPDATE_PID_FILE_NAME),
     );
 
+    #[cfg(feature = "app-server")]
     let socket_path = match codex_app_server::app_server_control_socket_path(&config.codex_home) {
         Ok(socket_path) => socket_path,
         Err(err) => {
@@ -53,26 +54,39 @@ pub(super) async fn background_server_check(config: &Config) -> DoctorCheck {
             .detail(err.to_string());
         }
     };
-
-    details.push(format!("control socket: {}", socket_path.display()));
-    let status = socket_status(socket_path.as_path()).await;
-    details.push(format!("status: {}", status.detail_label()));
-    if let Some(version_detail) = status.app_server_version_detail() {
-        details.push(version_detail);
+    #[cfg(not(feature = "app-server"))]
+    {
+        details.push("background server disabled in this build".to_string());
+        return DoctorCheck::new(
+            "app_server.status",
+            "app-server",
+            CheckStatus::Ok,
+            "background server not available in this build",
+        )
+        .details(details);
     }
-    details.push(format!("mode: {}", server_mode(&state_dir)));
+    #[cfg(feature = "app-server")]
+    {
+        details.push(format!("control socket: {}", socket_path.display()));
+        let status = socket_status(socket_path.as_path()).await;
+        details.push(format!("status: {}", status.detail_label()));
+        if let Some(version_detail) = status.app_server_version_detail() {
+            details.push(version_detail);
+        }
+        details.push(format!("mode: {}", server_mode(&state_dir)));
 
-    let mut check = DoctorCheck::new(
-        "app_server.status",
-        "app-server",
-        status.check_status(),
-        status.summary(),
-    )
-    .details(details);
-    if status.check_status() == CheckStatus::Warning {
-        check = check.remediation("Run codex app-server daemon version for more details.");
+        let mut check = DoctorCheck::new(
+            "app_server.status",
+            "app-server",
+            status.check_status(),
+            status.summary(),
+        )
+        .details(details);
+        if status.check_status() == CheckStatus::Warning {
+            check = check.remediation("Run codex app-server daemon version for more details.");
+        }
+        check
     }
-    check
 }
 
 fn push_file_detail(details: &mut Vec<String>, label: &str, path: &Path) {
@@ -141,6 +155,7 @@ impl SocketStatus {
     }
 }
 
+#[cfg(feature = "app-server")]
 async fn socket_status(socket_path: &Path) -> SocketStatus {
     if !socket_path.exists() {
         return SocketStatus::NotRunning;
@@ -152,6 +167,7 @@ async fn socket_status(socket_path: &Path) -> SocketStatus {
     }
 }
 
+#[cfg(feature = "app-server")]
 fn concise_probe_error(err: &anyhow::Error, socket_path: &Path) -> String {
     let socket_path = socket_path.display().to_string();
     let message = err
