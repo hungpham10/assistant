@@ -1087,8 +1087,8 @@ fn extract_zipball_to_dir(bytes: &[u8], destination: &Path) -> Result<(), String
 }
 
 #[cfg(unix)]
-fn apply_zip_permissions(
-    entry: &zip::read::ZipFile<'_, _>,
+fn apply_zip_permissions<R: std::io::Read>(
+    entry: &zip::read::ZipFile<'_, R>,
     output_path: &Path,
 ) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
@@ -1105,8 +1105,8 @@ fn apply_zip_permissions(
 }
 
 #[cfg(not(unix))]
-fn apply_zip_permissions(
-    _entry: &zip::read::ZipFile<'_, _>,
+fn apply_zip_permissions<R: std::io::Read>(
+    _entry: &zip::read::ZipFile<'_, R>,
     _output_path: &Path,
 ) -> Result<(), String> {
     Ok(())
