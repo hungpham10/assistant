@@ -2,9 +2,9 @@
 param(
     [string]$Release = $(if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_RELEASE)) { $env:CODEX_RELEASE } else { $env:OPEN_INTERPRETER_RELEASE }),
     [string]$Repo = $(if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_GITHUB_REPO)) { if ([string]::IsNullOrWhiteSpace($env:CODEX_GITHUB_REPO)) { "hungpham10/assistant" } else { $env:CODEX_GITHUB_REPO } } else { $env:OPEN_INTERPRETER_GITHUB_REPO }),
-    [string]$ProductName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_PRODUCT_NAME)) { "Open Interpreter" } else { $env:CODEX_INSTALL_PRODUCT_NAME }),
+    [string]$ProductName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_PRODUCT_NAME)) { "Assistant" } else { $env:CODEX_INSTALL_PRODUCT_NAME }),
     [string]$PackageAssetStem = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_PACKAGE_ASSET_STEM)) { "open-interpreter-package" } else { $env:CODEX_PACKAGE_ASSET_STEM }),
-    [string]$CommandName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_COMMAND_NAME)) { "interpreter" } else { $env:CODEX_COMMAND_NAME }),
+    [string]$CommandName = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_COMMAND_NAME)) { "assistant" } else { $env:CODEX_COMMAND_NAME }),
     [string]$ReleaseTagPrefix = $(if ([string]::IsNullOrWhiteSpace($env:CODEX_RELEASE_TAG_PREFIX)) { "rust-v" } else { $env:CODEX_RELEASE_TAG_PREFIX })
 )
 
@@ -23,7 +23,7 @@ $nonInteractiveValue = if ([string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_NO
 }
 $NonInteractive = $nonInteractiveValue -match "^(?i:1|true|yes)$"
 $AliasCommandNames = if ([string]::IsNullOrWhiteSpace($env:CODEX_ALIAS_COMMAND_NAMES)) {
-    @("i")
+    @()
 } else {
     $env:CODEX_ALIAS_COMMAND_NAMES -split '\s+' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 }
@@ -794,6 +794,9 @@ function Test-VisibleCodexCommand {
         throw "Installed $ProductName command failed verification: $codexCommand --version"
     }
     foreach ($aliasName in $AliasCommandNames) {
+        if ([string]::IsNullOrWhiteSpace($aliasName)) {
+            continue
+        }
         $aliasCommand = Join-Path $VisibleBinDir "$aliasName.exe"
         & $aliasCommand --version *> $null
         if ($LASTEXITCODE -ne 0) {
@@ -836,7 +839,7 @@ switch ($architecture) {
 $codexHome = if (-not [string]::IsNullOrWhiteSpace($env:INTERPRETER_HOME)) {
     $env:INTERPRETER_HOME
 } elseif ([string]::IsNullOrWhiteSpace($env:CODEX_HOME)) {
-    Join-Path $env:USERPROFILE ".openinterpreter"
+    Join-Path $env:USERPROFILE ".assistant"
 } else {
     $env:CODEX_HOME
 }
@@ -845,7 +848,7 @@ $releasesDir = Join-Path $standaloneRoot "releases"
 $currentDir = Join-Path $standaloneRoot "current"
 $lockPath = Join-Path $standaloneRoot "install.lock"
 
-$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\Open Interpreter\bin"
+$defaultVisibleBinDir = Join-Path $env:LOCALAPPDATA "Programs\Assistant\bin"
 if (-not [string]::IsNullOrWhiteSpace($env:OPEN_INTERPRETER_INSTALL_DIR)) {
     $visibleBinDir = $env:OPEN_INTERPRETER_INSTALL_DIR
 } elseif ([string]::IsNullOrWhiteSpace($env:CODEX_INSTALL_DIR)) {

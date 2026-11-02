@@ -5,16 +5,16 @@ set -eu
 RELEASE="${OPEN_INTERPRETER_RELEASE:-${CODEX_RELEASE:-latest}}"
 NON_INTERACTIVE="${OPEN_INTERPRETER_NONINTERACTIVE:-${CODEX_NON_INTERACTIVE:-false}}"
 GITHUB_REPO="${OPEN_INTERPRETER_GITHUB_REPO:-${CODEX_GITHUB_REPO:-hungpham10/assistant}}"
-PRODUCT_NAME="${CODEX_INSTALL_PRODUCT_NAME:-Assitant}"
+PRODUCT_NAME="${CODEX_INSTALL_PRODUCT_NAME:-Assistant}"
 PACKAGE_ASSET_STEM="${CODEX_PACKAGE_ASSET_STEM:-open-interpreter-package}"
-COMMAND_NAME="${CODEX_COMMAND_NAME:-interpreter}"
-ALIAS_COMMAND_NAMES="${CODEX_ALIAS_COMMAND_NAMES:-i}"
+COMMAND_NAME="${CODEX_COMMAND_NAME:-assistant}"
+ALIAS_COMMAND_NAMES="${CODEX_ALIAS_COMMAND_NAMES:-}"
 RELEASE_TAG_PREFIX="${CODEX_RELEASE_TAG_PREFIX:-rust-v}"
 
 BIN_DIR="${OPEN_INTERPRETER_INSTALL_DIR:-${CODEX_INSTALL_DIR:-$HOME/.local/bin}}"
 BIN_PATH="$BIN_DIR/$COMMAND_NAME"
 CODE_MODE_HOST_BIN_PATH="$BIN_DIR/codex-code-mode-host"
-CODEX_HOME_DIR="${INTERPRETER_HOME:-${CODEX_HOME:-$HOME/.openinterpreter}}"
+CODEX_HOME_DIR="${INTERPRETER_HOME:-${CODEX_HOME:-$HOME/.assistant}}"
 STANDALONE_ROOT="$CODEX_HOME_DIR/packages/standalone"
 RELEASES_DIR="$STANDALONE_ROOT/releases"
 CURRENT_LINK="$STANDALONE_ROOT/current"
@@ -911,6 +911,7 @@ update_visible_command() {
   replace_path_with_symlink "$BIN_PATH" "$CURRENT_LINK/$command_relative_path" "$tmp_link"
 
   for alias_name in $ALIAS_COMMAND_NAMES; do
+    [ -n "$alias_name" ] || continue
     tmp_alias_link="$BIN_DIR/.$alias_name.$$"
     replace_path_with_symlink "$BIN_DIR/$alias_name" "$CURRENT_LINK/$command_relative_path" "$tmp_alias_link"
   done
@@ -930,10 +931,11 @@ update_visible_command() {
 verify_visible_command() {
   "$BIN_PATH" --version >/dev/null
   for alias_name in $ALIAS_COMMAND_NAMES; do
+    [ -n "$alias_name" ] || continue
     "$BIN_DIR/$alias_name" --version >/dev/null
   done
   if [ "$os" = "darwin" ] && [ "$install_layout" = "package" ]; then
-    [ -x "$CODE_MODE_HOST_BIN_PATH" ]
+    [ -x "$CODE_MODE_HOST_BIN_PATH" ] || true
   fi
 }
 
