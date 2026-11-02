@@ -2,7 +2,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
-use rama_error::{BoxError, ErrorContext as _};
+use rama_error::{BoxError, OpaqueError, ErrorContext as _};
 use serde::Deserialize;
 
 use crate::futures::{Stream, ready};
@@ -51,7 +51,7 @@ where
     S: Stream<Item = Result<B, E>>,
     B: AsRef<[u8]>,
 {
-    type Item = Result<T, OpaqueError>;
+    type Item = Result<T, BoxError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut this = self.project();
@@ -66,7 +66,7 @@ where
             match bytes {
                 Some(Ok(bytes)) => this.engine.input(bytes),
                 Some(Err(err)) => {
-                    let err = OpaqueError::from_boxed(err.into());
+                    let err = BoxError::from(err.into());
                     return Poll::Ready(Some(Err(err)));
                 }
                 None => {

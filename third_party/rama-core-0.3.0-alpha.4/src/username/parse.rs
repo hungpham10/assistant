@@ -1,5 +1,5 @@
 use super::DEFAULT_USERNAME_LABEL_SEPARATOR;
-use crate::error::{BoxError};
+use crate::error::{BoxError, OpaqueError};
 use crate::extensions::Extensions;
 use rama_utils::macros::all_the_tuples_no_last_special_case;
 use std::convert::Infallible;
@@ -35,24 +35,24 @@ where
     let username = match label_it.next() {
         Some(username) => {
             if username.is_empty() {
-                return Err(OpaqueError::from_display("empty username"));
+                return Err(BoxError::from("empty username"));
             } else {
                 username
             }
         }
-        None => return Err(OpaqueError::from_display("missing username")),
+        None => return Err(BoxError::from("missing username")),
     };
 
     for (index, label) in label_it.enumerate() {
         match parser.parse_label(label) {
             UsernameLabelState::Used => (), // optimistic smiley
             UsernameLabelState::Ignored => {
-                return Err(OpaqueError::from_display(format!(
+                return Err(BoxError::from(format!(
                     "ignored username label #{index}: {label}",
                 )));
             }
             UsernameLabelState::Abort => {
-                return Err(OpaqueError::from_display(format!(
+                return Err(BoxError::from(format!(
                     "invalid username label #{index}: {label}",
                 )));
             }
@@ -121,7 +121,7 @@ macro_rules! username_label_parser_tuple_impl {
                 $T: UsernameLabelParser<Error: Into<BoxError>>,
             )+
         {
-            type Error = OpaqueError;
+            type Error = BoxError;
 
             fn parse_label(&mut self, label: &str) -> UsernameLabelState {
                 let ($($T,)+) = self;
@@ -158,7 +158,7 @@ macro_rules! username_label_parser_tuple_exclusive_labels_impl {
                 $T: UsernameLabelParser<Error: Into<BoxError>>,
             )+
         {
-            type Error = OpaqueError;
+            type Error = BoxError;
 
             fn parse_label(&mut self, label: &str) -> UsernameLabelState {
                 let ($(ref mut $T,)+) = self.0;
