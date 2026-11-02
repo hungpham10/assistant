@@ -47,14 +47,10 @@ where
         match parser.parse_label(label) {
             UsernameLabelState::Used => (), // optimistic smiley
             UsernameLabelState::Ignored => {
-                return Err(format!(
-                    "ignored username label #{index}: {label}",
-                )));
+                return Err(format!("ignored username label #{index}: {label}").into());
             }
             UsernameLabelState::Abort => {
-                return Err(format!(
-                    "invalid username label #{index}: {label}",
-                )));
+                return Err(format!("invalid username label #{index}: {label}").into());
             }
         }
     }
