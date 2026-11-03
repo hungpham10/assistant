@@ -17,19 +17,13 @@ fn namespace_wildcard_denies_whole_server() {
     let mut selection = SessionToolSelection::default();
     selection.set_enabled("chrome-devtools:*", false);
 
-    assert!(selection.tool_is_hidden(
-        &ToolName::namespaced("chrome-devtools", "click"),
-    ));
+    assert!(selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "click"),));
     assert!(!selection.tool_is_hidden(&ToolName::plain("shell")));
 
     // Re-enabling one tool inside a denied namespace wins.
     selection.set_enabled("chrome-devtools:screenshot", true);
-    assert!(!selection.tool_is_hidden(
-        &ToolName::namespaced("chrome-devtools", "screenshot"),
-    ));
-    assert!(selection.tool_is_hidden(
-        &ToolName::namespaced("chrome-devtools", "click"),
-    ));
+    assert!(!selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "screenshot"),));
+    assert!(selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "click"),));
 }
 
 #[test]

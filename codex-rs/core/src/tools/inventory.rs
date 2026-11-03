@@ -26,6 +26,9 @@ pub struct ToolInventoryEntry {
     pub hidden: bool,
     pub exposure: ToolExposure,
     pub description: Option<String>,
+    /// The full model-facing spec, serialized for `detail: schema` requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spec: Option<serde_json::Value>,
 }
 
 pub fn tool_inventory_key(name: &ToolName) -> String {

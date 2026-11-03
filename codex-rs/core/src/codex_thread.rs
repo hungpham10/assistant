@@ -208,6 +208,11 @@ impl CodexThread {
         self.codex.session.services.session_telemetry.clone()
     }
 
+    /// Returns the serialized tool inventory of the underlying session.
+    pub async fn tool_inventory_json(&self) -> Vec<serde_json::Value> {
+        self.codex.session.tool_inventory_json().await
+    }
+
     pub async fn shutdown_and_wait(&self) -> CodexResult<()> {
         self.codex.shutdown_and_wait().await
     }

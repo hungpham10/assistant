@@ -1144,14 +1144,8 @@ impl ChatWidget {
             false
         };
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
-            name.clone(),
-            enabled,
+            name, enabled,
         ));
-        let state_word = if enabled { "enabled" } else { "disabled" };
-        self.add_info_message(
-            format!("Tool `{name}` {state_word} for this session."),
-            /*hint*/ None,
-        );
     }
 
     pub(crate) fn set_tool_enabled_state(&mut self, name: String, enabled: bool) {
@@ -1161,14 +1155,8 @@ impl ChatWidget {
             self.tools_session_disabled.insert(name.clone());
         }
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
-            name.clone(),
-            enabled,
+            name, enabled,
         ));
-        let state_word = if enabled { "enabled" } else { "disabled" };
-        self.add_info_message(
-            format!("Tool `{name}` {state_word} for this session."),
-            /*hint*/ None,
-        );
     }
 
     pub(crate) fn reset_tools_override(&mut self) {

@@ -14,6 +14,8 @@ use codex_protocol::protocol::ThreadHistoryMode;
 
 const THREAD_LIST_DEFAULT_LIMIT: usize = 25;
 const THREAD_LIST_MAX_LIMIT: usize = 100;
+const TOOLS_LIST_DEFAULT_LIMIT: u32 = 50;
+const TOOLS_LIST_MAX_LIMIT: u32 = 200;
 const CODEX_TUI_CLIENT_NAME: &str = "codex-tui";
 const THREAD_ROLLBACK_DEPRECATION_SUMMARY: &str =
     "thread/rollback is deprecated and will be removed soon";
@@ -615,13 +617,37 @@ impl ThreadRequestProcessor {
         let (_, thread) = self.load_thread(&params.thread_id).await?;
         let inventory = thread.tool_inventory_json().await;
         let detail = params.detail.unwrap_or(ThreadToolsListDetail::Summary);
-        let _include_schema = matches!(detail, ThreadToolsListDetail::Schema);
+        let include_spec = matches!(detail, ThreadToolsListDetail::Schema);
+        let limit = params
+            .limit
+            .unwrap_or(TOOLS_LIST_DEFAULT_LIMIT)
+            .clamp(1, TOOLS_LIST_MAX_LIMIT) as usize;
+        let offset = params
+            .cursor
+            .as_deref()
+            .and_then(|cursor| cursor.parse::<usize>().ok())
+            .unwrap_or(0);
+
         let mut data = Vec::new();
-        for entry in inventory {
-            let key = entry.get("key").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-            let namespace = entry.get("namespace").and_then(|v| v.as_str()).map(str::to_string);
-            let name = entry.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
-            let source_str = entry.get("source").and_then(|v| v.as_str()).unwrap_or("builtin");
+        for entry in inventory.iter().skip(offset).take(limit) {
+            let key = entry
+                .get("key")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let namespace = entry
+                .get("namespace")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let name = entry
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .to_string();
+            let source_str = entry
+                .get("source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("builtin");
             let source = match source_str {
                 "mcp" => ThreadToolSource::Mcp,
                 "extension" => ThreadToolSource::Extension,
@@ -629,11 +655,28 @@ impl ThreadRequestProcessor {
                 "hosted" => ThreadToolSource::Hosted,
                 _ => ThreadToolSource::Builtin,
             };
-            let server_name = entry.get("serverName").and_then(|v| v.as_str()).map(str::to_string);
-            let advertised = entry.get("advertised").and_then(|v| v.as_bool()).unwrap_or_default();
-            let hidden = entry.get("hidden").and_then(|v| v.as_bool()).unwrap_or_default();
-            let exposure = entry.get("exposure").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let description = entry.get("description").and_then(|v| v.as_str()).map(str::to_string);
+            let server_name = entry
+                .get("serverName")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let advertised = entry
+                .get("advertised")
+                .and_then(|v| v.as_bool())
+                .unwrap_or_default();
+            let hidden = entry
+                .get("hidden")
+                .and_then(|v| v.as_bool())
+                .unwrap_or_default();
+            let exposure = entry
+                .get("exposure")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let description = entry
+                .get("description")
+                .and_then(|v| v.as_str())
+                .map(str::to_string);
+            let spec = include_spec.then(|| entry.get("spec").cloned()).flatten();
             data.push(ThreadToolInventoryItem {
                 key,
                 namespace,
@@ -644,11 +687,12 @@ impl ThreadRequestProcessor {
                 hidden,
                 exposure,
                 description,
-                spec: None,
+                spec,
             });
         }
+        let next_cursor = (offset + limit < inventory.len()).then(|| (offset + limit).to_string());
         self.outgoing
-            .send_response(request_id, ThreadToolsListResponse { data, next_cursor: None })
+            .send_response(request_id, ThreadToolsListResponse { data, next_cursor })
             .await;
         Ok(None)
     }

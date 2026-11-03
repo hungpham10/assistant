@@ -650,18 +650,21 @@ async fn preview_session_start_hooks(
 
 fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> ToolCallRuntime {
     let step_context = StepContext::for_test(Arc::clone(&turn_context));
-    let router = Arc::new(ToolRouter::from_context(
-        step_context.as_ref(),
-        crate::tools::router::ToolRouterParams {
-            tool_selection: crate::tools::selection::SessionToolSelection::default(),
-            tool_suggest_candidates: None,
-            mcp_tools: None,
-            deferred_mcp_tools: None,
-            extension_tool_executors: Vec::new(),
-            dynamic_tools: turn_context.dynamic_tools.as_slice(),
-        },
-        &Default::default(),
-    ).0);
+    let router = Arc::new(
+        ToolRouter::from_context(
+            step_context.as_ref(),
+            crate::tools::router::ToolRouterParams {
+                tool_selection: crate::tools::selection::SessionToolSelection::default(),
+                tool_suggest_candidates: None,
+                mcp_tools: None,
+                deferred_mcp_tools: None,
+                extension_tool_executors: Vec::new(),
+                dynamic_tools: turn_context.dynamic_tools.as_slice(),
+            },
+            &Default::default(),
+        )
+        .0,
+    );
     let tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
     ToolCallRuntime::new(router, session, step_context, tracker)
 }

@@ -62,7 +62,6 @@ struct ToolPlanProbe {
 
 impl ToolPlanProbe {
     fn from_router(router: ToolRouter) -> Self {
-        let router = router;
         let visible_specs = router.model_visible_specs();
         let visible_names = visible_specs
             .iter()

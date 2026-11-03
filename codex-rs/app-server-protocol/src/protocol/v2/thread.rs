@@ -762,18 +762,14 @@ pub enum ThreadToolSource {
 #[ts(export_to = "v2/")]
 pub struct ThreadToolInventoryItem {
     pub key: String,
-    #[ts(optional = nullable)]
     pub namespace: Option<String>,
     pub name: String,
     pub source: ThreadToolSource,
-    #[ts(optional = nullable)]
     pub server_name: Option<String>,
     pub advertised: bool,
     pub hidden: bool,
     pub exposure: String,
-    #[ts(optional = nullable)]
     pub description: Option<String>,
-    #[ts(optional = nullable)]
     pub spec: Option<serde_json::Value>,
 }
 
@@ -795,7 +791,6 @@ pub struct ThreadToolsListParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadToolsListResponse {
     pub data: Vec<ThreadToolInventoryItem>,
-    #[ts(optional = nullable)]
     pub next_cursor: Option<String>,
 }
 

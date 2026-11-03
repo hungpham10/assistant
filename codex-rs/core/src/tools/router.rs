@@ -5,10 +5,10 @@ use crate::tools::context::SharedTurnDiffTracker;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
 use crate::tools::handlers::ToolSearchHandlerCache;
+use crate::tools::inventory::ToolInventoryEntry;
 use crate::tools::registry::AnyToolResult;
 use crate::tools::registry::ToolArgumentDiffConsumer;
 use crate::tools::registry::ToolRegistry;
-use crate::tools::inventory::ToolInventoryEntry;
 use crate::tools::spec_plan::build_tool_router;
 use codex_mcp::ToolInfo;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
@@ -65,7 +65,8 @@ impl ToolRouter {
         params: ToolRouterParams<'_>,
         tool_search_handler_cache: &ToolSearchHandlerCache,
     ) -> (Self, Vec<ToolInventoryEntry>) {
-        let (router, inventory) = build_tool_router(step_context, params, tool_search_handler_cache);
+        let (router, inventory) =
+            build_tool_router(step_context, params, tool_search_handler_cache);
         (router, inventory)
     }
 

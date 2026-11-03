@@ -10,6 +10,7 @@ use crate::state::ActiveTurn;
 use codex_extension_api::ExtensionDataInit;
 use codex_login::auth::AgentIdentityAuthPolicy;
 use codex_protocol::SessionId;
+use codex_protocol::ToolName;
 use codex_protocol::capabilities::SelectedCapabilityRoot;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
 use codex_protocol::config_types::ServiceTier;
@@ -22,7 +23,6 @@ use codex_protocol::protocol::TurnEnvironmentSelections;
 use codex_tools::Harness;
 use std::sync::OnceLock;
 use tokio::sync::Semaphore;
-use serde_json;
 
 /// Context for an initialized model agent
 ///
@@ -479,6 +479,10 @@ async fn warm_plugins_and_skills_for_session_init(
 }
 
 impl Session {
+    pub(crate) async fn tool_is_hidden(&self, name: &ToolName) -> bool {
+        self.state.lock().await.tool_selection.tool_is_hidden(name)
+    }
+
     pub(crate) async fn tool_inventory_json(&self) -> Vec<serde_json::Value> {
         let state = self.state.lock().await;
         state

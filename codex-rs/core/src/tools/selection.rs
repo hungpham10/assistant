@@ -47,33 +47,24 @@ impl SessionToolSelection {
     pub(crate) fn set_hidden(&mut self, key: impl Into<String>, hidden: bool) {
         let key = key.into();
         // Protected tools cannot be hidden.
-        let display = key.clone();
-        if let Some(namespace) = display.split_once(':') {
-            let name = ToolName::namespaced(namespace.0, namespace.1);
-            if protected(&name) {
-                self.enable.remove(&display);
-                self.deny.remove(&display);
-                self.hide.remove(&display);
-                self.enable.insert(display);
-                return;
-            }
-        } else {
-            let name = ToolName::plain(display.as_str());
-            if protected(&name) {
-                self.enable.remove(&display);
-                self.deny.remove(&display);
-                self.hide.remove(&display);
-                self.enable.insert(display);
-                return;
-            }
+        let name = match key.split_once(':') {
+            Some((namespace, name)) => ToolName::namespaced(namespace, name),
+            None => ToolName::plain(key.as_str()),
+        };
+        if protected(&name) {
+            self.enable.remove(&key);
+            self.deny.remove(&key);
+            self.hide.remove(&key);
+            self.enable.insert(key);
+            return;
         }
         self.enable.remove(&key);
         self.deny.remove(&key);
         self.hide.remove(&key);
-        if !hidden {
-            self.enable.insert(key);
-        } else {
+        if hidden {
             self.hide.insert(key);
+        } else {
+            self.enable.insert(key);
         }
     }
 

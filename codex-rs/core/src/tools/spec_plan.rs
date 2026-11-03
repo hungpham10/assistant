@@ -172,7 +172,10 @@ pub(crate) fn build_tool_router(
 ) -> (ToolRouter, Vec<ToolInventoryEntry>) {
     let (model_visible_specs, registry, inventory) =
         build_tool_specs_and_registry(step_context, params, tool_search_handler_cache);
-    (ToolRouter::from_parts(registry, model_visible_specs), inventory)
+    (
+        ToolRouter::from_parts(registry, model_visible_specs),
+        inventory,
+    )
 }
 
 #[instrument(level = "trace", skip_all)]
@@ -262,30 +265,12 @@ fn build_model_visible_specs_and_registry(
             continue;
         }
         let hidden = tool_selection.tool_is_hidden(&tool_name);
-        if hidden {
-            let spec = runtime.spec();
-            inventory.push(ToolInventoryEntry {
-                key: tool_inventory_key(&tool_name),
-                namespace: tool_name.namespace.clone(),
-                name: tool_name.name.clone(),
-                source: runtime.inventory_source(),
-                server_name: if matches!(runtime.inventory_source(), ToolInventorySource::Mcp) {
-                    tool_name.namespace.clone()
-                } else {
-                    None
-                },
-                advertised: false,
-                hidden: true,
-                exposure: runtime.exposure(),
-                description: description_for_spec(&spec),
-            });
-            continue;
-        }
         // Session-level selection (e.g. `/tools` toggles and the Plan-mode
         // read-only pack) only demotes what the model sees up front; the
         // registry keeps the original exposure so dispatch still works and
-        // `tool_search` can still surface the tool.
-        let demoted = tool_selection.tool_is_demoted(&tool_name, plan_mode);
+        // `tool_search` can still surface the tool. Hidden tools stay in the
+        // registry but are rejected at dispatch time.
+        let demoted = !hidden && tool_selection.tool_is_demoted(&tool_name, plan_mode);
         let exposure = if demoted {
             crate::tools::registry::override_tool_exposure(
                 Arc::clone(runtime),
@@ -295,7 +280,9 @@ fn build_model_visible_specs_and_registry(
         } else {
             runtime.exposure()
         };
-        let advertised = exposure.is_direct() && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure);
+        let advertised = !hidden
+            && exposure.is_direct()
+            && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure);
         let spec = runtime.spec();
         inventory.push(ToolInventoryEntry {
             key: tool_inventory_key(&tool_name),
@@ -308,9 +295,10 @@ fn build_model_visible_specs_and_registry(
                 None
             },
             advertised,
-            hidden: false,
+            hidden,
             exposure,
             description: description_for_spec(&spec),
+            spec: serde_json::to_value(&spec).ok(),
         });
         if advertised {
             specs.push(spec_for_model_request(
