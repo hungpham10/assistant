@@ -3,6 +3,7 @@ use crate::ToolName;
 use crate::ToolOutput;
 use crate::ToolSearchInfo;
 use crate::ToolSpec;
+use serde::Serialize;
 use std::future::Future;
 use std::pin::Pin;
 
@@ -11,7 +12,8 @@ pub type ToolExecutorFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Box<dyn ToolOutput>, FunctionCallError>> + Send + 'a>>;
 
 /// Controls where a tool is exposed to the model.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ToolExposure {
     /// Include this tool in the initial model-visible tool list.
     ///

@@ -1379,13 +1379,14 @@ pub(crate) async fn built_tools(
     );
     let mcp_tools = has_mcp_servers.then_some(mcp_tool_exposure.direct_tools);
     let deferred_mcp_tools = mcp_tool_exposure.deferred_tools;
-    Ok(Arc::new(ToolRouter::from_context(
+    let tool_selection = {
+        let state = sess.state.lock().await;
+        state.tool_selection.clone()
+    };
+    let (router, inventory) = ToolRouter::from_context(
         step_context,
         ToolRouterParams {
-            tool_selection: {
-                let state = sess.state.lock().await;
-                state.tool_selection.clone()
-            },
+            tool_selection,
             mcp_tools,
             deferred_mcp_tools,
             tool_suggest_candidates,
@@ -1393,7 +1394,12 @@ pub(crate) async fn built_tools(
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
         &sess.services.tool_search_handler_cache,
-    )))
+    );
+    {
+        let mut state = sess.state.lock().await;
+        state.tool_inventory = inventory;
+    }
+    Ok(Arc::new(router))
 }
 
 #[derive(Debug)]

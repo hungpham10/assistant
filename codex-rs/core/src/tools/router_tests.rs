@@ -114,7 +114,7 @@ async fn parallel_support_does_not_match_namespaced_local_tool_names() -> anyhow
         .manager()
         .list_all_tools()
         .await;
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -214,7 +214,7 @@ async fn mcp_parallel_support_uses_handler_data() -> anyhow::Result<()> {
     let (_, turn) = make_session_and_context().await;
     let turn = Arc::new(turn);
     let step_context = StepContext::for_test(Arc::clone(&turn));
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -266,7 +266,7 @@ async fn tools_without_handlers_do_not_support_parallel() -> anyhow::Result<()> 
     let (_, turn) = make_session_and_context().await;
     let turn = Arc::new(turn);
     let step_context = StepContext::for_test(Arc::clone(&turn));
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -324,7 +324,7 @@ async fn specs_filter_deferred_dynamic_tools() -> anyhow::Result<()> {
         ],
     })];
 
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -392,7 +392,7 @@ async fn extension_tool_executors_are_model_visible_and_dispatchable() -> anyhow
     let mut expected_history_item = history_item.clone();
     expected_history_item.set_turn_id_if_missing(&turn.sub_id);
 
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),

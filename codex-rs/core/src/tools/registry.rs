@@ -20,6 +20,7 @@ use crate::tools::context::ToolPayload;
 use crate::tools::flat_tool_name;
 use crate::tools::handlers::multi_agents_spec::MULTI_AGENT_V1_NAMESPACE;
 use crate::tools::hook_names::HookToolName;
+use crate::tools::inventory::ToolInventorySource;
 use crate::tools::lifecycle::notify_tool_finish;
 use crate::tools::lifecycle::notify_tool_start;
 use crate::tools::tool_dispatch_trace::ToolDispatchTrace;
@@ -46,6 +47,10 @@ pub use codex_tools::ToolExposure;
 /// Implementers provide the shared `ToolExecutor` behavior plus optional
 /// core-owned metadata for hooks, telemetry, tool search, and argument diffs.
 pub(crate) trait CoreToolRuntime: ToolExecutor<ToolInvocation> {
+    fn inventory_source(&self) -> ToolInventorySource {
+        ToolInventorySource::Builtin
+    }
+
     fn matches_kind(&self, payload: &ToolPayload) -> bool {
         matches!(
             payload,

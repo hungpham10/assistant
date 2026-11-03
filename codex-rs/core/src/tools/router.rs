@@ -8,6 +8,7 @@ use crate::tools::handlers::ToolSearchHandlerCache;
 use crate::tools::registry::AnyToolResult;
 use crate::tools::registry::ToolArgumentDiffConsumer;
 use crate::tools::registry::ToolRegistry;
+use crate::tools::inventory::ToolInventoryEntry;
 use crate::tools::spec_plan::build_tool_router;
 use codex_mcp::ToolInfo;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
@@ -63,8 +64,9 @@ impl ToolRouter {
         step_context: &StepContext,
         params: ToolRouterParams<'_>,
         tool_search_handler_cache: &ToolSearchHandlerCache,
-    ) -> Self {
-        build_tool_router(step_context, params, tool_search_handler_cache)
+    ) -> (Self, Vec<ToolInventoryEntry>) {
+        let (router, inventory) = build_tool_router(step_context, params, tool_search_handler_cache);
+        (router, inventory)
     }
 
     pub(crate) fn from_parts(registry: ToolRegistry, model_visible_specs: Vec<ToolSpec>) -> Self {

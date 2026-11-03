@@ -5,17 +5,11 @@ use pretty_assertions::assert_eq;
 fn set_enabled_moves_between_deny_and_enable() {
     let mut selection = SessionToolSelection::default();
     selection.set_enabled("apply_patch", false);
-    assert!(selection.deny.contains("apply_patch"));
-    assert!(selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
+    assert!(selection.tool_is_hidden(&ToolName::plain("apply_patch")));
 
     selection.set_enabled("apply_patch", true);
     assert!(selection.enable.contains("apply_patch"));
-    assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
-
-    selection.deny.clear();
-    selection.enable.clear();
-    assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
-    assert!(!selection.tool_is_demoted(&ToolName::plain("apply_patch"), /*plan_mode*/ false));
+    assert!(!selection.tool_is_hidden(&ToolName::plain("apply_patch")));
 }
 
 #[test]
@@ -23,21 +17,18 @@ fn namespace_wildcard_denies_whole_server() {
     let mut selection = SessionToolSelection::default();
     selection.set_enabled("chrome-devtools:*", false);
 
-    assert!(selection.tool_is_demoted(
+    assert!(selection.tool_is_hidden(
         &ToolName::namespaced("chrome-devtools", "click"),
-        /*plan_mode*/ false,
     ));
-    assert!(!selection.tool_is_demoted(&ToolName::plain("shell"), /*plan_mode*/ false));
+    assert!(!selection.tool_is_hidden(&ToolName::plain("shell")));
 
     // Re-enabling one tool inside a denied namespace wins.
     selection.set_enabled("chrome-devtools:screenshot", true);
-    assert!(!selection.tool_is_demoted(
+    assert!(!selection.tool_is_hidden(
         &ToolName::namespaced("chrome-devtools", "screenshot"),
-        /*plan_mode*/ false,
     ));
-    assert!(selection.tool_is_demoted(
+    assert!(selection.tool_is_hidden(
         &ToolName::namespaced("chrome-devtools", "click"),
-        /*plan_mode*/ false,
     ));
 }
 
@@ -67,6 +58,8 @@ fn protected_tools_are_never_demoted() {
     let mut selection = SessionToolSelection::default();
     selection.set_enabled("update_plan", false);
     selection.set_enabled("request_user_input", false);
+    assert!(!selection.tool_is_hidden(&ToolName::plain("update_plan")));
+    assert!(!selection.tool_is_hidden(&ToolName::plain("request_user_input")));
     assert!(!selection.tool_is_demoted(&ToolName::plain("update_plan"), /*plan_mode*/ true));
     assert!(!selection.tool_is_demoted(
         &ToolName::plain("request_user_input"),

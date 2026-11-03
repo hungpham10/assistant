@@ -57,6 +57,10 @@ use crate::tools::handlers::multi_agents_v2::WaitAgentHandler as WaitAgentHandle
 use crate::tools::handlers::view_image_spec::ViewImageToolOptions;
 use crate::tools::hosted_spec::WebSearchToolOptions;
 use crate::tools::hosted_spec::create_web_search_tool;
+use crate::tools::inventory::ToolInventoryEntry;
+use crate::tools::inventory::ToolInventorySource;
+use crate::tools::inventory::description_for_spec;
+use crate::tools::inventory::tool_inventory_key;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExposure;
 use crate::tools::registry::ToolRegistry;
@@ -165,10 +169,10 @@ pub(crate) fn build_tool_router(
     step_context: &StepContext,
     params: ToolRouterParams<'_>,
     tool_search_handler_cache: &ToolSearchHandlerCache,
-) -> ToolRouter {
-    let (model_visible_specs, registry) =
+) -> (ToolRouter, Vec<ToolInventoryEntry>) {
+    let (model_visible_specs, registry, inventory) =
         build_tool_specs_and_registry(step_context, params, tool_search_handler_cache);
-    ToolRouter::from_parts(registry, model_visible_specs)
+    (ToolRouter::from_parts(registry, model_visible_specs), inventory)
 }
 
 #[instrument(level = "trace", skip_all)]
@@ -176,7 +180,7 @@ fn build_tool_specs_and_registry(
     step_context: &StepContext,
     params: ToolRouterParams<'_>,
     tool_search_handler_cache: &ToolSearchHandlerCache,
-) -> (Vec<ToolSpec>, ToolRegistry) {
+) -> (Vec<ToolSpec>, ToolRegistry, Vec<ToolInventoryEntry>) {
     let turn_context = step_context.turn.as_ref();
     let ToolRouterParams {
         tool_selection,
@@ -241,7 +245,7 @@ fn build_model_visible_specs_and_registry(
     turn_context: &TurnContext,
     planned_tools: PlannedTools,
     tool_selection: &crate::tools::selection::SessionToolSelection,
-) -> (Vec<ToolSpec>, ToolRegistry) {
+) -> (Vec<ToolSpec>, ToolRegistry, Vec<ToolInventoryEntry>) {
     let PlannedTools {
         runtimes,
         hosted_specs,
@@ -250,9 +254,31 @@ fn build_model_visible_specs_and_registry(
     let mut seen_tool_names = HashSet::new();
     let plan_mode =
         turn_context.collaboration_mode.mode == codex_protocol::config_types::ModeKind::Plan;
+    let mut inventory = Vec::new();
+
     for runtime in &runtimes {
         let tool_name = runtime.tool_name();
         if !seen_tool_names.insert(tool_name.clone()) {
+            continue;
+        }
+        let hidden = tool_selection.tool_is_hidden(&tool_name);
+        if hidden {
+            let spec = runtime.spec();
+            inventory.push(ToolInventoryEntry {
+                key: tool_inventory_key(&tool_name),
+                namespace: tool_name.namespace.clone(),
+                name: tool_name.name.clone(),
+                source: runtime.inventory_source(),
+                server_name: if matches!(runtime.inventory_source(), ToolInventorySource::Mcp) {
+                    tool_name.namespace.clone()
+                } else {
+                    None
+                },
+                advertised: false,
+                hidden: true,
+                exposure: runtime.exposure(),
+                description: description_for_spec(&spec),
+            });
             continue;
         }
         // Session-level selection (e.g. `/tools` toggles and the Plan-mode
@@ -269,9 +295,24 @@ fn build_model_visible_specs_and_registry(
         } else {
             runtime.exposure()
         };
-        if exposure.is_direct() && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure)
-        {
-            let spec = runtime.spec();
+        let advertised = exposure.is_direct() && !is_hidden_by_code_mode_only(turn_context, &tool_name, exposure);
+        let spec = runtime.spec();
+        inventory.push(ToolInventoryEntry {
+            key: tool_inventory_key(&tool_name),
+            namespace: tool_name.namespace.clone(),
+            name: tool_name.name.clone(),
+            source: runtime.inventory_source(),
+            server_name: if matches!(runtime.inventory_source(), ToolInventorySource::Mcp) {
+                tool_name.namespace.clone()
+            } else {
+                None
+            },
+            advertised,
+            hidden: false,
+            exposure,
+            description: description_for_spec(&spec),
+        });
+        if advertised {
             specs.push(spec_for_model_request(
                 turn_context,
                 exposure,
@@ -290,7 +331,7 @@ fn build_model_visible_specs_and_registry(
         })
         .collect();
 
-    (model_visible_specs, registry)
+    (model_visible_specs, registry, inventory)
 }
 
 fn spec_for_model_request(

@@ -20,6 +20,7 @@ use crate::session::turn_context::TurnContext;
 use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
 use crate::tools::handlers::apply_granted_turn_permissions;
+use crate::tools::inventory::ToolInventorySource;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
 
@@ -58,6 +59,10 @@ impl ToolExecutor<ToolInvocation> for ExtensionToolAdapter {
 }
 
 impl CoreToolRuntime for ExtensionToolAdapter {
+    fn inventory_source(&self) -> ToolInventorySource {
+        ToolInventorySource::Extension
+    }
+
     fn matches_kind(&self, payload: &ToolPayload) -> bool {
         matches!(payload, ToolPayload::Function { .. })
     }

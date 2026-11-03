@@ -22,6 +22,7 @@ use codex_protocol::protocol::TurnEnvironmentSelections;
 use codex_tools::Harness;
 use std::sync::OnceLock;
 use tokio::sync::Semaphore;
+use serde_json;
 
 /// Context for an initialized model agent
 ///
@@ -478,6 +479,15 @@ async fn warm_plugins_and_skills_for_session_init(
 }
 
 impl Session {
+    pub(crate) async fn tool_inventory_json(&self) -> Vec<serde_json::Value> {
+        let state = self.state.lock().await;
+        state
+            .tool_inventory
+            .iter()
+            .filter_map(|entry| serde_json::to_value(entry).ok())
+            .collect()
+    }
+
     /// Returns the concrete identity for this thread.
     pub(crate) fn thread_id(&self) -> ThreadId {
         self.thread_id

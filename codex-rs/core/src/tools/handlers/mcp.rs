@@ -10,6 +10,7 @@ use crate::tools::context::ToolPayload;
 use crate::tools::context::boxed_tool_output;
 use crate::tools::flat_tool_name;
 use crate::tools::hook_names::HookToolName;
+use crate::tools::inventory::ToolInventorySource;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::PostToolUsePayload;
 use crate::tools::registry::PreToolUsePayload;
@@ -164,6 +165,10 @@ impl McpHandler {
 }
 
 impl CoreToolRuntime for McpHandler {
+    fn inventory_source(&self) -> ToolInventorySource {
+        ToolInventorySource::Mcp
+    }
+
     fn telemetry_tags<'a>(
         &'a self,
         _invocation: &'a ToolInvocation,

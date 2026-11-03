@@ -62,6 +62,7 @@ struct ToolPlanProbe {
 
 impl ToolPlanProbe {
     fn from_router(router: ToolRouter) -> Self {
+        let router = router;
         let visible_specs = router.model_visible_specs();
         let visible_names = visible_specs
             .iter()
@@ -185,7 +186,7 @@ async fn probe_with(
     configure_turn(&mut turn);
     let turn = Arc::new(turn);
     let step_context = StepContext::for_test(Arc::clone(&turn));
-    let router = ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -701,7 +702,7 @@ async fn environment_tools_follow_the_step_context() {
         /*loaded_agents_md*/ None,
     ));
 
-    let plan = ToolPlanProbe::from_router(ToolRouter::from_context(
+    let (router, _inventory) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -712,7 +713,8 @@ async fn environment_tools_follow_the_step_context() {
             dynamic_tools: &[],
         },
         &Default::default(),
-    ));
+    );
+    let plan = ToolPlanProbe::from_router(router);
 
     plan.assert_visible_contains(&["exec_command", "apply_patch", "view_image"]);
 }
@@ -874,7 +876,7 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
         },
         &cache,
     );
-    let first_plan = ToolPlanProbe::from_router(first_router);
+    let first_plan = ToolPlanProbe::from_router(first_router.0);
 
     let (_session, mut second_turn) = make_session_and_context().await;
     second_turn.model_info.supports_search_tool = true;
@@ -892,7 +894,7 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
         },
         &cache,
     );
-    let second_plan = ToolPlanProbe::from_router(second_router);
+    let second_plan = ToolPlanProbe::from_router(second_router.0);
 
     let ToolSpec::ToolSearch {
         description: first_description,

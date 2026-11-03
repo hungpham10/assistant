@@ -286,7 +286,7 @@ async fn handle_output_item_done_returns_contributed_last_agent_message() {
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
         },
         &Default::default(),
-    ));
+    ).0);
     let tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
     let tool_runtime = ToolCallRuntime::new(router, Arc::clone(&session), step_context, tracker);
     let item = assistant_output_text("original assistant text");

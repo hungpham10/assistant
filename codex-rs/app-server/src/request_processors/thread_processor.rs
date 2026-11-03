@@ -1,6 +1,11 @@
 use super::*;
 use crate::error_code::method_not_found;
 use codex_app_server_protocol::SelectedCapabilityRoot;
+use codex_app_server_protocol::ThreadToolInventoryItem;
+use codex_app_server_protocol::ThreadToolSource;
+use codex_app_server_protocol::ThreadToolsListDetail;
+use codex_app_server_protocol::ThreadToolsListParams;
+use codex_app_server_protocol::ThreadToolsListResponse;
 use codex_extension_api::ExtensionDataInit;
 use codex_protocol::config_types::MultiAgentMode;
 use codex_protocol::models::BUILT_IN_PERMISSION_PROFILE_DANGER_FULL_ACCESS;
@@ -598,6 +603,52 @@ impl ThreadRequestProcessor {
         .map_err(|err| internal_error(format!("failed to update tool selection: {err}")))?;
         self.outgoing
             .send_response(request_id, ThreadSetToolEnabledResponse {})
+            .await;
+        Ok(None)
+    }
+
+    pub(crate) async fn thread_tools_list(
+        &self,
+        request_id: ConnectionRequestId,
+        params: ThreadToolsListParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        let (_, thread) = self.load_thread(&params.thread_id).await?;
+        let inventory = thread.tool_inventory_json().await;
+        let detail = params.detail.unwrap_or(ThreadToolsListDetail::Summary);
+        let _include_schema = matches!(detail, ThreadToolsListDetail::Schema);
+        let mut data = Vec::new();
+        for entry in inventory {
+            let key = entry.get("key").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+            let namespace = entry.get("namespace").and_then(|v| v.as_str()).map(str::to_string);
+            let name = entry.get("name").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+            let source_str = entry.get("source").and_then(|v| v.as_str()).unwrap_or("builtin");
+            let source = match source_str {
+                "mcp" => ThreadToolSource::Mcp,
+                "extension" => ThreadToolSource::Extension,
+                "dynamic" => ThreadToolSource::Dynamic,
+                "hosted" => ThreadToolSource::Hosted,
+                _ => ThreadToolSource::Builtin,
+            };
+            let server_name = entry.get("serverName").and_then(|v| v.as_str()).map(str::to_string);
+            let advertised = entry.get("advertised").and_then(|v| v.as_bool()).unwrap_or_default();
+            let hidden = entry.get("hidden").and_then(|v| v.as_bool()).unwrap_or_default();
+            let exposure = entry.get("exposure").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let description = entry.get("description").and_then(|v| v.as_str()).map(str::to_string);
+            data.push(ThreadToolInventoryItem {
+                key,
+                namespace,
+                name,
+                source,
+                server_name,
+                advertised,
+                hidden,
+                exposure,
+                description,
+                spec: None,
+            });
+        }
+        self.outgoing
+            .send_response(request_id, ThreadToolsListResponse { data, next_cursor: None })
             .await;
         Ok(None)
     }

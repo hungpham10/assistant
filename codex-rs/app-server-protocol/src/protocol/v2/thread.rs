@@ -738,6 +738,67 @@ pub struct ThreadSetToolEnabledParams {
 #[ts(export_to = "v2/")]
 pub struct ThreadSetToolEnabledResponse {}
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadToolsListDetail {
+    Summary,
+    Schema,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase", export_to = "v2/")]
+pub enum ThreadToolSource {
+    Builtin,
+    Mcp,
+    Extension,
+    Dynamic,
+    Hosted,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadToolInventoryItem {
+    pub key: String,
+    #[ts(optional = nullable)]
+    pub namespace: Option<String>,
+    pub name: String,
+    pub source: ThreadToolSource,
+    #[ts(optional = nullable)]
+    pub server_name: Option<String>,
+    pub advertised: bool,
+    pub hidden: bool,
+    pub exposure: String,
+    #[ts(optional = nullable)]
+    pub description: Option<String>,
+    #[ts(optional = nullable)]
+    pub spec: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadToolsListParams {
+    pub thread_id: String,
+    #[ts(optional = nullable)]
+    pub cursor: Option<String>,
+    #[ts(optional = nullable)]
+    pub limit: Option<u32>,
+    #[ts(optional = nullable)]
+    pub detail: Option<ThreadToolsListDetail>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct ThreadToolsListResponse {
+    pub data: Vec<ThreadToolInventoryItem>,
+    #[ts(optional = nullable)]
+    pub next_cursor: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

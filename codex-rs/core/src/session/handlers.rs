@@ -70,7 +70,7 @@ pub async fn clean_background_terminals(sess: &Arc<Session>) {
 
 pub async fn set_tool_enabled(sess: &Session, name: String, enabled: bool) {
     let mut state = sess.state.lock().await;
-    state.tool_selection.set_enabled(name, enabled);
+    state.tool_selection.set_hidden(name, !enabled);
 }
 
 pub async fn realtime_conversation_list_voices(sess: &Session, sub_id: String) {

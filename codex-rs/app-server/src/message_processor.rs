@@ -1076,6 +1076,11 @@ impl MessageProcessor {
                     .thread_set_tool_enabled(request_id.clone(), params)
                     .await
             }
+            ClientRequest::ThreadToolsList { params, .. } => {
+                self.thread_processor
+                    .thread_tools_list(request_id.clone(), params)
+                    .await
+            }
             ClientRequest::ThreadGoalSet { params, .. } => {
                 self.thread_goal_processor
                     .thread_goal_set(request_id.clone(), params)
