@@ -1105,8 +1105,8 @@ fn apply_zip_permissions<R: std::io::Read>(
 }
 
 #[cfg(not(unix))]
-fn apply_zip_permissions(
-    _entry: &zip::read::ZipFile<'_>,
+fn apply_zip_permissions<R: std::io::Read>(
+    _entry: &zip::read::ZipFile<'_, R>,
     _output_path: &Path,
 ) -> Result<(), String> {
     Ok(())
