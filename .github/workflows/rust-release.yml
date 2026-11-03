@@ -308,7 +308,7 @@ jobs:
             > codex-package_SHA256SUMS
 
       - name: Publish release
-        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd
+        uses: softprops/action-gh-release@72f2c25fcb47643c292f7107632f7a47c1df5cd8 # v2.5.0
         with:
           tag_name: ${{ needs.prepare.outputs.tag }}
           name: Assistant ${{ needs.prepare.outputs.version }}
