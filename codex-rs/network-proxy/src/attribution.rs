@@ -1,7 +1,7 @@
 use crate::state::NetworkProxyState;
 use rama_core::Service;
 use rama_core::error::BoxError;
-use rama_core::extensions::ExtensionsMut;
+use rama_core::extensions::ExtensionsRef;
 use rama_tcp::TcpStream;
 use std::io;
 use std::io::Write;
@@ -37,6 +37,16 @@ impl<S> BindConnectionAttribution<S> {
     }
 }
 
+impl<S: Clone> Clone for BindConnectionAttribution<S> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            state: self.state.clone(),
+            environment_id: self.environment_id.clone(),
+        }
+    }
+}
+
 impl<S> Service<TcpStream> for BindConnectionAttribution<S>
 where
     S: Service<TcpStream>,
@@ -66,7 +76,7 @@ where
             )
             .into());
         }
-        stream.extensions_mut().insert(Arc::new(state));
+        stream.extensions().insert_arc(Arc::new(state));
         self.inner.serve(stream).await.map_err(Into::into)
     }
 }

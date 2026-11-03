@@ -59,10 +59,10 @@ impl SessionToolSelection {
         if self.deny.contains(&display) {
             return true;
         }
-        if let Some(namespace) = name.namespace.as_deref() {
-            if self.deny.contains(&format!("{namespace}:*")) {
-                return true;
-            }
+        if let Some(namespace) = name.namespace.as_deref()
+            && self.deny.contains(&format!("{namespace}:*"))
+        {
+            return true;
         }
         plan_mode
             && name.namespace.is_none()

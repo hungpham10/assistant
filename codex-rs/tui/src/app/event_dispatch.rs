@@ -2254,9 +2254,6 @@ impl App {
             AppEvent::OpenApprovalsPopup => {
                 self.chat_widget.open_approvals_popup();
             }
-            AppEvent::OpenToolsPicker => {
-                self.chat_widget.open_tools_picker();
-            }
             AppEvent::ToggleToolEnabled { name } => {
                 self.chat_widget.handle_tools_toggle(name);
             }

@@ -121,24 +121,24 @@ pub async fn process_sse(
                         }
                     }
                 }
-                if let Some(usage) = resp.usage_metadata {
-                    if let Some(usage_obj) = usage.as_object() {
-                        let prompt_tokens = usage_obj
-                            .get("promptTokenCount")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        let completion_tokens = usage_obj
-                            .get("candidatesTokenCount")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        last_usage = Some(TokenUsage {
-                            input_tokens: prompt_tokens,
-                            cached_input_tokens: 0,
-                            output_tokens: completion_tokens,
-                            reasoning_output_tokens: 0,
-                            total_tokens: prompt_tokens + completion_tokens,
-                        });
-                    }
+                if let Some(usage) = resp.usage_metadata
+                    && let Some(usage_obj) = usage.as_object()
+                {
+                    let prompt_tokens = usage_obj
+                        .get("promptTokenCount")
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(0);
+                    let completion_tokens = usage_obj
+                        .get("candidatesTokenCount")
+                        .and_then(serde_json::Value::as_i64)
+                        .unwrap_or(0);
+                    last_usage = Some(TokenUsage {
+                        input_tokens: prompt_tokens,
+                        cached_input_tokens: 0,
+                        output_tokens: completion_tokens,
+                        reasoning_output_tokens: 0,
+                        total_tokens: prompt_tokens + completion_tokens,
+                    });
                 }
             }
             Err(e) => {

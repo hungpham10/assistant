@@ -80,6 +80,7 @@ impl UpdateAction {
             .unwrap_or_else(|_| format!("{command} {}", args.join(" ")))
     }
 
+    #[cfg_attr(debug_assertions, allow(dead_code))]
     pub(crate) fn command_str_for_source(self, source: ProductUpdateSource) -> String {
         let (command, args) = self.command_args_for_source(source);
         shlex::try_join(std::iter::once(command).chain(args.iter().copied()))

@@ -749,10 +749,7 @@ fn zcode_retained_read_tool_reminders(history_items: &[ResponseItem]) -> Vec<Str
 
     for item in history_items.iter().rev() {
         let ResponseItem::FunctionCall {
-            name,
-            arguments,
-            call_id: _,
-            ..
+            name, arguments, ..
         } = item
         else {
             continue;

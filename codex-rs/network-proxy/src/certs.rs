@@ -3,23 +3,18 @@ use anyhow::Result;
 use anyhow::anyhow;
 use base64::Engine as _;
 use codex_utils_home_dir::find_codex_home;
-use rama_net::tls::ApplicationProtocol;
-use rama_tls_rustls::dep::pki_types::CertificateDer;
-use rama_tls_rustls::dep::pki_types::PrivateKeyDer;
-use rama_tls_rustls::dep::pki_types::pem::PemObject;
-use rama_tls_rustls::dep::rcgen::BasicConstraints;
-use rama_tls_rustls::dep::rcgen::CertificateParams;
-use rama_tls_rustls::dep::rcgen::DistinguishedName;
-use rama_tls_rustls::dep::rcgen::DnType;
-use rama_tls_rustls::dep::rcgen::ExtendedKeyUsagePurpose;
-use rama_tls_rustls::dep::rcgen::IsCa;
-use rama_tls_rustls::dep::rcgen::Issuer;
-use rama_tls_rustls::dep::rcgen::KeyPair;
-use rama_tls_rustls::dep::rcgen::KeyUsagePurpose;
-use rama_tls_rustls::dep::rcgen::PKCS_ECDSA_P256_SHA256;
-use rama_tls_rustls::dep::rcgen::SanType;
+use rama_crypto::cert::CertificateAuthorityData;
+use rama_crypto::cert::CertificateIdentity;
+use rama_crypto::cert::CertificateSubject;
+use rama_crypto::cert::LeafCertRequest;
+use rama_crypto::cert::SelfSignedCaConfig;
+use rama_crypto::pki_types::CertificateDer;
+use rama_crypto::pki_types::PrivateKeyDer;
+use rama_crypto::pki_types::pem::PemObject;
+use rama_net::address::Host;
+use rama_tls::server::ServerAuthData;
+use rama_tls::server::TlsServerConfig;
 use rama_tls_rustls::dep::rustls;
-use rama_tls_rustls::server::TlsAcceptorData;
 use sha2::Digest as _;
 use sha2::Sha256;
 use std::collections::HashMap;
@@ -28,7 +23,6 @@ use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::net::IpAddr;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -40,7 +34,7 @@ use tracing::info;
 use tracing::warn;
 
 pub(super) struct ManagedMitmCa {
-    issuer: Issuer<'static, KeyPair>,
+    ca: CertificateAuthorityData,
     certificate_path: PathBuf,
     _artifact_lease: File,
 }
@@ -67,7 +61,8 @@ impl ManagedMitmCa {
         fs::create_dir_all(proxy_dir)
             .with_context(|| format!("failed to create {}", proxy_dir.display()))?;
 
-        let (certificate_pem, private_key) = generate_ca()?;
+        let ca = generate_ca()?;
+        let certificate_pem = certificate_pem(ca.certificate_chain()[0].as_ref());
         let artifact_lock = match lock_managed_ca_artifacts(proxy_dir) {
             Ok(lock) => Some(lock),
             Err(err) => {
@@ -76,8 +71,6 @@ impl ManagedMitmCa {
             }
         };
         let certificate_path = persist_managed_ca_certificate(proxy_dir, &certificate_pem)?;
-        let issuer = Issuer::from_ca_cert_pem(&certificate_pem, private_key)
-            .context("failed to parse managed MITM CA certificate")?;
         let artifact_lease = lock_managed_ca_certificate(&certificate_path)?;
         if artifact_lock.is_some() {
             prune_managed_ca_artifacts(proxy_dir);
@@ -87,7 +80,7 @@ impl ManagedMitmCa {
             "generated process-local MITM CA"
         );
         Ok(Self {
-            issuer,
+            ca,
             certificate_path,
             _artifact_lease: artifact_lease,
         })
@@ -97,53 +90,25 @@ impl ManagedMitmCa {
         &self.certificate_path
     }
 
-    pub(super) fn tls_acceptor_data_for_host(&self, host: &str) -> Result<TlsAcceptorData> {
-        let (cert_pem, key_pem) = issue_host_certificate_pem(host, &self.issuer)?;
-        let cert = CertificateDer::from_pem_slice(cert_pem.as_bytes())
-            .context("failed to parse host cert PEM")?;
-        let key = PrivateKeyDer::from_pem_slice(key_pem.as_bytes())
-            .context("failed to parse host key PEM")?;
-        let mut server_config =
-            rustls::ServerConfig::builder_with_protocol_versions(rustls::ALL_VERSIONS)
-                .with_no_client_auth()
-                .with_single_cert(vec![cert], key)
-                .context("failed to build rustls server config")?;
-        server_config.alpn_protocols = vec![
-            ApplicationProtocol::HTTP_2.as_bytes().to_vec(),
-            ApplicationProtocol::HTTP_11.as_bytes().to_vec(),
-        ];
-
-        Ok(TlsAcceptorData::from(server_config))
+    pub(super) fn tls_acceptor_data_for_host(&self, host: &str) -> Result<TlsServerConfig> {
+        let (cert_chain, private_key) = issue_host_certificate(host, &self.ca)?;
+        Ok(TlsServerConfig::new()
+            .with_server_auth(ServerAuthData::new(cert_chain, private_key))
+            .with_alpn_http_auto())
     }
 }
 
-fn issue_host_certificate_pem(
+fn issue_host_certificate(
     host: &str,
-    issuer: &Issuer<'_, KeyPair>,
-) -> Result<(String, String)> {
-    let mut params = if let Ok(ip) = host.parse::<IpAddr>() {
-        let mut params = CertificateParams::new(Vec::new())
-            .map_err(|err| anyhow!("failed to create cert params: {err}"))?;
-        params.subject_alt_names.push(SanType::IpAddress(ip));
-        params
-    } else {
-        CertificateParams::new(vec![host.to_string()])
-            .map_err(|err| anyhow!("failed to create cert params: {err}"))?
-    };
+    ca: &CertificateAuthorityData,
+) -> Result<(Vec<CertificateDer<'static>>, PrivateKeyDer<'static>)> {
+    let host = Host::try_from(host)
+        .map_err(|err| anyhow!("invalid MITM certificate host {host:?}: {err}"))?;
+    let identity = CertificateIdentity::try_from(host)
+        .map_err(|err| anyhow!("failed to classify MITM certificate host: {err}"))?;
 
-    params.extended_key_usages = vec![ExtendedKeyUsagePurpose::ServerAuth];
-    params.key_usages = vec![
-        KeyUsagePurpose::DigitalSignature,
-        KeyUsagePurpose::KeyEncipherment,
-    ];
-
-    let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)
-        .map_err(|err| anyhow!("failed to generate host key pair: {err}"))?;
-    let cert = params
-        .signed_by(&key_pair, issuer)
-        .map_err(|err| anyhow!("failed to sign host cert: {err}"))?;
-
-    Ok((cert.pem(), key_pair.serialize_pem()))
+    ca.issue_leaf(LeafCertRequest::new(identity))
+        .map_err(|err| anyhow!("failed to issue MITM host certificate: {err}"))
 }
 
 const MANAGED_MITM_CA_DIR: &str = "proxy";
@@ -664,24 +629,21 @@ fn remove_inactive_managed_ca_certificate(certificate_path: &Path) {
     }
 }
 
-fn generate_ca() -> Result<(String, KeyPair)> {
-    let mut params = CertificateParams::default();
-    params.is_ca = IsCa::Ca(BasicConstraints::Unconstrained);
-    params.key_usages = vec![
-        KeyUsagePurpose::KeyCertSign,
-        KeyUsagePurpose::DigitalSignature,
-        KeyUsagePurpose::KeyEncipherment,
-    ];
-    let mut dn = DistinguishedName::new();
-    dn.push(DnType::CommonName, "network_proxy MITM CA");
-    params.distinguished_name = dn;
+fn generate_ca() -> Result<CertificateAuthorityData> {
+    CertificateAuthorityData::generate(SelfSignedCaConfig {
+        subject: CertificateSubject {
+            common_name: Some("network_proxy MITM CA".to_string()),
+            ..CertificateSubject::default()
+        },
+        ..SelfSignedCaConfig::default()
+    })
+    .map_err(|err| anyhow!("failed to generate managed MITM CA: {err}"))
+}
 
-    let key_pair = KeyPair::generate_for(&PKCS_ECDSA_P256_SHA256)
-        .map_err(|err| anyhow!("failed to generate CA key pair: {err}"))?;
-    let cert = params
-        .self_signed(&key_pair)
-        .map_err(|err| anyhow!("failed to generate CA cert: {err}"))?;
-    Ok((cert.pem(), key_pair))
+fn certificate_pem(der: &[u8]) -> String {
+    let mut pem = String::new();
+    push_certificate_pem(&mut pem, der);
+    pem
 }
 
 fn write_atomic_create_new(path: &Path, contents: &[u8], mode: u32) -> Result<()> {
@@ -809,6 +771,11 @@ mod tests {
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
 
+    fn test_ca_certificate_pem() -> String {
+        let ca = generate_ca().unwrap();
+        certificate_pem(ca.certificate_chain()[0].as_ref())
+    }
+
     #[test]
     fn managed_ca_private_key_is_not_persisted() {
         ensure_rustls_crypto_provider();
@@ -919,10 +886,9 @@ mod tests {
         let managed_ca_cert_path = dir.path().join("ca.pem");
         let startup_ca_bundle_path = dir.path().join("startup-ca.pem");
         let startup_ca_dir = dir.path().join("startup-certs");
-        let (managed_ca_cert, _) = generate_ca().unwrap();
-        let (startup_ca_cert, startup_ca_key) = generate_ca().unwrap();
-        let startup_ca_key = startup_ca_key.serialize_pem();
-        let (directory_ca_cert, _) = generate_ca().unwrap();
+        let managed_ca_cert = test_ca_certificate_pem();
+        let startup_ca_cert = test_ca_certificate_pem();
+        let directory_ca_cert = test_ca_certificate_pem();
         let mut trusted_ca_der = CertificateDer::from_pem_slice(startup_ca_cert.as_bytes())
             .unwrap()
             .as_ref()
@@ -932,11 +898,7 @@ mod tests {
         push_certificate_pem(&mut trusted_ca_cert, &trusted_ca_der);
         let trusted_ca_cert = trusted_ca_cert.replace("CERTIFICATE", "TRUSTED CERTIFICATE");
         fs::write(&managed_ca_cert_path, &managed_ca_cert).unwrap();
-        fs::write(
-            &startup_ca_bundle_path,
-            format!("{trusted_ca_cert}{startup_ca_key}"),
-        )
-        .unwrap();
+        fs::write(&startup_ca_bundle_path, &trusted_ca_cert).unwrap();
         fs::create_dir(&startup_ca_dir).unwrap();
         fs::write(startup_ca_dir.join("directory-ca.pem"), &directory_ca_cert).unwrap();
         let startup_ca_bundle_path = startup_ca_bundle_path.display().to_string();
@@ -963,7 +925,7 @@ mod tests {
                 .iter()
                 .all(|cert| baseline_certs.contains(cert))
         );
-        assert!(!baseline_bundle.contains(&startup_ca_key));
+        assert!(!baseline_bundle.contains("PRIVATE KEY"));
         assert!(!baseline_bundle.contains("TRUSTED CERTIFICATE"));
     }
 
@@ -972,7 +934,7 @@ mod tests {
         let dir = tempdir().unwrap();
         let managed_ca_cert_path = dir.path().join("ca.pem");
         let inherited_bundle_path = dir.path().join("ca-bundle-parent.pem");
-        let (managed_ca_cert, _) = generate_ca().unwrap();
+        let managed_ca_cert = test_ca_certificate_pem();
         fs::write(&managed_ca_cert_path, &managed_ca_cert).unwrap();
         fs::write(
             &inherited_bundle_path,

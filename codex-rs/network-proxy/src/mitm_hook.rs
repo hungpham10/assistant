@@ -11,6 +11,7 @@ use globset::GlobMatcher;
 use rama_http::HeaderValue;
 use rama_http::Request;
 use rama_http::header::HeaderName;
+use rama_net::uri::util::percent_encoding::percent_decode_str;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -391,8 +392,12 @@ fn hook_matches(hook: &MitmHook, req: &Request) -> bool {
         return false;
     }
 
-    let path = req.uri().path();
-    if !path_matches(&hook.matcher.path_prefixes, path) {
+    // rama stores the URI path percent-encoded, so decode it before matching against the
+    // configured (decoded) path prefixes.
+    let path = req.uri().path_ref_or_root();
+    let encoded_path = path.as_encoded_str();
+    let path = percent_decode_str(&encoded_path).decode_utf8_lossy();
+    if !path_matches(&hook.matcher.path_prefixes, &path) {
         return false;
     }
 
@@ -408,7 +413,11 @@ fn query_matches(query_constraints: &[QueryConstraint], req: &Request) -> bool {
         return true;
     }
 
-    let actual_query = req.uri().query().unwrap_or_default();
+    let actual_query = req
+        .uri()
+        .query()
+        .map(|query| query.as_encoded_str().into_owned())
+        .unwrap_or_default();
     let mut actual_values: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for (name, value) in form_urlencoded::parse(actual_query.as_bytes()) {
         actual_values

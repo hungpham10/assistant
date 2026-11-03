@@ -70,7 +70,7 @@ async fn thread_set_tool_enabled_rejects_unknown_thread() -> Result<()> {
         DEFAULT_READ_TIMEOUT,
         mcp.read_stream_until_error_message(RequestId::Integer(request_id)),
     )
-    .await?;
+    .await??;
 
     Ok(())
 }

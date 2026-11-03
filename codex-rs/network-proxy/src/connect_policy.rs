@@ -3,11 +3,10 @@ use crate::state::NetworkProxyState;
 use rama_core::Service;
 use rama_core::error::BoxError;
 use rama_core::error::ErrorExt as _;
-use rama_core::error::OpaqueError;
-use rama_core::extensions::ExtensionsMut;
-use rama_net::address::ProxyAddress;
 use rama_net::client::EstablishedClientConnection;
-use rama_net::transport::TryRefIntoTransportContext;
+use rama_net::client::ProxyRoute;
+use rama_net::input_ext::ConnectorTargetInputExt;
+use rama_net::input_ext::TransportProtocolInputExt;
 use rama_tcp::TcpStream;
 use rama_tcp::client::TcpStreamConnector;
 use rama_tcp::client::service::TcpConnector;
@@ -38,15 +37,14 @@ impl TargetCheckedTcpConnector {
 
 impl<Input> Service<Input> for TargetCheckedTcpConnector
 where
-    Input: TryRefIntoTransportContext + Send + ExtensionsMut + 'static,
-    Input::Error: Into<BoxError> + Send + Sync + 'static,
+    Input: ConnectorTargetInputExt + TransportProtocolInputExt + Send + 'static,
 {
     type Output = EstablishedClientConnection<TcpStream, Input>;
     type Error = BoxError;
 
     async fn serve(&self, input: Input) -> Result<Self::Output, Self::Error> {
-        if input.extensions().get::<ProxyAddress>().is_some() {
-            return TcpConnector::new().serve(input).await;
+        if input.extensions().get_ref::<ProxyRoute>().is_some() {
+            return TcpConnector::new().serve(input).await.map_err(Into::into);
         }
 
         TcpConnector::new()
@@ -55,6 +53,7 @@ where
             })
             .serve(input)
             .await
+            .map_err(Into::into)
     }
 }
 
@@ -94,12 +93,11 @@ impl TargetPolicy {
             Self::Config {
                 allow_local_binding,
             } => Ok(*allow_local_binding),
-            Self::State(state) => state.allow_local_binding().await.map_err(|err| {
-                let err: BoxError = err.into();
-                OpaqueError::from_boxed(err)
-                    .context("read network proxy config")
-                    .into_boxed()
-            }),
+            Self::State(state) => state
+                .allow_local_binding()
+                .await
+                .map_err(Into::<BoxError>::into)
+                .map_err(|err| err.context("read network proxy config")),
         }
     }
 }
@@ -123,8 +121,7 @@ mod tests {
             NetworkProxySettings::default(),
         )));
 
-        let request: rama_tcp::client::Request =
-            rama_tcp::client::Request::new(HostWithPort::from(target));
+        let request = rama_net::client::ConnectRequest::new(HostWithPort::from(target));
         let err = Service::serve(&connector, request)
             .await
             .expect_err("local target should be rejected");
@@ -148,8 +145,7 @@ mod tests {
             },
         )));
 
-        let request: rama_tcp::client::Request =
-            rama_tcp::client::Request::new(HostWithPort::from(target));
+        let request = rama_net::client::ConnectRequest::new(HostWithPort::from(target));
         let result = Service::serve(&connector, request).await;
 
         assert!(result.is_ok(), "local target should be allowed: {result:?}");

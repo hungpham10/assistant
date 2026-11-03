@@ -8,7 +8,6 @@ use crate::runtime::network_proxy_state_for_policy;
 use codex_utils_absolute_path::AbsolutePathBuf;
 use pretty_assertions::assert_eq;
 use rama_core::extensions::Extensions;
-use rama_core::extensions::ExtensionsMut;
 use rama_core::extensions::ExtensionsRef;
 use rama_http::Body;
 use rama_http::HeaderMap;
@@ -74,12 +73,6 @@ impl AsyncWrite for TestStream {
 impl ExtensionsRef for TestStream {
     fn extensions(&self) -> &Extensions {
         &self.extensions
-    }
-}
-
-impl ExtensionsMut for TestStream {
-    fn extensions_mut(&mut self) -> &mut Extensions {
-        &mut self.extensions
     }
 }
 
