@@ -13,6 +13,7 @@ use crate::network_policy::NetworkProtocol;
 use crate::network_policy::emit_block_decision_audit_event;
 use crate::network_policy::evaluate_host_policy;
 use crate::policy::normalize_host;
+use crate::rama_compat::ProxyTarget;
 use crate::reasons::REASON_METHOD_NOT_ALLOWED;
 use crate::reasons::REASON_MITM_REQUIRED;
 use crate::reasons::REASON_PROXY_DISABLED;
@@ -24,17 +25,20 @@ use crate::state::BlockedRequestArgs;
 use crate::state::NetworkProxyState;
 use anyhow::Context as _;
 use anyhow::Result;
+use rama_core::Layer;
 use rama_core::Service;
 use rama_core::error::BoxError;
 use rama_core::extensions::Extensions;
-use rama_core::extensions::ExtensionsMut;
 use rama_core::extensions::ExtensionsRef;
+use rama_core::io::BridgeIo;
+use rama_core::rt::Executor;
 use rama_core::service::service_fn;
+use rama_dns::client::DnsConnectorLayer;
 use rama_net::address::HostWithPort;
+use rama_net::address::SocketAddress;
+use rama_net::client::ConnectRequest as TcpRequest;
 use rama_net::client::EstablishedClientConnection;
-use rama_net::proxy::ProxyRequest;
-use rama_net::proxy::ProxyTarget;
-use rama_net::proxy::StreamForwardService;
+use rama_net::proxy::IoForwardService;
 use rama_net::stream::Socket;
 use rama_net::stream::SocketInfo;
 use rama_socks5::Socks5Acceptor;
@@ -43,7 +47,6 @@ use rama_socks5::server::DefaultUdpRelay;
 use rama_socks5::server::udp::RelayRequest;
 use rama_socks5::server::udp::RelayResponse;
 use rama_tcp::TcpStream;
-use rama_tcp::client::Request as TcpRequest;
 use rama_tcp::server::TcpListener;
 use std::io;
 use std::net::SocketAddr;
@@ -67,12 +70,10 @@ pub async fn run_socks5(
     environment_id: Option<String>,
     enable_socks5_udp: bool,
 ) -> Result<()> {
-    let listener = TcpListener::build()
-        .bind(addr)
+    let listener = TcpListener::build(Executor::default())
+        .bind_address(addr)
         .await
-        // See `http_proxy.rs` for details on why we wrap `BoxError` before converting to anyhow.
-        .map_err(rama_core::error::OpaqueError::from)
-        .map_err(anyhow::Error::from)
+        .map_err(|err| anyhow::anyhow!("{err}"))
         .with_context(|| format!("bind SOCKS5 proxy: {addr}"))?;
 
     run_socks5_with_listener(
@@ -92,8 +93,8 @@ pub async fn run_socks5_with_std_listener(
     environment_id: Option<String>,
     enable_socks5_udp: bool,
 ) -> Result<()> {
-    let listener =
-        TcpListener::try_from(listener).context("convert std listener to SOCKS5 proxy listener")?;
+    let listener = TcpListener::try_from_std_tcp_listener(listener, Executor::default())
+        .context("convert std listener to SOCKS5 proxy listener")?;
     run_socks5_with_listener(
         state,
         listener,
@@ -145,7 +146,7 @@ async fn run_socks5_with_listener(
     let socks_connector = DefaultConnector::default()
         .with_connector(policy_tcp_connector)
         .with_service(socks_proxy);
-    let base = Socks5Acceptor::new().with_connector(socks_connector);
+    let base = Socks5Acceptor::new(Executor::default()).with_connector(socks_connector);
 
     if enable_socks5_udp {
         let udp_state = state.clone();
@@ -186,8 +187,7 @@ async fn handle_socks5_tcp(
 ) -> Result<EstablishedClientConnection<Socks5TcpConnection, TcpRequest>, BoxError> {
     let app_state = req
         .extensions()
-        .get::<Arc<NetworkProxyState>>()
-        .cloned()
+        .get_arc::<NetworkProxyState>()
         .ok_or_else(|| io::Error::other("missing state"))?;
 
     let host = normalize_host(&req.authority.host.to_string());
@@ -199,7 +199,7 @@ async fn handle_socks5_tcp(
 
     let client = req
         .extensions()
-        .get::<SocketInfo>()
+        .get_ref::<SocketInfo>()
         .map(|info| info.peer_addr().to_string());
 
     match app_state.enabled().await {
@@ -438,13 +438,20 @@ async fn handle_socks5_tcp(
 
     info!("SOCKS upstream dial started (host={host}, port={port})");
     let connect_started_at = Instant::now();
-    let result = tcp_connector.serve(req).await.map(|connection| {
-        let EstablishedClientConnection { input, conn } = connection;
-        EstablishedClientConnection {
-            input,
-            conn: Socks5TcpConnection::Direct(conn),
-        }
-    });
+    // rama's TCP connector only dials IP addresses, so resolve hostname targets first while
+    // keeping the per-address policy check in `TargetCheckedTcpConnector`.
+    let result = DnsConnectorLayer::new()
+        .into_layer(tcp_connector)
+        .serve(req)
+        .await
+        .map(|connection| {
+            let EstablishedClientConnection { input, conn } = connection;
+            EstablishedClientConnection {
+                input,
+                conn: Socks5TcpConnection::Direct(conn),
+            }
+        })
+        .map_err(Into::into);
     match &result {
         Ok(_) => info!(
             "SOCKS upstream dial established (host={host}, port={port}, elapsed_ms={})",
@@ -526,17 +533,21 @@ impl AsyncWrite for Socks5TcpConnection {
 }
 
 impl Socket for Socks5TcpConnection {
-    fn local_addr(&self) -> io::Result<SocketAddr> {
+    fn local_addr(&self) -> io::Result<SocketAddress> {
         match self {
             Self::Direct(stream) => stream.local_addr(),
-            Self::Mitm { .. } | Self::DetectTls { .. } => Ok(SocketAddr::from(([0, 0, 0, 0], 0))),
+            Self::Mitm { .. } | Self::DetectTls { .. } => {
+                Ok(SocketAddress::from(([0, 0, 0, 0], 0)))
+            }
         }
     }
 
-    fn peer_addr(&self) -> io::Result<SocketAddr> {
+    fn peer_addr(&self) -> io::Result<SocketAddress> {
         match self {
             Self::Direct(stream) => stream.peer_addr(),
-            Self::Mitm { .. } | Self::DetectTls { .. } => Ok(SocketAddr::from(([0, 0, 0, 0], 0))),
+            Self::Mitm { .. } | Self::DetectTls { .. } => {
+                Ok(SocketAddress::from(([0, 0, 0, 0], 0)))
+            }
         }
     }
 }
@@ -550,30 +561,22 @@ impl ExtensionsRef for Socks5TcpConnection {
     }
 }
 
-impl ExtensionsMut for Socks5TcpConnection {
-    fn extensions_mut(&mut self) -> &mut Extensions {
-        match self {
-            Self::Direct(stream) => stream.extensions_mut(),
-            Self::Mitm { extensions, .. } | Self::DetectTls { extensions, .. } => extensions,
-        }
-    }
-}
-
 async fn proxy_socks5_tcp(
-    request: ProxyRequest<TcpStream, Socks5TcpConnection>,
+    request: BridgeIo<TcpStream, Socks5TcpConnection>,
 ) -> Result<(), BoxError> {
-    let ProxyRequest { mut source, target } = request;
+    let BridgeIo(source, target) = request;
     match target {
-        Socks5TcpConnection::Direct(target) => StreamForwardService::default()
-            .serve(ProxyRequest { source, target })
+        Socks5TcpConnection::Direct(target) => IoForwardService::default()
+            .serve(BridgeIo(source, target))
             .await
+            .map(drop)
             .map_err(Into::into),
         Socks5TcpConnection::Mitm {
             target, mode, mitm, ..
         } => {
-            source.extensions_mut().insert(ProxyTarget(target));
-            source.extensions_mut().insert(mode);
-            source.extensions_mut().insert(mitm);
+            source.extensions().insert(ProxyTarget(target));
+            source.extensions().insert(mode);
+            source.extensions().insert_arc(mitm);
             mitm::mitm_stream(source).await.map_err(Into::into)
         }
         Socks5TcpConnection::DetectTls {
@@ -583,9 +586,9 @@ async fn proxy_socks5_tcp(
             state,
             ..
         } => {
-            source.extensions_mut().insert(ProxyTarget(target.clone()));
-            source.extensions_mut().insert(mode);
-            source.extensions_mut().insert(mitm);
+            source.extensions().insert(ProxyTarget(target.clone()));
+            source.extensions().insert(mode);
+            source.extensions().insert_arc(mitm);
             let (is_tls, source) = mitm::peek_tls_prefix(source)
                 .await
                 .map_err(|err| -> BoxError { err.into() })?;
@@ -602,12 +605,10 @@ async fn proxy_socks5_tcp(
                     "SOCKS opaque upstream dial established (target={target}, elapsed_ms={})",
                     connect_started_at.elapsed().as_millis()
                 );
-                StreamForwardService::default()
-                    .serve(ProxyRequest {
-                        source,
-                        target: upstream,
-                    })
+                IoForwardService::default()
+                    .serve(BridgeIo(source, upstream))
                     .await
+                    .map(drop)
                     .map_err(Into::into)
             }
         }
@@ -634,7 +635,7 @@ async fn inspect_socks5_udp(
     }
 
     let client = extensions
-        .get::<SocketInfo>()
+        .get_ref::<SocketInfo>()
         .map(|info| info.peer_addr().to_string());
 
     match state.enabled().await {
@@ -822,7 +823,7 @@ mod tests {
     use crate::state::build_config_state;
     use pretty_assertions::assert_eq;
     use rama_core::extensions::Extensions;
-    use rama_core::extensions::ExtensionsMut;
+    use rama_core::extensions::ExtensionsRef;
     use rama_net::address::HostWithPort;
     use rama_net::address::SocketAddress;
     use rama_socks5::server::udp::RelayDirection;
@@ -875,9 +876,9 @@ mod tests {
             mode: NetworkMode::Full,
             ..NetworkProxySettings::default()
         });
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("example.com:443").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let (result, events) = capture_events(|| async {
             handle_socks5_tcp(
@@ -920,9 +921,9 @@ mod tests {
         };
         settings.set_allowed_domains(vec!["example.com".to_string()]);
         let state = state_for_settings(settings);
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("example.com:443").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let result = handle_socks5_tcp(
             request,
@@ -945,9 +946,9 @@ mod tests {
         };
         settings.set_allowed_domains(vec!["example.com".to_string()]);
         let state = state_for_settings(settings);
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("example.com:80").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let (result, events) = capture_events(|| async {
             handle_socks5_tcp(
@@ -996,10 +997,10 @@ mod tests {
         let state = state_for_settings(settings);
         let mut env = HashMap::from([("OPENAI_API_KEY".to_string(), "sk-real".to_string())]);
         state.virtualize_child_credentials(&mut env);
-        let mut request = TcpRequest::new(
+        let request = TcpRequest::new(
             HostWithPort::try_from("api.openai.com:8443").expect("valid authority"),
         );
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let result = handle_socks5_tcp(
             request,
@@ -1022,9 +1023,9 @@ mod tests {
         };
         settings.set_allowed_domains(vec!["example.com".to_string()]);
         let state = state_for_settings(settings);
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("example.com:443").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let err = handle_socks5_tcp(
             request,
@@ -1060,9 +1061,9 @@ mod tests {
         };
         settings.set_allowed_domains(vec!["api.github.com".to_string()]);
         let state = state_for_settings(settings);
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("api.github.com:443").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let result = handle_socks5_tcp(
             request,
@@ -1095,9 +1096,9 @@ mod tests {
         };
         settings.set_allowed_domains(vec!["api.github.com".to_string()]);
         let state = state_for_settings(settings);
-        let mut request =
+        let request =
             TcpRequest::new(HostWithPort::try_from("api.github.com:80").expect("valid authority"));
-        request.extensions_mut().insert(state.clone());
+        request.extensions().insert_arc(state.clone());
 
         let err = handle_socks5_tcp(
             request,

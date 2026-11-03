@@ -1101,7 +1101,6 @@ impl ChatWidget {
 
     pub(crate) fn open_tools_picker(&mut self) {
         let items = builtin_tool_catalog()
-            .into_iter()
             .map(|name| {
                 let enabled = !self.tools_session_disabled.contains(name);
                 let key = name.to_string();
