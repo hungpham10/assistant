@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "acp-server",
+    "servers/acp-server",
     "providers/aws-auth",
     "analytics",
     "agent-graph-store",
@@ -9,19 +9,19 @@ members = [
     "execution/bwrap",
     "ansi-escape",
     "async-utils",
-    "app-server",
-    "app-server-transport",
-    "app-server-daemon",
-    "app-server-client",
-    "app-server-protocol",
-    "app-server-test-client",
+    "servers/app-server",
+    "servers/app-server-transport",
+    "servers/app-server-daemon",
+    "servers/app-server-client",
+    "servers/app-server-protocol",
+    "servers/app-server-test-client",
     "apply-patch",
     "arg0",
     "feedback",
     "features",
     "install-context",
     "cloud/openapi-models",
-    "chat-wire-compat",
+    "servers/chat-wire-compat",
     "code-mode",
     "code-mode-host",
     "code-mode-protocol",
@@ -70,7 +70,7 @@ members = [
     "providers/lmstudio",
     "providers/login",
     "codex-mcp",
-    "mcp-server",
+    "servers/mcp-server",
     "memories/read",
     "memories/write",
     "providers/model-provider-info",
@@ -84,14 +84,14 @@ members = [
     "rollout",
     "rollout-trace",
     "rmcp-client",
-    "responses-api-proxy",
+    "servers/responses-api-proxy",
     "response-debug-context",
     "execution/sandboxing",
-    "stdio-to-uds",
+    "servers/stdio-to-uds",
     "otel",
     "tui",
     "tools",
-    "websocket-client",
+    "servers/websocket-client",
     "utils/absolute-path",
     "utils/path-uri",
     "utils/cargo-bin",
@@ -141,26 +141,26 @@ license = "Apache-2.0"
 
 [workspace.dependencies]
 # Internal
-app_test_support = { path = "app-server/tests/common" }
-codex-acp-server = { path = "acp-server" }
+app_test_support = { path = "servers/app-server/tests/common" }
+codex-acp-server = { path = "servers/acp-server" }
 codex-analytics = { path = "analytics" }
 codex-agent-graph-store = { path = "agent-graph-store" }
 codex-agent-identity = { path = "agent-identity" }
 codex-ansi-escape = { path = "ansi-escape" }
 codex-api = { path = "codex-api" }
 codex-aws-auth = { path = "providers/aws-auth" }
-codex-app-server = { path = "app-server" }
-codex-app-server-transport = { path = "app-server-transport" }
-codex-app-server-daemon = { path = "app-server-daemon" }
-codex-app-server-client = { path = "app-server-client" }
-codex-app-server-protocol = { path = "app-server-protocol" }
-codex-app-server-test-client = { path = "app-server-test-client" }
+codex-app-server = { path = "servers/app-server" }
+codex-app-server-transport = { path = "servers/app-server-transport" }
+codex-app-server-daemon = { path = "servers/app-server-daemon" }
+codex-app-server-client = { path = "servers/app-server-client" }
+codex-app-server-protocol = { path = "servers/app-server-protocol" }
+codex-app-server-test-client = { path = "servers/app-server-test-client" }
 codex-apply-patch = { path = "apply-patch" }
 codex-arg0 = { path = "arg0" }
 codex-async-utils = { path = "async-utils" }
 codex-backend-client = { path = "cloud/backend-client" }
 codex-chatgpt = { path = "chatgpt" }
-codex-chat-wire-compat = { path = "chat-wire-compat" }
+codex-chat-wire-compat = { path = "servers/chat-wire-compat" }
 codex-cli = { path = "cli" }
 codex-client = { path = "codex-client" }
 codex-collaboration-mode-templates = { path = "collaboration-mode-templates" }
@@ -174,7 +174,7 @@ codex-code-mode = { path = "code-mode", default-features = false }
 codex-code-mode-protocol = { path = "code-mode-protocol" }
 codex-home = { path = "codex-home" }
 codex-http-client = { path = "http-client" }
-codex-websocket-client = { path = "websocket-client" }
+codex-websocket-client = { path = "servers/websocket-client" }
 codex-config = { path = "config" }
 codex-connectors = { path = "connectors" }
 codex-connectors-extension = { path = "ext/connectors" }
@@ -214,7 +214,7 @@ codex-memories-read = { path = "memories/read" }
 codex-memories-write = { path = "memories/write" }
 codex-mcp = { path = "codex-mcp" }
 codex-mcp-extension = { path = "ext/mcp" }
-codex-mcp-server = { path = "mcp-server" }
+codex-mcp-server = { path = "servers/mcp-server" }
 codex-model-provider-info = { path = "providers/model-provider-info" }
 codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "network-proxy" }
@@ -226,7 +226,7 @@ codex-process-hardening = { path = "execution/process-hardening" }
 codex-product-info = { path = "product-info" }
 codex-protocol = { path = "protocol" }
 codex-prompts = { path = "prompts" }
-codex-responses-api-proxy = { path = "responses-api-proxy" }
+codex-responses-api-proxy = { path = "servers/responses-api-proxy" }
 codex-response-debug-context = { path = "response-debug-context" }
 codex-rmcp-client = { path = "rmcp-client" }
 codex-rollout = { path = "rollout" }
@@ -238,7 +238,7 @@ codex-shell-escalation = { path = "execution/shell-escalation" }
 codex-skills-extension = { path = "ext/skills" }
 codex-skills = { path = "skills" }
 codex-state = { path = "state" }
-codex-stdio-to-uds = { path = "stdio-to-uds" }
+codex-stdio-to-uds = { path = "servers/stdio-to-uds" }
 codex-terminal-detection = { path = "terminal-detection" }
 codex-test-binary-support = { path = "test-binary-support" }
 codex-thread-store = { path = "thread-store" }
@@ -269,7 +269,7 @@ codex-utils-string = { path = "utils/string" }
 codex-utils-template = { path = "utils/template" }
 codex-windows-sandbox = { path = "windows-sandbox-rs" }
 core_test_support = { path = "codex/core/tests/common" }
-mcp_test_support = { path = "mcp-server/tests/common" }
+mcp_test_support = { path = "servers/mcp-server/tests/common" }
 
 # External
 age = "0.11.1"
