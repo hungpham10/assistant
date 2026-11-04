@@ -12,12 +12,12 @@ use codex_api::ResponsesOptions;
 use codex_api::SharedAuthProvider;
 use codex_api::SseTelemetry;
 use codex_api::build_session_headers;
-use codex_client::HttpTransport;
-use codex_client::Request;
-use codex_client::RequestBody;
-use codex_client::RequestCompression;
-use codex_client::TransportError;
-use codex_client::run_with_retry;
+use codex_api::client::HttpTransport;
+use codex_api::client::Request;
+use codex_api::client::RequestBody;
+use codex_api::client::RequestCompression;
+use codex_api::client::TransportError;
+use codex_api::client::run_with_retry;
 use futures::stream;
 use http::HeaderMap;
 use http::HeaderValue;
@@ -227,7 +227,7 @@ impl<T: HttpTransport> ChatCompletionsCompatClient<T> {
         extra_headers: HeaderMap,
         body: Option<Value>,
         configure: C,
-    ) -> Result<codex_client::Response, ApiError>
+    ) -> Result<codex_api::client::Response, ApiError>
     where
         C: Fn(&mut Request),
     {
@@ -264,7 +264,7 @@ impl<T: HttpTransport> ChatCompletionsCompatClient<T> {
         extra_headers: HeaderMap,
         body: Option<Value>,
         configure: C,
-    ) -> Result<codex_client::StreamResponse, ApiError>
+    ) -> Result<codex_api::client::StreamResponse, ApiError>
     where
         C: Fn(&mut Request),
     {
@@ -552,8 +552,8 @@ mod tests {
     use codex_api::ResponsesOptions;
     use codex_api::RetryConfig;
     use codex_api::TextControls;
-    use codex_client::RequestBody;
-    use codex_client::Response;
+    use codex_api::client::RequestBody;
+    use codex_api::client::Response;
     use codex_protocol::ThreadId;
     use codex_protocol::models::ContentItem;
     use codex_protocol::models::ResponseItem;
@@ -578,9 +578,9 @@ mod tests {
         async fn stream(
             &self,
             req: Request,
-        ) -> Result<codex_client::StreamResponse, TransportError> {
+        ) -> Result<codex_api::client::StreamResponse, TransportError> {
             *self.last_request.lock().expect("record last request") = Some(req);
-            Ok(codex_client::StreamResponse {
+            Ok(codex_api::client::StreamResponse {
                 status: http::StatusCode::OK,
                 headers: HeaderMap::new(),
                 bytes: Box::pin(futures::stream::empty()),
@@ -602,7 +602,7 @@ mod tests {
         async fn stream(
             &self,
             req: Request,
-        ) -> Result<codex_client::StreamResponse, TransportError> {
+        ) -> Result<codex_api::client::StreamResponse, TransportError> {
             self.requests.lock().expect("record requests").push(req);
             let mut attempts = self.stream_attempts.lock().expect("stream attempts");
             if *attempts == 0 {
@@ -618,7 +618,7 @@ mod tests {
                 });
             }
             *attempts += 1;
-            Ok(codex_client::StreamResponse {
+            Ok(codex_api::client::StreamResponse {
                 status: http::StatusCode::OK,
                 headers: HeaderMap::new(),
                 bytes: Box::pin(futures::stream::empty()),

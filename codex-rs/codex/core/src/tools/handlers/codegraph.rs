@@ -13,7 +13,7 @@ use codex_tools::ResponsesApiNamespaceTool;
 use codex_tools::ResponsesApiTool;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
-use codex_tools_codegraph::service::CodegraphService;
+use codex_tools::codegraph::service::CodegraphService;
 use serde_json::Value as JsonValue;
 use serde_json::json;
 use std::collections::BTreeMap;

@@ -1,12 +1,12 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestTelemetry;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::images::ImageEditRequest;
 use crate::images::ImageGenerationRequest;
 use crate::images::ImageResponse;
 use crate::provider::Provider;
-use codex_client::HttpTransport;
-use codex_client::RequestTelemetry;
 use http::HeaderMap;
 use http::Method;
 use serde::Serialize;
@@ -75,16 +75,16 @@ impl<T: HttpTransport> ImagesClient<T> {
 mod tests {
     use super::*;
     use crate::auth::AuthProvider;
+    use crate::client::Request;
+    use crate::client::RequestBody;
+    use crate::client::Response;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
     use crate::images::ImageBackground;
     use crate::images::ImageData;
     use crate::images::ImageQuality;
     use crate::images::ImageUrl;
     use crate::provider::RetryConfig;
-    use codex_client::Request;
-    use codex_client::RequestBody;
-    use codex_client::Response;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
     use http::StatusCode;
     use pretty_assertions::assert_eq;
     use serde_json::json;

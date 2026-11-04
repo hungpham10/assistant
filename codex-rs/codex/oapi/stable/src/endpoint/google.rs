@@ -1,13 +1,13 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestCompression;
+use crate::client::RequestTelemetry;
 use crate::common::ResponseStream;
 use crate::error::ApiError;
 use crate::google::GoogleGenerateContentRequest;
 use crate::provider::Provider;
 use crate::sse::spawn_google_response_stream;
 use crate::telemetry::SseTelemetry;
-use codex_client::HttpTransport;
-use codex_client::RequestCompression;
-use codex_client::RequestTelemetry;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::Method;

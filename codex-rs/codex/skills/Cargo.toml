@@ -14,6 +14,8 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+include_dir = { workspace = true }
+thiserror = { workspace = true }
 codex-analytics = { workspace = true }
 codex-config = { workspace = true }
 codex-context-fragments = { workspace = true }
@@ -23,7 +25,7 @@ codex-model-provider = { workspace = true }
 codex-otel = { workspace = true }
 codex-protocol = { workspace = true }
 codex-shell-command = { workspace = true }
-codex-skills = { workspace = true }
+
 codex-utils-absolute-path = { workspace = true }
 codex-utils-output-truncation = { workspace = true }
 codex-utils-path-uri = { workspace = true }

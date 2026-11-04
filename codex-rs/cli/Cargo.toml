@@ -48,7 +48,7 @@ cloud = ["dep:codex-cloud-tasks"]
 apply = ["dep:codex-chatgpt"]
 internal-tools = [
     "dep:codex-responses-api-proxy",
-    "dep:codex-stdio-to-uds",
+    "dep:codex-uds",
     "dep:codex-memories-write",
 ]
 # Các feature dưới đây chỉ gate code, không kéo crate riêng.
@@ -95,9 +95,9 @@ codex-rollout = { workspace = true }
 codex-rollout-trace = { workspace = true }
 codex-sandboxing = { workspace = true }
 codex-state = { workspace = true }
-codex-stdio-to-uds = { workspace = true, optional = true }
 codex-terminal-detection = { workspace = true }
 codex-tui = { workspace = true }
+codex-uds = { workspace = true, optional = true }
 codex-utils-absolute-path = { workspace = true }
 codex-utils-path = { workspace = true }
 crossterm = { workspace = true }

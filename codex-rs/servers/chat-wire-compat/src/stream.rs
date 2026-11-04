@@ -4,7 +4,7 @@ use codex_api::ApiError;
 use codex_api::ResponseEvent;
 use codex_api::ResponseStream;
 use codex_api::SseTelemetry;
-use codex_client::ByteStream;
+use codex_api::client::ByteStream;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;

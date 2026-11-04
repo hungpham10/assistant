@@ -10,6 +10,7 @@ mod root_loader;
 pub mod service;
 mod skill_instructions;
 pub mod system;
+mod system_skills;
 
 pub(crate) use invocation_utils::build_implicit_skill_path_indexes;
 pub use invocation_utils::detect_implicit_skill_invocation_for_command;

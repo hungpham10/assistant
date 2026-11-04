@@ -1685,7 +1685,7 @@ async fn cli_main(
                 "stdio-to-uds",
             )?;
             let socket_path = cmd.socket_path;
-            codex_stdio_to_uds::run(socket_path.as_path()).await?;
+            codex_uds::run(socket_path.as_path()).await?;
         }
         #[cfg(feature = "exec-server")]
         Some(Subcommand::ExecServer(cmd)) => {

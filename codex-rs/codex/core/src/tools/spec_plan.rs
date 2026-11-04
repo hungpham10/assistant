@@ -1248,7 +1248,7 @@ fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut P
         return;
     }
     let cwd = context.step_context.turn.cwd.clone();
-    if let Ok(service) = codex_tools_codegraph::service::CodegraphService::attach(&cwd) {
+    if let Ok(service) = codex_tools::codegraph::service::CodegraphService::attach(&cwd) {
         use std::sync::Arc;
         planned_tools.add_with_exposure(
             crate::tools::handlers::CodegraphHandler::new(Arc::new(service)),

@@ -1,5 +1,5 @@
-use codex_collaboration_mode_templates::DEFAULT as COLLABORATION_MODE_DEFAULT;
-use codex_collaboration_mode_templates::PLAN as COLLABORATION_MODE_PLAN;
+use crate::collaboration_mode_templates::DEFAULT as COLLABORATION_MODE_DEFAULT;
+use crate::collaboration_mode_templates::PLAN as COLLABORATION_MODE_PLAN;
 use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::TUI_VISIBLE_COLLABORATION_MODES;

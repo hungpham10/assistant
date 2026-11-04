@@ -1,3 +1,5 @@
+pub mod client;
+
 pub(crate) mod anthropic;
 pub(crate) mod api_bridge;
 pub(crate) mod auth;
@@ -16,10 +18,10 @@ pub(crate) mod search;
 pub(crate) mod sse;
 pub(crate) mod telemetry;
 
+pub use crate::client::RequestTelemetry;
+pub use crate::client::ReqwestTransport;
+pub use crate::client::TransportError;
 pub use crate::requests::headers::build_session_headers;
-pub use codex_client::RequestTelemetry;
-pub use codex_client::ReqwestTransport;
-pub use codex_client::TransportError;
 
 pub use crate::anthropic::AnthropicCacheControl;
 pub use crate::anthropic::AnthropicContentBlock;

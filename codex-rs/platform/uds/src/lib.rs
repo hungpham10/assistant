@@ -327,5 +327,9 @@ mod platform {
     unsafe impl async_io::IoSafe for WindowsUnixStream {}
 }
 
+mod stdio_relay;
+
+pub use stdio_relay::run;
+
 #[cfg(test)]
 mod lib_tests;

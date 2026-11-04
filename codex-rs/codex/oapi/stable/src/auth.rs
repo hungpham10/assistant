@@ -1,5 +1,5 @@
-use codex_client::Request;
-use codex_client::TransportError;
+use crate::client::Request;
+use crate::client::TransportError;
 use http::HeaderMap;
 use std::future::Future;
 use std::pin::Pin;

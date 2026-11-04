@@ -1,10 +1,10 @@
+use crate::client::ByteStream;
+use crate::client::StreamResponse;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::error::ApiError;
 use crate::google::GoogleGenerateContentResponse;
 use crate::telemetry::SseTelemetry;
-use codex_client::ByteStream;
-use codex_client::StreamResponse;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::TokenUsage;

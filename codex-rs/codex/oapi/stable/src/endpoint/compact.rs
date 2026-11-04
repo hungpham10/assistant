@@ -1,10 +1,10 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestTelemetry;
 use crate::common::CompactionInput;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
-use codex_client::HttpTransport;
-use codex_client::RequestTelemetry;
 use codex_protocol::models::ResponseItem;
 use http::HeaderMap;
 use http::Method;
@@ -90,10 +90,10 @@ struct CompactHistoryResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_client::Request;
-    use codex_client::Response;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
+    use crate::client::Request;
+    use crate::client::Response;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
 
     #[derive(Clone, Default)]
     struct DummyTransport;

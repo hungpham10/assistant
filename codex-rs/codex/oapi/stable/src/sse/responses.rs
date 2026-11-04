@@ -1,3 +1,5 @@
+use crate::client::ByteStream;
+use crate::client::StreamResponse;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::common::SafetyBuffering;
@@ -6,8 +8,6 @@ use crate::error::ApiError;
 use crate::rate_limits::parse_all_rate_limits;
 use crate::safety_buffering::treatment_from_headers;
 use crate::telemetry::SseTelemetry;
-use codex_client::ByteStream;
-use codex_client::StreamResponse;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::ModelVerification;
 use codex_protocol::protocol::TokenUsage;
@@ -663,10 +663,10 @@ fn rate_limit_regex() -> &'static regex_lite::Regex {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
     use assert_matches::assert_matches;
     use bytes::Bytes;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
     use codex_protocol::models::MessagePhase;
     use codex_protocol::models::ResponseItem;
     use futures::TryStreamExt;

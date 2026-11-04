@@ -1,4 +1,5 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::TransportError;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::common::ResponsesWsRequest;
@@ -10,7 +11,6 @@ use crate::safety_buffering::treatment_from_headers;
 use crate::sse::ResponsesStreamEvent;
 use crate::sse::process_responses_event;
 use crate::telemetry::WebsocketTelemetry;
-use codex_client::TransportError;
 use codex_http_client::HttpClientFactory;
 use codex_websocket_client::WebSocketConnection;
 use codex_websocket_client::WebSocketConnector;

@@ -1,11 +1,11 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestTelemetry;
 use crate::common::MemorySummarizeInput;
 use crate::common::MemorySummarizeOutput;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
-use codex_client::HttpTransport;
-use codex_client::RequestTelemetry;
 use http::HeaderMap;
 use http::Method;
 use serde::Deserialize;
@@ -68,14 +68,14 @@ struct SummarizeResponse {
 mod tests {
     use super::*;
     use crate::auth::AuthProvider;
+    use crate::client::Request;
+    use crate::client::RequestBody;
+    use crate::client::Response;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
     use crate::common::RawMemory;
     use crate::common::RawMemoryMetadata;
     use crate::provider::RetryConfig;
-    use codex_client::Request;
-    use codex_client::RequestBody;
-    use codex_client::Response;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
     use http::HeaderMap;
     use http::Method;
     use http::StatusCode;

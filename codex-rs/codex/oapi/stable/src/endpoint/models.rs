@@ -1,12 +1,12 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestTelemetry;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::model_compatibility_catalog::CompatibleModelCatalogEntry;
 use crate::model_compatibility_catalog::compatible_model_catalog_entry;
 use crate::provider::Provider;
 use crate::provider::is_anthropic_provider;
-use codex_client::HttpTransport;
-use codex_client::RequestTelemetry;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::InputModality;
@@ -151,7 +151,7 @@ impl<T: HttpTransport> ModelsClient<T> {
         }
     }
 
-    fn append_client_version_query(req: &mut codex_client::Request, client_version: &str) {
+    fn append_client_version_query(req: &mut crate::client::Request, client_version: &str) {
         let separator = if req.url.contains('?') { '&' } else { '?' };
         req.url = format!("{}{}client_version={client_version}", req.url, separator);
     }
@@ -626,11 +626,11 @@ fn has_supported_parameter(supported_parameters: &[String], needle: &str) -> boo
 mod tests {
     use super::*;
     use crate::auth::AuthProvider;
+    use crate::client::Request;
+    use crate::client::Response;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
     use crate::provider::RetryConfig;
-    use codex_client::Request;
-    use codex_client::Response;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
     use http::HeaderMap;
     use http::StatusCode;
     use pretty_assertions::assert_eq;

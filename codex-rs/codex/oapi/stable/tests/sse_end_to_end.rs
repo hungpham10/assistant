@@ -2,6 +2,11 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::client::HttpTransport;
+use crate::client::Request;
+use crate::client::Response;
+use crate::client::StreamResponse;
+use crate::client::TransportError;
 use anyhow::Result;
 use bytes::Bytes;
 use codex_api::AuthProvider;
@@ -9,11 +14,6 @@ use codex_api::Compression;
 use codex_api::Provider;
 use codex_api::ResponseEvent;
 use codex_api::ResponsesClient;
-use codex_client::HttpTransport;
-use codex_client::Request;
-use codex_client::Response;
-use codex_client::StreamResponse;
-use codex_client::TransportError;
 use codex_protocol::models::ResponseItem;
 use futures::StreamExt;
 use http::HeaderMap;

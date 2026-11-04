@@ -1,7 +1,7 @@
-use codex_client::Request;
-use codex_client::RequestCompression;
-use codex_client::RetryOn;
-use codex_client::RetryPolicy;
+use crate::client::Request;
+use crate::client::RequestCompression;
+use crate::client::RetryOn;
+use crate::client::RetryPolicy;
 use http::Method;
 use http::header::HeaderMap;
 use std::collections::HashMap;

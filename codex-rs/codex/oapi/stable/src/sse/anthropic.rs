@@ -1,9 +1,9 @@
+use crate::client::ByteStream;
+use crate::client::StreamResponse;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::error::ApiError;
 use crate::telemetry::SseTelemetry;
-use codex_client::ByteStream;
-use codex_client::StreamResponse;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ReasoningItemContent;
 use codex_protocol::models::ResponseItem;
@@ -536,7 +536,7 @@ mod tests {
             chunks
                 .iter()
                 .map(|chunk| Bytes::from((*chunk).to_string()))
-                .map(Ok::<_, codex_client::TransportError>),
+                .map(Ok::<_, crate::client::TransportError>),
         );
         let (tx, mut rx) = mpsc::channel::<Result<ResponseEvent, ApiError>>(32);
         tokio::spawn(process_sse(

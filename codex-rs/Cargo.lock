@@ -2399,7 +2399,6 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
- "codex-client",
  "codex-http-client",
  "codex-protocol",
  "codex-utils-rustls-provider",
@@ -2408,6 +2407,7 @@ dependencies = [
  "futures",
  "http 1.5.0",
  "pretty_assertions",
+ "rand 0.9.5",
  "regex-lite",
  "reqwest 0.12.28",
  "schemars 0.8.22",
@@ -2455,7 +2455,6 @@ dependencies = [
  "codex-file-watcher",
  "codex-git-utils",
  "codex-goal-extension",
- "codex-guardian",
  "codex-home",
  "codex-hooks",
  "codex-http-client",
@@ -2766,7 +2765,6 @@ version = "0.0.41"
 dependencies = [
  "bytes",
  "codex-api",
- "codex-client",
  "codex-protocol",
  "eventsource-stream",
  "futures",
@@ -2844,9 +2842,9 @@ dependencies = [
  "codex-rollout-trace",
  "codex-sandboxing",
  "codex-state",
- "codex-stdio-to-uds",
  "codex-terminal-detection",
  "codex-tui",
+ "codex-uds",
  "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
@@ -2877,18 +2875,6 @@ dependencies = [
  "which 8.0.6",
  "windows-sys 0.52.0",
  "wiremock",
-]
-
-[[package]]
-name = "codex-client"
-version = "0.0.41"
-dependencies = [
- "codex-http-client",
- "eventsource-stream",
- "futures",
- "http 1.5.0",
- "rand 0.9.5",
- "tokio",
 ]
 
 [[package]]
@@ -3014,10 +3000,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-collaboration-mode-templates"
-version = "0.0.41"
-
-[[package]]
 name = "codex-config"
 version = "0.0.41"
 dependencies = [
@@ -3082,18 +3064,6 @@ dependencies = [
  "tokio",
  "tracing",
  "urlencoding",
-]
-
-[[package]]
-name = "codex-connectors-extension"
-version = "0.0.41"
-dependencies = [
- "codex-connectors",
- "codex-core-plugins",
- "codex-plugin",
- "codex-utils-path-uri",
- "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -3167,8 +3137,6 @@ dependencies = [
  "codex-test-binary-support",
  "codex-thread-store",
  "codex-tools",
- "codex-tools-codegraph",
- "codex-tools-families",
  "codex-utils-absolute-path",
  "codex-utils-cache",
  "codex-utils-cargo-bin",
@@ -3319,7 +3287,6 @@ dependencies = [
  "codex-otel",
  "codex-protocol",
  "codex-shell-command",
- "codex-skills",
  "codex-utils-absolute-path",
  "codex-utils-output-truncation",
  "codex-utils-path-uri",
@@ -3327,12 +3294,14 @@ dependencies = [
  "dirs",
  "dunce",
  "futures",
+ "include_dir",
  "pretty_assertions",
  "serde",
  "serde_json",
  "serde_yaml",
  "shlex 1.3.0",
  "tempfile",
+ "thiserror 2.0.21",
  "tokio",
  "toml 0.9.12+spec-1.1.0",
  "tracing",
@@ -3368,6 +3337,7 @@ dependencies = [
  "codex-core",
  "codex-feedback",
  "codex-git-utils",
+ "codex-local-providers",
  "codex-login",
  "codex-model-provider-info",
  "codex-otel",
@@ -3376,7 +3346,6 @@ dependencies = [
  "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
- "codex-utils-oss",
  "codex-utils-sandbox-summary",
  "core_test_support",
  "libc",
@@ -3657,15 +3626,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-guardian"
-version = "0.0.41"
-dependencies = [
- "codex-core",
- "codex-extension-api",
- "codex-protocol",
-]
-
-[[package]]
 name = "codex-home"
 version = "0.0.41"
 dependencies = [
@@ -3804,12 +3764,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-lmstudio"
+name = "codex-local-providers"
 version = "0.0.41"
 dependencies = [
+ "assert_matches",
+ "async-stream",
+ "bytes",
  "codex-core",
  "codex-model-provider-info",
+ "futures",
+ "memchr",
+ "pretty_assertions",
  "reqwest 0.12.28",
+ "semver",
  "serde_json",
  "tokio",
  "tracing",
@@ -3900,7 +3867,7 @@ name = "codex-mcp-extension"
 version = "0.0.41"
 dependencies = [
  "codex-config",
- "codex-connectors-extension",
+ "codex-connectors",
  "codex-core",
  "codex-core-plugins",
  "codex-exec-server",
@@ -4084,7 +4051,6 @@ version = "0.0.41"
 dependencies = [
  "chrono",
  "codex-api",
- "codex-collaboration-mode-templates",
  "codex-http-client",
  "codex-login",
  "codex-model-provider-info",
@@ -4138,26 +4104,6 @@ dependencies = [
  "tokio",
  "tracing",
  "url",
-]
-
-[[package]]
-name = "codex-ollama"
-version = "0.0.41"
-dependencies = [
- "assert_matches",
- "async-stream",
- "bytes",
- "codex-core",
- "codex-model-provider-info",
- "futures",
- "memchr",
- "pretty_assertions",
- "reqwest 0.12.28",
- "semver",
- "serde_json",
- "tokio",
- "tracing",
- "wiremock",
 ]
 
 [[package]]
@@ -4471,15 +4417,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-skills"
-version = "0.0.41"
-dependencies = [
- "codex-utils-absolute-path",
- "include_dir",
- "thiserror 2.0.21",
-]
-
-[[package]]
 name = "codex-skills-extension"
 version = "0.0.41"
 dependencies = [
@@ -4523,18 +4460,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
-]
-
-[[package]]
-name = "codex-stdio-to-uds"
-version = "0.0.41"
-dependencies = [
- "anyhow",
- "codex-uds",
- "codex-utils-cargo-bin",
- "pretty_assertions",
- "tempfile",
- "tokio",
 ]
 
 [[package]]
@@ -4590,8 +4515,15 @@ dependencies = [
 name = "codex-tools"
 version = "0.0.41"
 dependencies = [
+ "anyhow",
+ "async-trait",
+ "codegraph-context",
+ "codegraph-core",
+ "codegraph-graph",
+ "codegraph-source",
  "codex-code-mode",
  "codex-connectors",
+ "codex-enrich",
  "codex-extension-items",
  "codex-features",
  "codex-file-system",
@@ -4607,34 +4539,9 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
- "tracing",
- "urlencoding",
-]
-
-[[package]]
-name = "codex-tools-codegraph"
-version = "0.0.41"
-dependencies = [
- "anyhow",
- "codegraph-context",
- "codegraph-core",
- "codegraph-graph",
- "codegraph-source",
- "serde",
- "serde_json",
  "tokio",
  "tracing",
-]
-
-[[package]]
-name = "codex-tools-families"
-version = "0.0.41"
-dependencies = [
- "anyhow",
- "async-trait",
- "codex-enrich",
- "codex-tools",
- "serde_json",
+ "urlencoding",
 ]
 
 [[package]]
@@ -4664,6 +4571,7 @@ dependencies = [
  "codex-file-search",
  "codex-git-utils",
  "codex-install-context",
+ "codex-local-providers",
  "codex-login",
  "codex-mcp",
  "codex-message-history",
@@ -4683,18 +4591,15 @@ dependencies = [
  "codex-utils-approval-presets",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
- "codex-utils-elapsed",
- "codex-utils-fuzzy-match",
  "codex-utils-home-dir",
- "codex-utils-oss",
  "codex-utils-path",
  "codex-utils-path-uri",
  "codex-utils-plugins",
  "codex-utils-sandbox-summary",
- "codex-utils-sleep-inhibitor",
  "codex-utils-string",
  "codex-windows-sandbox",
  "color-eyre",
+ "core-foundation 0.9.4",
  "core_test_support",
  "crossterm",
  "derive_more 2.1.1",
@@ -4752,7 +4657,9 @@ dependencies = [
 name = "codex-uds"
 version = "0.0.41"
 dependencies = [
+ "anyhow",
  "async-io",
+ "codex-utils-cargo-bin",
  "pretty_assertions",
  "tempfile",
  "tokio",
@@ -4812,14 +4719,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-utils-elapsed"
-version = "0.0.41"
-
-[[package]]
-name = "codex-utils-fuzzy-match"
-version = "0.0.41"
-
-[[package]]
 name = "codex-utils-home-dir"
 version = "0.0.41"
 dependencies = [
@@ -4850,16 +4749,6 @@ dependencies = [
  "pretty_assertions",
  "serde_json",
  "toml 0.9.12+spec-1.1.0",
-]
-
-[[package]]
-name = "codex-utils-oss"
-version = "0.0.41"
-dependencies = [
- "codex-core",
- "codex-lmstudio",
- "codex-model-provider-info",
- "codex-ollama",
 ]
 
 [[package]]
@@ -4942,16 +4831,6 @@ dependencies = [
  "codex-protocol",
  "codex-utils-absolute-path",
  "pretty_assertions",
-]
-
-[[package]]
-name = "codex-utils-sleep-inhibitor"
-version = "0.0.41"
-dependencies = [
- "core-foundation 0.9.4",
- "libc",
- "tracing",
- "windows-sys 0.61.2",
 ]
 
 [[package]]

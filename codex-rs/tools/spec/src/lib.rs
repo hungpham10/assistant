@@ -1,6 +1,9 @@
 //! Shared tool definitions and Responses API tool primitives that can live
 //! outside `codex-core`.
 
+pub mod codegraph;
+pub mod families;
+
 mod code_mode;
 mod deepseek_tui_tool;
 mod dynamic_tool;

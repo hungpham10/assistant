@@ -1,11 +1,11 @@
 use crate::auth::SharedAuthProvider;
+use crate::client::HttpTransport;
+use crate::client::RequestTelemetry;
 use crate::endpoint::session::EndpointSession;
 use crate::error::ApiError;
 use crate::provider::Provider;
 use crate::search::SearchRequest;
 use crate::search::SearchResponse;
-use codex_client::HttpTransport;
-use codex_client::RequestTelemetry;
 use http::HeaderMap;
 use http::Method;
 use serde_json::to_value;
@@ -52,6 +52,11 @@ impl<T: HttpTransport> SearchClient<T> {
 mod tests {
     use super::*;
     use crate::auth::AuthProvider;
+    use crate::client::Request;
+    use crate::client::RequestBody;
+    use crate::client::Response;
+    use crate::client::StreamResponse;
+    use crate::client::TransportError;
     use crate::provider::RetryConfig;
     use crate::search::AllowedCaller;
     use crate::search::ApproximateLocation;
@@ -65,11 +70,6 @@ mod tests {
     use crate::search::SearchInput;
     use crate::search::SearchQuery;
     use crate::search::SearchSettings;
-    use codex_client::Request;
-    use codex_client::RequestBody;
-    use codex_client::Response;
-    use codex_client::StreamResponse;
-    use codex_client::TransportError;
     use codex_protocol::models::ContentItem;
     use codex_protocol::models::ResponseItem;
     use http::StatusCode;

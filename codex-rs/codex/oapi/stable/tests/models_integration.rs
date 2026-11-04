@@ -1,8 +1,8 @@
+use crate::client::ReqwestTransport;
 use codex_api::AuthProvider;
 use codex_api::ModelsClient;
 use codex_api::Provider;
 use codex_api::RetryConfig;
-use codex_client::ReqwestTransport;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::openai_models::ConfigShellToolType;
 use codex_protocol::openai_models::ModelInfo;

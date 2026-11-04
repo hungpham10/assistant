@@ -30,13 +30,11 @@ members = [
     "integrations/cloud/cloud-tasks",
     "integrations/cloud/cloud-tasks-client",
     "integrations/cloud/cloud-tasks-mock-client",
-    "codex/collaboration-mode-templates",
     "integrations/connectors",
     "config",
     "state/context-fragments",
     "execution/shell-command",
     "execution/shell-escalation",
-    "skills",
     "codex/core",
     "codex/iapi",
     "codex/plugins",
@@ -49,10 +47,8 @@ members = [
     "execution/exec-server-protocol",
     "execution/exec-server",
     "execution/execpolicy",
-    "ext/connectors",
     "ext/extension-api",
     "ext/goal",
-    "ext/guardian",
     "ext/image-generation",
     "ext/items",
     "ext/memories",
@@ -65,7 +61,6 @@ members = [
     "fs/file-search",
     "fs/file-watcher",
     "execution/linux-sandbox",
-    "providers/lmstudio",
     "providers/login",
     "codex/mcp",
     "servers/mcp-server",
@@ -73,8 +68,8 @@ members = [
     "memories/write",
     "providers/model-provider-info",
     "providers/models-manager",
+    "providers/local-providers",
     "platform/network-proxy",
-    "providers/ollama",
     "execution/process-hardening",
     "integrations/product-info",
     "protocol",
@@ -85,11 +80,8 @@ members = [
     "servers/responses-api-proxy",
     "observability/response-debug-context",
     "execution/sandboxing",
-    "servers/stdio-to-uds",
     "observability/otel",
     "tools/spec",
-    "tools/families",
-    "tools/codegraph",
     "servers/websocket-client",
     "utils/absolute-path",
     "utils/path-uri",
@@ -103,18 +95,13 @@ members = [
     "utils/rustls-provider",
     "utils/string",
     "utils/cli",
-    "utils/elapsed",
     "utils/sandbox-summary",
-    "utils/sleep-inhibitor",
     "utils/approval-presets",
-    "utils/oss",
     "utils/output-truncation",
     "utils/path-utils",
     "utils/plugins",
-    "utils/fuzzy-match",
     "utils/stream-parser",
     "utils/template",
-    "integrations/codex-client",
     "codex/oapi/stable",
     "state/state",
     "platform/terminal-detection",
@@ -163,8 +150,6 @@ codex-backend-client = { path = "integrations/cloud/backend-client" }
 codex-chatgpt = { path = "integrations/chatgpt" }
 codex-chat-wire-compat = { path = "servers/chat-wire-compat" }
 codex-cli = { path = "cli" }
-codex-client = { path = "integrations/codex-client" }
-codex-collaboration-mode-templates = { path = "codex/collaboration-mode-templates" }
 codex-cloud-config = { path = "integrations/cloud/cloud-config" }
 codex-cloud-tasks = { path = "integrations/cloud/cloud-tasks" }
 codex-cloud-tasks-client = { path = "integrations/cloud/cloud-tasks-client" }
@@ -179,7 +164,6 @@ codex-http-client = { path = "support/http-client" }
 codex-websocket-client = { path = "servers/websocket-client" }
 codex-config = { path = "config" }
 codex-connectors = { path = "integrations/connectors" }
-codex-connectors-extension = { path = "ext/connectors" }
 codex-context-fragments = { path = "state/context-fragments" }
 codex-core = { path = "codex/core" }
 codex-core-api = { path = "codex/iapi" }
@@ -193,7 +177,6 @@ codex-execpolicy = { path = "execution/execpolicy" }
 codex-extension-api = { path = "ext/extension-api" }
 codex-extension-items = { path = "ext/items" }
 codex-goal-extension = { path = "ext/goal" }
-codex-guardian = { path = "ext/guardian" }
 codex-image-generation-extension = { path = "ext/image-generation" }
 codex-external-agent-migration = { path = "agents/external-agent-migration" }
 codex-external-agent-sessions = { path = "agents/external-agent-sessions" }
@@ -207,7 +190,7 @@ codex-git-utils = { path = "fs/git-utils" }
 codex-hooks = { path = "agents/hooks" }
 codex-keyring-store = { path = "platform/keyring-store" }
 codex-linux-sandbox = { path = "execution/linux-sandbox" }
-codex-lmstudio = { path = "providers/lmstudio" }
+codex-local-providers = { path = "providers/local-providers" }
 codex-login = { path = "providers/login" }
 codex-message-history = { path = "message-history" }
 codex-memories-extension = { path = "ext/memories" }
@@ -220,7 +203,6 @@ codex-mcp-server = { path = "servers/mcp-server" }
 codex-model-provider-info = { path = "providers/model-provider-info" }
 codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "platform/network-proxy" }
-codex-ollama = { path = "providers/ollama" }
 codex-otel = { path = "observability/otel" }
 codex-enrich = { path = "codex/enrich" }
 codex-plugin = { path = "agents/plugin" }
@@ -239,14 +221,11 @@ codex-secrets = { path = "platform/secrets" }
 codex-shell-command = { path = "execution/shell-command" }
 codex-shell-escalation = { path = "execution/shell-escalation" }
 codex-skills-extension = { path = "ext/skills" }
-codex-skills = { path = "skills" }
 codex-state = { path = "state/state" }
-codex-stdio-to-uds = { path = "servers/stdio-to-uds" }
 codex-terminal-detection = { path = "platform/terminal-detection" }
 codex-test-binary-support = { path = "build/test-binary-support" }
 codex-thread-store = { path = "state/thread-store" }
 codex-tools = { path = "tools/spec" }
-codex-tools-families = { path = "tools/families" }
 codex-tui = { path = "tui" }
 codex-uds = { path = "platform/uds" }
 codex-utils-absolute-path = { path = "utils/absolute-path" }
@@ -254,12 +233,9 @@ codex-utils-approval-presets = { path = "utils/approval-presets" }
 codex-utils-cache = { path = "utils/cache" }
 codex-utils-cargo-bin = { path = "utils/cargo-bin" }
 codex-utils-cli = { path = "utils/cli" }
-codex-utils-elapsed = { path = "utils/elapsed" }
-codex-utils-fuzzy-match = { path = "utils/fuzzy-match" }
 codex-utils-home-dir = { path = "utils/home-dir" }
 codex-utils-image = { path = "utils/image" }
 codex-utils-json-to-toml = { path = "utils/json-to-toml" }
-codex-utils-oss = { path = "utils/oss" }
 codex-utils-output-truncation = { path = "utils/output-truncation" }
 codex-utils-path = { path = "utils/path-utils" }
 codex-utils-path-uri = { path = "utils/path-uri" }
@@ -267,7 +243,6 @@ codex-utils-plugins = { path = "utils/plugins" }
 codex-utils-pty = { path = "utils/pty" }
 codex-utils-rustls-provider = { path = "utils/rustls-provider" }
 codex-utils-sandbox-summary = { path = "utils/sandbox-summary" }
-codex-utils-sleep-inhibitor = { path = "utils/sleep-inhibitor" }
 codex-utils-stream-parser = { path = "utils/stream-parser" }
 codex-utils-string = { path = "utils/string" }
 codex-utils-template = { path = "utils/template" }
