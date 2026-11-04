@@ -25,7 +25,7 @@ members = [
     "code-mode",
     "code-mode-host",
     "code-mode-protocol",
-    "codex-home",
+    "codex/home",
     "cloud/cloud-config",
     "cloud/cloud-tasks",
     "cloud/cloud-tasks-client",
@@ -39,7 +39,7 @@ members = [
     "execution/shell-escalation",
     "skills",
     "codex/core",
-    "codex/api",
+    "codex/iapi",
     "codex/plugins",
     "codex/skills",
     "agents/hooks",
@@ -69,7 +69,7 @@ members = [
     "execution/linux-sandbox",
     "providers/lmstudio",
     "providers/login",
-    "codex-mcp",
+    "codex/mcp",
     "servers/mcp-server",
     "memories/read",
     "memories/write",
@@ -117,7 +117,7 @@ members = [
     "utils/stream-parser",
     "utils/template",
     "integrations/codex-client",
-    "api/codex-api",
+    "codex/oapi",
     "state/state",
     "terminal-detection",
     "test-binary-support",
@@ -147,7 +147,7 @@ codex-analytics = { path = "observability/analytics" }
 codex-agent-graph-store = { path = "state/agent-graph-store" }
 codex-agent-identity = { path = "agents/agent-identity" }
 codex-ansi-escape = { path = "ansi-escape" }
-codex-api = { path = "api/codex-api" }
+codex-api = { path = "codex/oapi" }
 codex-aws-auth = { path = "providers/aws-auth" }
 codex-app-server = { path = "servers/app-server" }
 codex-app-server-transport = { path = "servers/app-server-transport" }
@@ -172,7 +172,7 @@ codex-cloud-tasks-mock-client = { path = "cloud/cloud-tasks-mock-client" }
 # features.code_mode is turned on in config.toml.
 codex-code-mode = { path = "code-mode", default-features = false }
 codex-code-mode-protocol = { path = "code-mode-protocol" }
-codex-home = { path = "codex-home" }
+codex-home = { path = "codex/home" }
 codex-http-client = { path = "http-client" }
 codex-websocket-client = { path = "servers/websocket-client" }
 codex-config = { path = "config" }
@@ -180,7 +180,7 @@ codex-connectors = { path = "connectors" }
 codex-connectors-extension = { path = "ext/connectors" }
 codex-context-fragments = { path = "context-fragments" }
 codex-core = { path = "codex/core" }
-codex-core-api = { path = "codex/api" }
+codex-core-api = { path = "codex/iapi" }
 codex-core-plugins = { path = "codex/plugins" }
 codex-core-skills = { path = "codex/skills" }
 codex-exec = { path = "execution/exec" }
@@ -212,7 +212,7 @@ codex-memories-extension = { path = "ext/memories" }
 codex-web-search-extension = { path = "ext/web-search" }
 codex-memories-read = { path = "memories/read" }
 codex-memories-write = { path = "memories/write" }
-codex-mcp = { path = "codex-mcp" }
+codex-mcp = { path = "codex/mcp" }
 codex-mcp-extension = { path = "ext/mcp" }
 codex-mcp-server = { path = "servers/mcp-server" }
 codex-model-provider-info = { path = "providers/model-provider-info" }
