@@ -5,7 +5,7 @@ members = [
     "analytics",
     "agent-graph-store",
     "agent-identity",
-    "backend-client",
+    "cloud/backend-client",
     "bwrap",
     "ansi-escape",
     "async-utils",
@@ -20,16 +20,16 @@ members = [
     "feedback",
     "features",
     "install-context",
-    "codex-backend-openapi-models",
+    "cloud/openapi-models",
     "chat-wire-compat",
     "code-mode",
     "code-mode-host",
     "code-mode-protocol",
     "codex-home",
-    "cloud-config",
-    "cloud-tasks",
-    "cloud-tasks-client",
-    "cloud-tasks-mock-client",
+    "cloud/cloud-config",
+    "cloud/cloud-tasks",
+    "cloud/cloud-tasks-client",
+    "cloud/cloud-tasks-mock-client",
     "cli",
     "collaboration-mode-templates",
     "connectors",
@@ -158,15 +158,15 @@ codex-app-server-test-client = { path = "app-server-test-client" }
 codex-apply-patch = { path = "apply-patch" }
 codex-arg0 = { path = "arg0" }
 codex-async-utils = { path = "async-utils" }
-codex-backend-client = { path = "backend-client" }
+codex-backend-client = { path = "cloud/backend-client" }
 codex-chatgpt = { path = "chatgpt" }
 codex-chat-wire-compat = { path = "chat-wire-compat" }
 codex-cli = { path = "cli" }
 codex-client = { path = "codex-client" }
 codex-collaboration-mode-templates = { path = "collaboration-mode-templates" }
-codex-cloud-config = { path = "cloud-config" }
-codex-cloud-tasks-client = { path = "cloud-tasks-client" }
-codex-cloud-tasks-mock-client = { path = "cloud-tasks-mock-client" }
+codex-cloud-config = { path = "cloud/cloud-config" }
+codex-cloud-tasks-client = { path = "cloud/cloud-tasks-client" }
+codex-cloud-tasks-mock-client = { path = "cloud/cloud-tasks-mock-client" }
 # V8 runtime disabled by default (heavy C++ build); re-enable with
 # `codex-code-mode = { path = "code-mode" }` plus the `v8-runtime` feature when
 # features.code_mode is turned on in config.toml.
