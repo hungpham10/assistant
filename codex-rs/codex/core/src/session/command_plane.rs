@@ -1,7 +1,8 @@
 use crate::session::TurnInput;
 use crate::session::turn_context::TurnContext;
 use crate::tools::families::build_family_registry;
-use codex_pipeline::component::StreamMessage;
+use codex_pipeline::command::{AtCommandParser, CommandParser};
+use codex_pipeline::executor::run_chain;
 use codex_protocol::models::ResponseItem;
 use std::sync::Arc;
 
@@ -10,12 +11,27 @@ pub(crate) async fn run_command_plane(
     input: &[TurnInput],
 ) -> Vec<ResponseItem> {
     let registry = build_family_registry();
-    let _ = input;
-    // Build stream message and run components from registered families
-    let _msg = StreamMessage::default();
-    for family in registry.families() {
-        let _components = family.build_components(&serde_json::json!({}));
-        // Components would be executed here with taps/token budget
+    let mut items = Vec::new();
+
+    for turn_input in input {
+        if let TurnInput::UserInput { content, .. } = turn_input {
+            for item in content {
+                if let codex_protocol::user_input::UserInput::Text { text, .. } = item {
+                    let parser = AtCommandParser;
+                    let plan = parser.parse(text);
+                    if !plan.commands.is_empty() {
+                        let outcome = run_chain(&registry, &plan).await;
+                        for result in outcome.results {
+                            let json = result.output.to_string();
+                            items.push(ResponseItem::Thought {
+                                id: None,
+                                thought: json,
+                            });
+                        }
+                    }
+                }
+            }
+        }
     }
-    Vec::new()
+    items
 }

@@ -35,4 +35,11 @@ pub trait ToolFamily: Send + Sync {
     fn build_components(&self, _cfg: &JsonValue) -> Vec<BoxedComponent> {
         Vec::new()
     }
+    fn run_verb(
+        &self,
+        _verb: &str,
+        _args: &JsonValue,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<JsonValue>> + Send + '_>> {
+        Box::pin(async { Ok(serde_json::json!({})) })
+    }
 }

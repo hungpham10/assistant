@@ -47,3 +47,10 @@ pub struct PipelineProfile {
     pub components: Vec<crate::family::ComponentSpec>,
     pub taps: std::collections::HashMap<String, TapConfig>,
 }
+
+
+#[derive(Debug, Clone)]
+pub struct CommandResult {
+    pub call: crate::command::VerbCall,
+    pub output: serde_json::Value,
+}
