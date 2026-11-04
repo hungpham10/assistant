@@ -3168,6 +3168,7 @@ dependencies = [
  "codex-thread-store",
  "codex-tools",
  "codex-tools-codegraph",
+ "codex-tools-families",
  "codex-utils-absolute-path",
  "codex-utils-cache",
  "codex-utils-cargo-bin",
@@ -4643,6 +4644,17 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "codex-tools-families"
+version = "0.0.41"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "codex-pipeline",
+ "codex-tools",
+ "serde_json",
 ]
 
 [[package]]

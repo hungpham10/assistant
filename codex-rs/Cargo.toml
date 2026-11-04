@@ -22,9 +22,9 @@ members = [
     "platform/install-context",
     "cloud/openapi-models",
     "servers/chat-wire-compat",
-    "code-mode/core",
-    "code-mode/host",
-    "code-mode/protocol",
+    "tools/code-mode/core",
+    "tools/code-mode/host",
+    "tools/code-mode/protocol",
     "codex/home",
     "cloud/cloud-config",
     "cloud/cloud-tasks",
@@ -90,7 +90,9 @@ members = [
     "servers/stdio-to-uds",
     "observability/otel",
     "tui",
-    "tools",
+    "tools/spec",
+    "tools/families",
+    "tools/codegraph",
     "servers/websocket-client",
     "utils/absolute-path",
     "utils/path-uri",
@@ -125,7 +127,7 @@ members = [
     "state/thread-store",
     "pipeline",
     "platform/uds",
-    "code-mode/macros",
+    "tools/code-mode/macros",
     "agents/plugin",
     "integrations/model-provider",
 ]
@@ -169,10 +171,10 @@ codex-cloud-config = { path = "cloud/cloud-config" }
 codex-cloud-tasks-client = { path = "cloud/cloud-tasks-client" }
 codex-cloud-tasks-mock-client = { path = "cloud/cloud-tasks-mock-client" }
 # V8 runtime disabled by default (heavy C++ build); re-enable with
-# `codex-code-mode = { path = "code-mode/core" }` plus the `v8-runtime` feature when
+# `codex-code-mode = { path = "tools/code-mode/core" }` plus the `v8-runtime` feature when
 # features.code_mode is turned on in config.toml.
-codex-code-mode = { path = "code-mode/core", default-features = false }
-codex-code-mode-protocol = { path = "code-mode/protocol" }
+codex-code-mode = { path = "tools/code-mode/core", default-features = false }
+codex-code-mode-protocol = { path = "tools/code-mode/protocol" }
 codex-home = { path = "codex/home" }
 codex-http-client = { path = "support/http-client" }
 codex-websocket-client = { path = "servers/websocket-client" }
@@ -196,7 +198,7 @@ codex-guardian = { path = "ext/guardian" }
 codex-image-generation-extension = { path = "ext/image-generation" }
 codex-external-agent-migration = { path = "agents/external-agent-migration" }
 codex-external-agent-sessions = { path = "agents/external-agent-sessions" }
-codex-experimental-api-macros = { path = "code-mode/macros" }
+codex-experimental-api-macros = { path = "tools/code-mode/macros" }
 codex-features = { path = "features" }
 codex-feedback = { path = "observability/feedback" }
 codex-install-context = { path = "platform/install-context" }
@@ -244,7 +246,8 @@ codex-stdio-to-uds = { path = "servers/stdio-to-uds" }
 codex-terminal-detection = { path = "platform/terminal-detection" }
 codex-test-binary-support = { path = "build/test-binary-support" }
 codex-thread-store = { path = "state/thread-store" }
-codex-tools = { path = "tools" }
+codex-tools = { path = "tools/spec" }
+codex-tools-families = { path = "tools/families" }
 codex-tui = { path = "tui" }
 codex-uds = { path = "platform/uds" }
 codex-utils-absolute-path = { path = "utils/absolute-path" }
