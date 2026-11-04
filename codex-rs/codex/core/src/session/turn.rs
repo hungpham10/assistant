@@ -44,6 +44,7 @@ use crate::session::TurnInput;
 use crate::session::session::Session;
 use crate::session::step_context::StepContext;
 use crate::session::turn_context::TurnContext;
+use crate::session::command_plane::run_command_plane;
 use crate::stream_events_utils::HandleOutputCtx;
 use crate::stream_events_utils::TurnItemContributorPolicy;
 use crate::stream_events_utils::finalize_non_tool_response_item;
@@ -184,6 +185,9 @@ pub(crate) async fn run_turn(
     else {
         return Ok(None);
     };
+    let mut injection_items = injection_items;
+    let command_plane_items = run_command_plane(&turn_context, &input).await;
+    injection_items.extend(command_plane_items);
 
     if run_pending_session_start_hooks(&sess, &turn_context).await {
         return Ok(None);
