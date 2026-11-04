@@ -1,4 +1,6 @@
-use crate::command::{resolve_refs, CommandPlan, VerbCall};
+use crate::command::CommandPlan;
+use crate::command::VerbCall;
+use crate::command::resolve_refs;
 use crate::component::CommandResult;
 use crate::registry::FamilyRegistry;
 use serde_json::Value as JsonValue;
@@ -18,7 +20,9 @@ pub async fn run_chain(registry: &FamilyRegistry, plan: &CommandPlan) -> ChainOu
         let family = match registry.get(&call.namespace) {
             Some(f) => f,
             None => {
-                outcome.hints.push(format!("unknown namespace: {}", call.namespace));
+                outcome
+                    .hints
+                    .push(format!("unknown namespace: {}", call.namespace));
                 break;
             }
         };

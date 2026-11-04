@@ -39,7 +39,8 @@ pub trait ToolFamily: Send + Sync {
         &self,
         _verb: &str,
         _args: &JsonValue,
-    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<JsonValue>> + Send + '_>> {
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<JsonValue>> + Send + '_>>
+    {
         Box::pin(async { Ok(serde_json::json!({})) })
     }
 }

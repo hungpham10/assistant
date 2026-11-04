@@ -48,7 +48,6 @@ pub struct PipelineProfile {
     pub taps: std::collections::HashMap<String, TapConfig>,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct CommandResult {
     pub call: crate::command::VerbCall,

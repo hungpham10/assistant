@@ -136,7 +136,11 @@ fn resolve_refs_recursive(value: JsonValue, results: &[JsonValue]) -> Result<Jso
                     }
                     return Ok(results[idx].clone());
                 }
-                let path_to_use = if path.starts_with('.') { &path[1..] } else { path };
+                let path_to_use = if path.starts_with('.') {
+                    &path[1..]
+                } else {
+                    path
+                };
                 let last_result = if results.is_empty() {
                     return Err(RefError::Unresolved(s));
                 } else {

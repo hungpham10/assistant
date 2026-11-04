@@ -1,5 +1,6 @@
 use codex_pipeline::registry::FamilyRegistry;
-use codex_tools_families::{CodeModeFamily, NoopFamily};
+use codex_tools_families::CodeModeFamily;
+use codex_tools_families::NoopFamily;
 use std::sync::Arc;
 
 pub fn build_family_registry() -> FamilyRegistry {
