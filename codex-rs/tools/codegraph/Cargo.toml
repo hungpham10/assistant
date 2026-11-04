@@ -1,0 +1,20 @@
+[package]
+name = "codex-tools-codegraph"
+edition = "2024"
+license = "Apache-2.0"
+version = "0.0.41"
+
+[dependencies]
+codegraph-core = { path = "vendor/codegraph-core" }
+codegraph-context = { path = "vendor/codegraph-context" }
+codegraph-graph = { path = "vendor/codegraph-graph" }
+codegraph-source = { path = "vendor/codegraph-source" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+anyhow = "1"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
+tracing = "0.1"
+
+[lib]
+doctest = false
+

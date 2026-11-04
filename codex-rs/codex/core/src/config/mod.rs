@@ -1031,6 +1031,9 @@ pub struct Config {
     /// Configuration for the experimental code-mode tool surface.
     pub code_mode: CodeModeConfig,
 
+    /// Configuration for the native codegraph tool surface.
+    pub codegraph: CodegraphConfig,
+
     /// If set to `true`, used only the experimental unified exec tool.
     pub use_experimental_unified_exec_tool: bool,
 
@@ -1095,6 +1098,13 @@ pub struct CodeModeConfig {
     pub excluded_tool_namespaces: Vec<String>,
     pub direct_only_tool_namespaces: Vec<String>,
 }
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct CodegraphConfig {
+    pub enabled: bool,
+    pub permit_modes: Vec<String>,
+}
+
 
 pub(crate) const DEFAULT_TOKEN_BUDGET_REMINDER_MESSAGE_TEMPLATE: &str = concat!(
     "Your context window is nearly exhausted (only {n_remaining} tokens remaining) and will be automatically reset for you soon. ",
@@ -2506,6 +2516,14 @@ fn resolve_code_mode_config(config_toml: &ConfigToml) -> CodeModeConfig {
     }
 }
 
+fn resolve_codegraph_config(_config_toml: &ConfigToml) -> CodegraphConfig {
+    CodegraphConfig {
+        enabled: true,
+        permit_modes: vec!["lexical".to_string()],
+    }
+}
+
+
 fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config {
     let base = multi_agent_v2_toml_config(config_toml.features.as_ref());
     let max_concurrent_threads_per_session = base
@@ -3419,6 +3437,7 @@ impl Config {
         let experimental_request_user_input_enabled =
             resolve_experimental_request_user_input_enabled(&cfg);
         let code_mode = resolve_code_mode_config(&cfg);
+        let codegraph = resolve_codegraph_config(&cfg);
         let multi_agent_v2 = resolve_multi_agent_v2_config(&cfg);
         let token_budget = resolve_token_budget_config(&cfg, &features)?;
         let rollout_budget = resolve_rollout_budget_config(&cfg, &features)?;
@@ -3963,6 +3982,7 @@ impl Config {
             web_search_config,
             experimental_request_user_input_enabled,
             code_mode,
+            codegraph,
             use_experimental_unified_exec_tool,
             background_terminal_max_timeout,
             ghost_snapshot,
