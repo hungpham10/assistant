@@ -49,7 +49,6 @@ members = [
     "execution/exec-server-protocol",
     "execution/exec-server",
     "execution/execpolicy",
-    "execution/execpolicy-legacy",
     "ext/connectors",
     "ext/extension-api",
     "ext/goal",
@@ -101,7 +100,6 @@ members = [
     "utils/json-to-toml",
     "utils/home-dir",
     "utils/pty",
-    "utils/readiness",
     "utils/rustls-provider",
     "utils/string",
     "utils/cli",
@@ -128,6 +126,8 @@ members = [
     "tools/code-mode/macros",
     "agents/plugin",
     "integrations/model-provider",
+    "cli",
+    "tui",
 ]
 resolver = "2"
 
@@ -166,6 +166,7 @@ codex-cli = { path = "cli" }
 codex-client = { path = "integrations/codex-client" }
 codex-collaboration-mode-templates = { path = "codex/collaboration-mode-templates" }
 codex-cloud-config = { path = "integrations/cloud/cloud-config" }
+codex-cloud-tasks = { path = "integrations/cloud/cloud-tasks" }
 codex-cloud-tasks-client = { path = "integrations/cloud/cloud-tasks-client" }
 codex-cloud-tasks-mock-client = { path = "integrations/cloud/cloud-tasks-mock-client" }
 # V8 runtime disabled by default (heavy C++ build); re-enable with
@@ -221,7 +222,6 @@ codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "platform/network-proxy" }
 codex-ollama = { path = "providers/ollama" }
 codex-otel = { path = "observability/otel" }
-codex-pipeline = { path = "codex/enrich" }
 codex-enrich = { path = "codex/enrich" }
 codex-plugin = { path = "agents/plugin" }
 codex-model-provider = { path = "integrations/model-provider" }
@@ -368,7 +368,15 @@ once_cell = "1.20.2"
 openssl-sys = "*"
 opentelemetry = "0.31.0"
 opentelemetry-appender-tracing = "0.31.0"
-opentelemetry-otlp = "0.31.0"
+opentelemetry-otlp = { version = "0.31.0", default-features = false, features = [
+    "http-proto",
+    "http-json",
+    "logs",
+    "metrics",
+    "trace",
+    "reqwest-blocking-client",
+    "reqwest-rustls",
+] }
 opentelemetry-semantic-conventions = "0.31.0"
 opentelemetry_sdk = "0.31.0"
 os_info = "3.12.0"

@@ -22,15 +22,7 @@ eventsource-stream = { workspace = true }
 gethostname = { workspace = true }
 opentelemetry = { workspace = true, features = ["logs", "metrics", "trace"] }
 opentelemetry-appender-tracing = { workspace = true }
-opentelemetry-otlp = { workspace = true, default-features = false, features = [
-    "http-proto",
-    "http-json",
-    "logs",
-    "metrics",
-    "trace",
-    "reqwest-blocking-client",
-    "reqwest-rustls",
-]}
+opentelemetry-otlp = { workspace = true }
 opentelemetry-semantic-conventions = { workspace = true }
 opentelemetry_sdk = { workspace = true, features = [
     "experimental_trace_batch_span_processor_with_async_runtime",

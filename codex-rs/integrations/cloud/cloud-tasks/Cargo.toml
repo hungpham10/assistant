@@ -22,7 +22,7 @@ codex-cloud-tasks-client = { workspace = true }
 codex-cloud-tasks-mock-client = { workspace = true }
 codex-core = { workspace = true }
 codex-git-utils = { workspace = true }
-codex-login = { path = "../../providers/login" }
+codex-login = { workspace = true }
 codex-model-provider = { workspace = true }
 codex-tui = { workspace = true }
 codex-utils-cli = { workspace = true }
