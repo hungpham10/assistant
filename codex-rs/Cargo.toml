@@ -22,9 +22,9 @@ members = [
     "install-context",
     "cloud/openapi-models",
     "servers/chat-wire-compat",
-    "code/core",
-    "code/host",
-    "code/protocol",
+    "code-mode/core",
+    "code-mode/host",
+    "code-mode/protocol",
     "codex/home",
     "cloud/cloud-config",
     "cloud/cloud-tasks",
@@ -124,7 +124,7 @@ members = [
     "state/thread-manager-sample",
     "state/thread-store",
     "uds",
-    "code/macros",
+    "code-mode/macros",
     "agents/plugin",
     "integrations/model-provider",
 ]
@@ -168,10 +168,10 @@ codex-cloud-config = { path = "cloud/cloud-config" }
 codex-cloud-tasks-client = { path = "cloud/cloud-tasks-client" }
 codex-cloud-tasks-mock-client = { path = "cloud/cloud-tasks-mock-client" }
 # V8 runtime disabled by default (heavy C++ build); re-enable with
-# `codex-code-mode = { path = "code/core" }` plus the `v8-runtime` feature when
+# `codex-code-mode = { path = "code-mode/core" }` plus the `v8-runtime` feature when
 # features.code_mode is turned on in config.toml.
-codex-code-mode = { path = "code/core", default-features = false }
-codex-code-mode-protocol = { path = "code/protocol" }
+codex-code-mode = { path = "code-mode/core", default-features = false }
+codex-code-mode-protocol = { path = "code-mode/protocol" }
 codex-home = { path = "codex/home" }
 codex-http-client = { path = "http-client" }
 codex-websocket-client = { path = "servers/websocket-client" }
@@ -195,7 +195,7 @@ codex-guardian = { path = "ext/guardian" }
 codex-image-generation-extension = { path = "ext/image-generation" }
 codex-external-agent-migration = { path = "agents/external-agent-migration" }
 codex-external-agent-sessions = { path = "agents/external-agent-sessions" }
-codex-experimental-api-macros = { path = "code/macros" }
+codex-experimental-api-macros = { path = "code-mode/macros" }
 codex-features = { path = "features" }
 codex-feedback = { path = "feedback" }
 codex-install-context = { path = "install-context" }
