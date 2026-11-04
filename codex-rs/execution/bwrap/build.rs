@@ -11,7 +11,7 @@ fn main() {
     println!("cargo:rerun-if-env-changed=CODEX_SKIP_BWRAP_BUILD");
 
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap_or_default());
-    let vendor_dir = manifest_dir.join("../vendor/bubblewrap");
+    let vendor_dir = manifest_dir.join("../../vendor/bubblewrap");
     for source in ["bubblewrap.c", "bind-mount.c", "network.c", "utils.c"] {
         println!(
             "cargo:rerun-if-changed={}",
@@ -93,7 +93,7 @@ fn resolve_bwrap_source_dir(manifest_dir: &Path) -> Result<PathBuf, String> {
         ));
     }
 
-    let vendor_dir = manifest_dir.join("../vendor/bubblewrap");
+    let vendor_dir = manifest_dir.join("../../vendor/bubblewrap");
     if vendor_dir.exists() {
         return Ok(vendor_dir);
     }
