@@ -15,21 +15,40 @@
 
 use std::collections::HashMap;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::Mutex;
 
 use async_trait::async_trait;
-use codegraph_core::{FileInfo, Symbol};
+use codegraph_core::FileInfo;
+use codegraph_core::Symbol;
+use lmdb::Cursor;
+use lmdb::Database;
+use lmdb::DatabaseFlags;
+use lmdb::Environment;
 #[cfg(feature = "lmdb")]
 use lmdb::EnvironmentFlags;
-use lmdb::{Cursor, Database, DatabaseFlags, Environment, Transaction, WriteFlags};
+use lmdb::Transaction;
+use lmdb::WriteFlags;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;
-use super::{
-    CategoryStorage, ChainStorage, EMPTY, EdgeDataStorage, EntityStorage, IndexCounts,
-    NodeMetaStorage, Result, ShortcutsStorage, Storage, StorageError, Tx, TxOp, decode_chain,
-    decode_vector, encode_chain, encode_vector,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EMPTY;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::IndexCounts;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::Storage;
+use super::StorageError;
+use super::Tx;
+use super::TxOp;
+use super::decode_chain;
+use super::decode_vector;
+use super::encode_chain;
+use super::encode_vector;
 
 /// Map lỗi LMDB → `StorageError`.
 fn e(err: impl std::fmt::Display) -> StorageError {

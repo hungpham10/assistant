@@ -1,7 +1,8 @@
 //! Condensation utilities copied from codegraph-api/tools.rs
 
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 const PATH_KEYS: [&str; 3] = ["file", "path", "matched_path"];
 

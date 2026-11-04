@@ -13,8 +13,10 @@
 //! định mà không cần repo.
 
 use async_trait::async_trait;
-use camino::{Utf8Path, Utf8PathBuf};
-use codegraph_core::{Error, Result};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
+use codegraph_core::Error;
+use codegraph_core::Result;
 
 /// Tầng nền — mọi thao tác git đều biết root của nó.
 pub trait GitInfo {

@@ -13,7 +13,10 @@
 //!   (đây là nơi bloom prune nhánh rỗng và phát huy nhất).
 
 use codegraph_graph::Search;
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::Criterion;
+use criterion::black_box;
+use criterion::criterion_group;
+use criterion::criterion_main;
 
 const N: usize = 4000;
 

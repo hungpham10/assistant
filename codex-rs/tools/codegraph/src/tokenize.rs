@@ -11,7 +11,10 @@ pub fn tokenize(question: &str) -> Vec<String> {
                     tokens.push(current.to_lowercase());
                     current.clear();
                 }
-            } else if ch.is_uppercase() && !current.is_empty() && !current.chars().last().unwrap().is_uppercase() {
+            } else if ch.is_uppercase()
+                && !current.is_empty()
+                && !current.chars().last().unwrap().is_uppercase()
+            {
                 tokens.push(current.to_lowercase());
                 current.clear();
                 current.push(ch);

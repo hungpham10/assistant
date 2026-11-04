@@ -35,16 +35,26 @@
 //! `Storage` trong `codegraph-graph` tách theo nhóm thao tác.
 
 use async_trait::async_trait;
-use camino::{Utf8Path, Utf8PathBuf};
-use codegraph_core::{Error, Result};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
+use codegraph_core::Error;
+use codegraph_core::Result;
 
 mod disk;
 mod git;
 mod registry;
 
-pub use disk::{disk_walker, DiskSource};
-pub use git::{DiskGit, Git, GitArchive, GitDiff, GitInfo, GitRepo};
-pub use registry::{SourceConfig, SourceKind, SourceRegistry};
+pub use disk::DiskSource;
+pub use disk::disk_walker;
+pub use git::DiskGit;
+pub use git::Git;
+pub use git::GitArchive;
+pub use git::GitDiff;
+pub use git::GitInfo;
+pub use git::GitRepo;
+pub use registry::SourceConfig;
+pub use registry::SourceKind;
+pub use registry::SourceRegistry;
 
 /// Một entry do Source liệt kê ra.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -8,8 +8,8 @@ use crate::tools::effective_tool_mode;
 use crate::tools::handlers::ApplyPatchHandler;
 use crate::tools::handlers::CodeModeExecuteHandler;
 use crate::tools::handlers::CodeModeWaitHandler;
-use crate::tools::handlers::CurrentTimeHandler;
 use crate::tools::handlers::CodegraphHandler;
+use crate::tools::handlers::CurrentTimeHandler;
 use crate::tools::handlers::DynamicToolHandler;
 use crate::tools::handlers::ExecCommandHandler;
 use crate::tools::handlers::ExecCommandHandlerOptions;
@@ -1236,7 +1236,6 @@ fn code_mode_namespace_name<'a>(
 #[cfg(test)]
 #[path = "spec_plan_tests.rs"]
 mod tests;
-
 
 fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
     let cfg = &context.step_context.turn.config.codegraph;

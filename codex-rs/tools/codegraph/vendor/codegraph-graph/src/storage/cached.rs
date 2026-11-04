@@ -20,13 +20,20 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use codegraph_core::{FileInfo, Symbol};
+use codegraph_core::FileInfo;
+use codegraph_core::Symbol;
 
 use crate::lru::LruCache;
-use crate::storage::{
-    CategoryStorage, ChainStorage, EdgeDataStorage, EntityStorage, IndexCounts, NodeMetaStorage,
-    ShortcutsStorage, Storage, StorageError, Tx,
-};
+use crate::storage::CategoryStorage;
+use crate::storage::ChainStorage;
+use crate::storage::EdgeDataStorage;
+use crate::storage::EntityStorage;
+use crate::storage::IndexCounts;
+use crate::storage::NodeMetaStorage;
+use crate::storage::ShortcutsStorage;
+use crate::storage::Storage;
+use crate::storage::StorageError;
+use crate::storage::Tx;
 
 #[cfg(feature = "bloom-search")]
 use crate::storage::BloomStorage;

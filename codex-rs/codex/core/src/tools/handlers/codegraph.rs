@@ -1,8 +1,18 @@
 use crate::function_tool::FunctionCallError;
-use crate::tools::context::{FunctionToolOutput, ToolInvocation, ToolOutput, ToolPayload, boxed_tool_output};
-use crate::tools::registry::{CoreToolRuntime, ToolExecutor};
+use crate::tools::context::FunctionToolOutput;
+use crate::tools::context::ToolInvocation;
+use crate::tools::context::ToolOutput;
+use crate::tools::context::ToolPayload;
+use crate::tools::context::boxed_tool_output;
+use crate::tools::registry::CoreToolRuntime;
+use crate::tools::registry::ToolExecutor;
 use codex_protocol::models::ResponseInputItem;
-use codex_tools::{JsonSchema, ResponsesApiNamespace, ResponsesApiNamespaceTool, ResponsesApiTool, ToolName, ToolSpec};
+use codex_tools::JsonSchema;
+use codex_tools::ResponsesApiNamespace;
+use codex_tools::ResponsesApiNamespaceTool;
+use codex_tools::ResponsesApiTool;
+use codex_tools::ToolName;
+use codex_tools::ToolSpec;
 use codex_tools_codegraph::service::CodegraphService;
 use serde_json::Value as JsonValue;
 use serde_json::json;
@@ -34,8 +44,7 @@ impl ToolOutput for CodegraphOutput {
     }
 
     fn to_response_item(&self, call_id: &str, payload: &ToolPayload) -> ResponseInputItem {
-        FunctionToolOutput::from_text(self.0.clone(), Some(true))
-            .to_response_item(call_id, payload)
+        FunctionToolOutput::from_text(self.0.clone(), Some(true)).to_response_item(call_id, payload)
     }
 
     fn code_mode_result(&self, _payload: &ToolPayload) -> JsonValue {

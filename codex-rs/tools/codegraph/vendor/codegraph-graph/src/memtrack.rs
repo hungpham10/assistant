@@ -20,7 +20,10 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-use codegraph_core::{Annotation, CallSite, FileInfo, Symbol};
+use codegraph_core::Annotation;
+use codegraph_core::CallSite;
+use codegraph_core::FileInfo;
+use codegraph_core::Symbol;
 
 /// Một cấu trúc: số phần tử + bytes đã cấp (fixed + heap).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

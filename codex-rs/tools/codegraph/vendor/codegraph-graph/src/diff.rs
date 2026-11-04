@@ -8,9 +8,16 @@
 //! được index lại.
 
 use crate::GraphIndex;
-use codegraph_core::{Error, Result, Symbol, SymbolId, SymbolKind, is_marker, marker_name};
+use codegraph_core::Error;
+use codegraph_core::Result;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolId;
+use codegraph_core::SymbolKind;
+use codegraph_core::is_marker;
+use codegraph_core::marker_name;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 // ==================== Unified diff parser ====================
 
@@ -477,9 +484,12 @@ fn symbol_overlaps(s: &Symbol, new_lines: &HashSet<u32>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codegraph_core::{
-        CallRecord, EffectType, MARKER_BRANCH_END, MARKER_IF_TRUE, SYMBOL_BASE, ScopeLevel,
-    };
+    use codegraph_core::CallRecord;
+    use codegraph_core::EffectType;
+    use codegraph_core::MARKER_BRANCH_END;
+    use codegraph_core::MARKER_IF_TRUE;
+    use codegraph_core::SYMBOL_BASE;
+    use codegraph_core::ScopeLevel;
 
     fn sym(file: &str, name: &str, id: u64, line: u32, end_line: u32) -> Symbol {
         Symbol {

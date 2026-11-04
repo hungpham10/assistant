@@ -6,7 +6,9 @@
 //!
 //! Cần `OPENCODE_API_KEY` (hoặc `[jev] api_key_env` trỏ biến khác).
 
-use codegraph_context::{Candidate, JevJudge, Judge};
+use codegraph_context::Candidate;
+use codegraph_context::JevJudge;
+use codegraph_context::Judge;
 use codegraph_core::JevConfig;
 
 fn candidate(id: u64, kind: &str, name: &str, file: &str, sig: &str) -> Candidate {

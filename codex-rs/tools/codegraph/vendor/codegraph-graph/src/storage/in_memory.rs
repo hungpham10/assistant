@@ -1,14 +1,28 @@
-use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, RwLock};
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::sync::Arc;
+use std::sync::RwLock;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 use async_trait::async_trait;
-use codegraph_core::{FileInfo, Symbol};
+use codegraph_core::FileInfo;
+use codegraph_core::Symbol;
 
-use super::{
-    CategoryStorage, ChainStorage, EMPTY, EdgeDataStorage, EntityStorage, IndexCounts,
-    NodeMetaStorage, Result, ShortcutsStorage, StorageError, Tx, TxOp, decode_chain, encode_chain,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EMPTY;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::IndexCounts;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::StorageError;
+use super::Tx;
+use super::TxOp;
+use super::decode_chain;
+use super::encode_chain;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;
@@ -959,7 +973,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_entity_symbols() {
-        use codegraph_core::{ScopeLevel, SymbolKind};
+        use codegraph_core::ScopeLevel;
+        use codegraph_core::SymbolKind;
         let mut s = InMemoryStorage::default();
         let sym = Symbol {
             id: 100,

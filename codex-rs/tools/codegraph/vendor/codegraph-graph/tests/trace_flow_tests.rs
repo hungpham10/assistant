@@ -2,14 +2,33 @@
 //! path, switch path-per-case, loop break/max_iter, call/return frame stack,
 //! throw → catch (khớp exception type, xuyên nhiều tầng callee).
 
-use codegraph_core::{
-    CallRecord, EffectType, MARKER_BRANCH_END, MARKER_BREAK, MARKER_CALL_ENTER, MARKER_CALL_EXIT,
-    MARKER_CATCH_START, MARKER_CONTINUE, MARKER_IF_FALSE, MARKER_IF_TRUE, MARKER_LOOP,
-    MARKER_LOOP_BACK, MARKER_RETURN, MARKER_SWITCH_CASE, MARKER_SWITCH_CLOSE, MARKER_SWITCH_END,
-    MARKER_SWITCH_START, MARKER_THROW, MARKER_TRY_END, MARKER_TRY_START, PathEnding, SYMBOL_BASE,
-    ScopeLevel, Symbol, SymbolKind,
-};
-use codegraph_graph::{GraphIndex, ParseResult};
+use codegraph_core::CallRecord;
+use codegraph_core::EffectType;
+use codegraph_core::MARKER_BRANCH_END;
+use codegraph_core::MARKER_BREAK;
+use codegraph_core::MARKER_CALL_ENTER;
+use codegraph_core::MARKER_CALL_EXIT;
+use codegraph_core::MARKER_CATCH_START;
+use codegraph_core::MARKER_CONTINUE;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::MARKER_LOOP;
+use codegraph_core::MARKER_LOOP_BACK;
+use codegraph_core::MARKER_RETURN;
+use codegraph_core::MARKER_SWITCH_CASE;
+use codegraph_core::MARKER_SWITCH_CLOSE;
+use codegraph_core::MARKER_SWITCH_END;
+use codegraph_core::MARKER_SWITCH_START;
+use codegraph_core::MARKER_THROW;
+use codegraph_core::MARKER_TRY_END;
+use codegraph_core::MARKER_TRY_START;
+use codegraph_core::PathEnding;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_graph::GraphIndex;
+use codegraph_graph::ParseResult;
 use std::collections::HashMap;
 
 const A: u64 = SYMBOL_BASE;

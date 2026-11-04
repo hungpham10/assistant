@@ -2,15 +2,31 @@ use std::collections::HashMap;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;
-use super::{
-    CategoryStorage, ChainStorage, EdgeDataStorage, EntityStorage, IndexCounts, NodeMetaStorage,
-    Result, ShortcutsStorage, Storage, StorageError, Tx, decode_chain, decode_vector, encode_chain,
-    encode_vector,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::IndexCounts;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::Storage;
+use super::StorageError;
+use super::Tx;
+use super::decode_chain;
+use super::decode_vector;
+use super::encode_chain;
+use super::encode_vector;
 use async_trait::async_trait;
-use codegraph_core::{Annotation, FileInfo, ScopeLevel, Symbol, SymbolKind};
-use sqlx::mysql::{MySqlPoolOptions, MySqlRow};
-use sqlx::{MySqlPool, Row};
+use codegraph_core::Annotation;
+use codegraph_core::FileInfo;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use sqlx::MySqlPool;
+use sqlx::Row;
+use sqlx::mysql::MySqlPoolOptions;
+use sqlx::mysql::MySqlRow;
 
 /// MySQL implementation của `Storage` trait — multi-tenant (mọi bảng dẫn đầu bằng
 /// `repo_id`), theo thiết kế `sql/README.md`. Instance được bind vào một `repo_id`.

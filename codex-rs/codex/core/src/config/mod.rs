@@ -1105,7 +1105,6 @@ pub struct CodegraphConfig {
     pub permit_modes: Vec<String>,
 }
 
-
 pub(crate) const DEFAULT_TOKEN_BUDGET_REMINDER_MESSAGE_TEMPLATE: &str = concat!(
     "Your context window is nearly exhausted (only {n_remaining} tokens remaining) and will be automatically reset for you soon. ",
     "Once reset, message items in current context window will be cleared in the new window, but notes and history items will be persistent across windows."
@@ -2522,7 +2521,6 @@ fn resolve_codegraph_config(_config_toml: &ConfigToml) -> CodegraphConfig {
         permit_modes: vec!["lexical".to_string()],
     }
 }
-
 
 fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config {
     let base = multi_agent_v2_toml_config(config_toml.features.as_ref());
