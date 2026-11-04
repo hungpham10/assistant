@@ -1,3 +1,5 @@
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::canonicalize_preserving_symlinks;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::models::FileSystemPermissions;
 use codex_protocol::models::NetworkPermissions;
@@ -10,8 +12,6 @@ use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::FileSystemSpecialPath;
 use codex_protocol::permissions::NetworkSandboxPolicy;
 use codex_protocol::permissions::ReadDenyMatcher;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_absolute_path::canonicalize_preserving_symlinks;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::path::PathBuf;

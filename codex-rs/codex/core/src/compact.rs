@@ -313,7 +313,7 @@ async fn run_compact_task_inner_impl(
                 .environments
                 .primary()
                 .and_then(|environment| environment.cwd().to_abs_path().ok())
-                .map(codex_utils_absolute_path::AbsolutePathBuf::into_path_buf),
+                .map(codex_path::absolute_path::AbsolutePathBuf::into_path_buf),
             ..Default::default()
         };
         let attempt_result = drain_to_completed(

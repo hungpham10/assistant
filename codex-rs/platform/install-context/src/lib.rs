@@ -4,7 +4,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
 
 const BIN_DIRNAME: &str = "bin";
@@ -82,7 +82,7 @@ impl InstallContext {
         current_exe: Option<&Path>,
         method_override: Option<InstallMethod>,
     ) -> Self {
-        let codex_home = codex_utils_home_dir::find_codex_home().ok();
+        let codex_home = codex_path::home_dir::find_codex_home().ok();
         Self::from_exe_with_codex_home(
             is_macos,
             current_exe,

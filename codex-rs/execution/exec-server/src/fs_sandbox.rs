@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
 use codex_exec_server_protocol::JSONRPCErrorError;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::canonicalize_preserving_symlinks;
+use codex_path::path_uri::PathUri;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::permissions::FileSystemAccessMode;
 use codex_protocol::permissions::FileSystemPath;
@@ -14,9 +17,6 @@ use codex_sandboxing::SandboxExecRequest;
 use codex_sandboxing::SandboxManager;
 use codex_sandboxing::SandboxTransformRequest;
 use codex_sandboxing::SandboxablePreference;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_absolute_path::canonicalize_preserving_symlinks;
-use codex_utils_path_uri::PathUri;
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
@@ -372,6 +372,8 @@ mod tests {
     use std::collections::HashMap;
     use std::ffi::OsString;
 
+    use codex_path::absolute_path::AbsolutePathBuf;
+    use codex_path::path_uri::PathUri;
     use codex_protocol::models::PermissionProfile;
     use codex_protocol::permissions::FileSystemAccessMode;
     use codex_protocol::permissions::FileSystemPath;
@@ -379,8 +381,6 @@ mod tests {
     use codex_protocol::permissions::FileSystemSandboxPolicy;
     use codex_protocol::permissions::FileSystemSpecialPath;
     use codex_protocol::permissions::NetworkSandboxPolicy;
-    use codex_utils_absolute_path::AbsolutePathBuf;
-    use codex_utils_path_uri::PathUri;
     use pretty_assertions::assert_eq;
 
     use crate::ExecServerRuntimePaths;

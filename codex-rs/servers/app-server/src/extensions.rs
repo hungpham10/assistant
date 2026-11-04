@@ -71,7 +71,7 @@ where
             |config: &Config| config.features.enabled(codex_features::Feature::Goals),
         );
     }
-    guardian::install(&mut builder, guardian_agent_spawner);
+    crate::guardian::install(&mut builder, guardian_agent_spawner);
     codex_memories_extension::install(&mut builder, codex_otel::global());
     codex_mcp_extension::install(&mut builder);
     codex_mcp_extension::install_executor_plugins(&mut builder, environment_manager);

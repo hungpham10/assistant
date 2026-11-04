@@ -17,8 +17,8 @@ use codex_config::MatcherGroup;
 use codex_config::RequirementSource;
 use codex_config::TomlValue;
 use codex_config::version_for_toml;
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_plugin::PluginHookSource;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -657,11 +657,11 @@ mod tests {
     use codex_config::ConfigLayerSource;
     use codex_config::HookEventsToml;
     use codex_config::RequirementSource;
+    use codex_path::absolute_path::AbsolutePathBuf;
+    use codex_path::absolute_path::test_support::PathBufExt;
+    use codex_path::absolute_path::test_support::test_path_buf;
     use codex_protocol::protocol::HookEventName;
     use codex_protocol::protocol::HookSource;
-    use codex_utils_absolute_path::AbsolutePathBuf;
-    use codex_utils_absolute_path::test_support::PathBufExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
 
     use super::ConfiguredHandler;

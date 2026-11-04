@@ -4075,7 +4075,7 @@ mod tests {
         if let Some(harness) = harness {
             Arc::make_mut(&mut turn.config).harness = Some(harness.to_string());
         }
-        let workspace_root = codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+        let workspace_root = codex_path::absolute_path::AbsolutePathBuf::from_absolute_path(
             std::fs::canonicalize(workspace.path()).expect("workspace path should canonicalize"),
         )
         .expect("workspace path should be absolute");

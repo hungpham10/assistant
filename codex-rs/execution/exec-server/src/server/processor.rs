@@ -282,7 +282,7 @@ mod tests {
     use codex_exec_server_protocol::JSONRPCRequest;
     use codex_exec_server_protocol::JSONRPCResponse;
     use codex_exec_server_protocol::RequestId;
-    use codex_utils_path_uri::PathUri;
+    use codex_path::path_uri::PathUri;
     use opentelemetry::trace::SpanId;
     use opentelemetry::trace::TraceId;
     use opentelemetry::trace::TracerProvider as _;

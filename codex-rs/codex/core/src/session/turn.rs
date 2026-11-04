@@ -1137,7 +1137,7 @@ pub(crate) fn build_prompt(
             .environments
             .primary()
             .and_then(|turn_environment| turn_environment.cwd().to_abs_path().ok())
-            .map(codex_utils_absolute_path::AbsolutePathBuf::into_path_buf),
+            .map(codex_path::absolute_path::AbsolutePathBuf::into_path_buf),
         base_instructions,
         output_schema: turn_context.final_output_json_schema.clone(),
         output_schema_strict: !crate::guardian::is_guardian_reviewer_source(

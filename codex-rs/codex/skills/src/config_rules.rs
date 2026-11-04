@@ -5,7 +5,7 @@ use codex_config::ConfigLayerStack;
 use codex_config::ConfigLayerStackOrdering;
 use codex_config::SkillConfig;
 use codex_config::SkillsConfig;
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 use tracing::warn;
 
 use crate::SkillMetadata;

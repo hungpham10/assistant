@@ -86,6 +86,8 @@ use codex_app_server_protocol::guardian_auto_approval_review_notification;
 use codex_app_server_protocol::item_event_to_server_notification;
 use codex_core::CodexThread;
 use codex_core::ThreadManager;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::LegacyAppPathString;
 use codex_protocol::ThreadId;
 use codex_protocol::items::CollabAgentTool as CoreCollabAgentTool;
 use codex_protocol::items::TurnItem as CoreTurnItem;
@@ -110,8 +112,6 @@ use codex_protocol::request_user_input::RequestUserInputAnswer as CoreRequestUse
 use codex_protocol::request_user_input::RequestUserInputResponse as CoreRequestUserInputResponse;
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_shell_command::parse_command::shlex_join;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_path_uri::LegacyAppPathString;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -2054,6 +2054,9 @@ mod tests {
     use codex_app_server_protocol::ServerRequest;
     use codex_app_server_protocol::TurnPlanStepStatus;
     use codex_login::CodexAuth;
+    use codex_path::absolute_path::AbsolutePathBuf;
+    use codex_path::absolute_path::test_support::PathBufExt;
+    use codex_path::absolute_path::test_support::test_path_buf;
     use codex_protocol::AgentPath;
     use codex_protocol::items::DynamicToolCallItem;
     use codex_protocol::items::DynamicToolCallStatus as CoreDynamicToolCallStatus;
@@ -2085,9 +2088,6 @@ mod tests {
     use codex_protocol::protocol::UserMessageEvent;
     use codex_thread_store::StoredThread;
     use codex_thread_store::StoredThreadHistory;
-    use codex_utils_absolute_path::AbsolutePathBuf;
-    use codex_utils_absolute_path::test_support::PathBufExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
     use core_test_support::load_default_config_for_test;
     use pretty_assertions::assert_eq;
     use serde_json::json;

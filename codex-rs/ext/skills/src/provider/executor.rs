@@ -3,9 +3,9 @@ use std::sync::Arc;
 use codex_core_skills::loader::EnvironmentSkillMetadata;
 use codex_core_skills::loader::load_environment_skills_from_root;
 use codex_exec_server::EnvironmentManager;
+use codex_path::path_uri::PathConvention;
 use codex_protocol::capabilities::CapabilityRootLocation;
 use codex_protocol::protocol::Product;
-use codex_utils_path_uri::PathConvention;
 
 use crate::catalog::SkillAuthority;
 use crate::catalog::SkillCatalog;

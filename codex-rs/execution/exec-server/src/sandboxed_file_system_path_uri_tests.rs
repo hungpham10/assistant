@@ -1,7 +1,7 @@
+use codex_path::path_uri::PathUri;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::NetworkSandboxPolicy;
-use codex_utils_path_uri::PathUri;
 use pretty_assertions::assert_eq;
 use tokio::io;
 

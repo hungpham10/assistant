@@ -106,7 +106,7 @@ fn exec_env_policy_excludes_runtime_permission_profile() {
 
 #[test]
 fn exec_server_params_use_path_uri_and_env_policy_overlay_contract() {
-    let cwd: codex_utils_absolute_path::AbsolutePathBuf = std::env::current_dir()
+    let cwd: codex_path::absolute_path::AbsolutePathBuf = std::env::current_dir()
         .expect("current dir")
         .try_into()
         .expect("absolute path");

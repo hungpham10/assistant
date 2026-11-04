@@ -2,7 +2,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
 use base64::Engine as _;
-use codex_utils_home_dir::find_codex_home;
+use codex_path::home_dir::find_codex_home;
 use rama_crypto::cert::CertificateAuthorityData;
 use rama_crypto::cert::CertificateIdentity;
 use rama_crypto::cert::CertificateSubject;

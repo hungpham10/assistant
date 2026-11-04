@@ -1,5 +1,5 @@
 [package]
-name = "codex-utils-path-uri"
+name = "codex-path"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,17 +9,24 @@ workspace = true
 
 [dependencies]
 base64 = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-product-info = { workspace = true }
+dirs = { workspace = true }
+dunce = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
-ts-rs = { workspace = true, features = ["no-serde-warnings"] }
+ts-rs = { workspace = true, features = [
+    "no-serde-warnings",
+    "serde-json-impl",
+] }
 url = { workspace = true }
 urlencoding = { workspace = true }
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }
 serde_json = { workspace = true }
+tempfile = { workspace = true }
 
 [lib]
 doctest = false

@@ -24,9 +24,8 @@ codex-model-provider = { workspace = true }
 codex-model-provider-info = { workspace = true }
 codex-protocol = { workspace = true }
 codex-tools = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-image = { workspace = true }
-codex-utils-path-uri = { workspace = true }
 http = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

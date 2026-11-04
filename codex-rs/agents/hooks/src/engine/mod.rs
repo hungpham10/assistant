@@ -22,6 +22,7 @@ use crate::events::user_prompt_submit::UserPromptSubmitOutcome;
 use crate::events::user_prompt_submit::UserPromptSubmitRequest;
 use crate::output_spill::HookOutputSpiller;
 use codex_config::ConfigLayerStack;
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_plugin::PluginHookSource;
 use codex_protocol::ThreadId;
 use codex_protocol::protocol::HookEventName;
@@ -29,7 +30,6 @@ use codex_protocol::protocol::HookHandlerType;
 use codex_protocol::protocol::HookRunSummary;
 use codex_protocol::protocol::HookSource;
 use codex_protocol::protocol::HookTrustStatus;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]

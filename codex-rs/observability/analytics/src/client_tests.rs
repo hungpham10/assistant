@@ -35,8 +35,8 @@ use codex_app_server_protocol::TurnStartResponse;
 use codex_app_server_protocol::TurnStatus as AppServerTurnStatus;
 use codex_app_server_protocol::TurnSteerParams;
 use codex_app_server_protocol::TurnSteerResponse;
-use codex_utils_absolute_path::test_support::PathBufExt;
-use codex_utils_absolute_path::test_support::test_path_buf;
+use codex_path::absolute_path::test_support::PathBufExt;
+use codex_path::absolute_path::test_support::test_path_buf;
 use std::collections::HashSet;
 #[cfg(debug_assertions)]
 use std::fs;

@@ -615,7 +615,7 @@ async fn thread_start_rejects_unknown_environment_as_invalid_request() -> Result
         .send_thread_start_request(ThreadStartParams {
             environments: Some(vec![TurnEnvironmentParams {
                 environment_id: "missing".to_string(),
-                cwd: codex_utils_absolute_path::AbsolutePathBuf::try_from(
+                cwd: codex_path::absolute_path::AbsolutePathBuf::try_from(
                     codex_home.path().to_path_buf(),
                 )?
                 .into(),

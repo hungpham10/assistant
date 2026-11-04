@@ -16,7 +16,7 @@ use crate::session::turn_context::TurnContext;
 use codex_api::OPENAI_FILE_UPLOAD_LIMIT_BYTES;
 use codex_api::upload_openai_file;
 use codex_login::CodexAuth;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use serde_json::Value as JsonValue;
 
 pub(crate) async fn rewrite_mcp_tool_arguments_for_openai_files(
@@ -181,8 +181,8 @@ mod tests {
     use super::*;
     use crate::session::tests::make_session_and_context;
     use crate::session::turn_context::TurnEnvironment;
-    use codex_utils_absolute_path::AbsolutePathBuf;
-    use codex_utils_path_uri::PathUri;
+    use codex_path::absolute_path::AbsolutePathBuf;
+    use codex_path::path_uri::PathUri;
     use pretty_assertions::assert_eq;
     use std::path::Path;
     use std::sync::Arc;

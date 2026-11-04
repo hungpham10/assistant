@@ -1,5 +1,5 @@
-use crate::PathConvention;
 use crate::PathUri;
+use crate::path_uri::PathConvention;
 use url::Url;
 
 pub(super) fn path_uri_from_segments<'a>(

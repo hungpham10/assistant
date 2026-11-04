@@ -1,8 +1,8 @@
 //! Compatibility projections from the canonical permission profile model into
 //! legacy shapes still required by older or remote app-server APIs.
 
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::models::PermissionProfile;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use std::path::Path;
 
 pub(crate) fn legacy_compatible_permission_profile(

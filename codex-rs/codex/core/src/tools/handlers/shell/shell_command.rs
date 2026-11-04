@@ -1,7 +1,7 @@
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::models::ShellCommandToolCallParams;
 use codex_tools::ShellCommandBackendConfig;
 use codex_tools::ToolName;
-use codex_utils_absolute_path::AbsolutePathBuf;
 
 use crate::exec::ExecCapturePolicy;
 use crate::exec::ExecParams;

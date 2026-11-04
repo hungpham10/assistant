@@ -63,6 +63,7 @@ use codex_config::types::McpServerTransportConfig;
 #[cfg(test)]
 use codex_mcp::qualified_mcp_tool_name_prefix;
 use codex_otel::RuntimeMetricsSummary;
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::account::PlanType;
 use codex_protocol::approvals::ExecPolicyAmendment;
 use codex_protocol::approvals::NetworkPolicyAmendment;
@@ -79,7 +80,6 @@ use codex_protocol::plan_tool::PlanItemArg;
 use codex_protocol::plan_tool::StepStatus;
 use codex_protocol::plan_tool::UpdatePlanArgs;
 use codex_protocol::user_input::TextElement;
-use codex_utils_absolute_path::AbsolutePathBuf;
 #[cfg(test)]
 use codex_utils_cli::format_env_display;
 use image::DynamicImage;

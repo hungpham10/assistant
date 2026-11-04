@@ -1,8 +1,8 @@
 use codex_connectors::parse_plugin_app_config;
 use codex_core_plugins::ResolvedExecutorPlugin;
+use codex_path::path_uri::PathUri;
 use codex_plugin::AppDeclaration;
 use codex_plugin::PluginResourceLocator;
-use codex_utils_path_uri::PathUri;
 use std::io;
 use thiserror::Error;
 

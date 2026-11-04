@@ -2367,10 +2367,10 @@ dependencies = [
  "codex-app-server-protocol",
  "codex-git-utils",
  "codex-login",
+ "codex-path",
  "codex-plugin",
  "codex-protocol",
  "codex-state",
- "codex-utils-absolute-path",
  "os_info",
  "pretty_assertions",
  "serde",
@@ -2468,6 +2468,7 @@ dependencies = [
  "codex-model-provider-info",
  "codex-models-manager",
  "codex-otel",
+ "codex-path",
  "codex-plugin",
  "codex-protocol",
  "codex-rmcp-client",
@@ -2478,11 +2479,9 @@ dependencies = [
  "codex-state",
  "codex-thread-store",
  "codex-tools",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
  "codex-utils-json-to-toml",
- "codex-utils-path-uri",
  "codex-utils-pty",
  "codex-web-search-extension",
  "codex-windows-sandbox",
@@ -2528,9 +2527,9 @@ dependencies = [
  "codex-core",
  "codex-exec-server",
  "codex-feedback",
+ "codex-path",
  "codex-protocol",
  "codex-uds",
- "codex-utils-absolute-path",
  "codex-utils-rustls-provider",
  "futures",
  "pretty_assertions",
@@ -2552,9 +2551,9 @@ dependencies = [
  "codex-app-server-protocol",
  "codex-app-server-transport",
  "codex-install-context",
+ "codex-path",
  "codex-product-info",
  "codex-uds",
- "codex-utils-home-dir",
  "futures",
  "libc",
  "pretty_assertions",
@@ -2575,11 +2574,10 @@ dependencies = [
  "clap",
  "codex-experimental-api-macros",
  "codex-extension-items",
+ "codex-path",
  "codex-protocol",
  "codex-shell-command",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
- "codex-utils-path-uri",
  "inventory",
  "pretty_assertions",
  "rmcp",
@@ -2633,10 +2631,10 @@ dependencies = [
  "codex-core",
  "codex-login",
  "codex-model-provider",
+ "codex-path",
  "codex-protocol",
  "codex-state",
  "codex-uds",
- "codex-utils-absolute-path",
  "codex-utils-rustls-provider",
  "constant_time_eq",
  "futures",
@@ -2668,9 +2666,8 @@ dependencies = [
  "assert_cmd",
  "assert_matches",
  "codex-exec-server",
- "codex-utils-absolute-path",
+ "codex-path",
  "codex-utils-cargo-bin",
- "codex-utils-path-uri",
  "pretty_assertions",
  "similar",
  "tempfile",
@@ -2689,10 +2686,9 @@ dependencies = [
  "codex-exec-server",
  "codex-install-context",
  "codex-linux-sandbox",
+ "codex-path",
  "codex-sandboxing",
  "codex-shell-escalation",
- "codex-utils-absolute-path",
- "codex-utils-home-dir",
  "codex-windows-sandbox",
  "dotenvy",
  "pretty_assertions",
@@ -2833,6 +2829,7 @@ dependencies = [
  "codex-memories-write",
  "codex-model-provider",
  "codex-models-manager",
+ "codex-path",
  "codex-plugin",
  "codex-product-info",
  "codex-protocol",
@@ -2845,10 +2842,8 @@ dependencies = [
  "codex-terminal-detection",
  "codex-tui",
  "codex-uds",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
- "codex-utils-path",
  "codex-windows-sandbox",
  "crossterm",
  "http 1.5.0",
@@ -3011,11 +3006,9 @@ dependencies = [
  "codex-git-utils",
  "codex-model-provider-info",
  "codex-network-proxy",
+ "codex-path",
  "codex-product-info",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-path",
- "codex-utils-path-uri",
  "core-foundation 0.9.4",
  "dns-lookup",
  "dunce",
@@ -3122,6 +3115,7 @@ dependencies = [
  "codex-models-manager",
  "codex-network-proxy",
  "codex-otel",
+ "codex-path",
  "codex-plugin",
  "codex-prompts",
  "codex-protocol",
@@ -3137,14 +3131,10 @@ dependencies = [
  "codex-test-binary-support",
  "codex-thread-store",
  "codex-tools",
- "codex-utils-absolute-path",
  "codex-utils-cache",
  "codex-utils-cargo-bin",
- "codex-utils-home-dir",
  "codex-utils-image",
  "codex-utils-output-truncation",
- "codex-utils-path",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "codex-utils-pty",
  "codex-utils-stream-parser",
@@ -3221,8 +3211,8 @@ dependencies = [
  "codex-login",
  "codex-model-provider-info",
  "codex-models-manager",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
 ]
 
 [[package]]
@@ -3243,12 +3233,10 @@ dependencies = [
  "codex-mcp",
  "codex-model-provider",
  "codex-otel",
+ "codex-path",
  "codex-plugin",
  "codex-protocol",
  "codex-tools",
- "codex-utils-absolute-path",
- "codex-utils-path",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "dirs",
  "flate2",
@@ -3285,11 +3273,10 @@ dependencies = [
  "codex-login",
  "codex-model-provider",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
  "codex-shell-command",
- "codex-utils-absolute-path",
  "codex-utils-output-truncation",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "dirs",
  "dunce",
@@ -3341,9 +3328,9 @@ dependencies = [
  "codex-login",
  "codex-model-provider-info",
  "codex-otel",
+ "codex-path",
  "codex-product-info",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
  "codex-utils-sandbox-summary",
@@ -3384,11 +3371,10 @@ dependencies = [
  "codex-http-client",
  "codex-network-proxy",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
  "codex-sandboxing",
  "codex-test-binary-support",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "codex-utils-pty",
  "codex-utils-rustls-provider",
  "ctor 0.6.3",
@@ -3427,9 +3413,9 @@ dependencies = [
  "base64 0.22.1",
  "codex-file-system",
  "codex-network-proxy",
+ "codex-path",
  "codex-protocol",
  "codex-shell-command",
- "codex-utils-path-uri",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -3441,7 +3427,7 @@ version = "0.0.41"
 dependencies = [
  "anyhow",
  "clap",
- "codex-utils-absolute-path",
+ "codex-path",
  "multimap",
  "pretty_assertions",
  "serde",
@@ -3467,9 +3453,9 @@ version = "0.0.41"
 dependencies = [
  "codex-config",
  "codex-context-fragments",
+ "codex-path",
  "codex-protocol",
  "codex-tools",
- "codex-utils-absolute-path",
  "pretty_assertions",
  "serde_json",
  "tokio",
@@ -3479,7 +3465,7 @@ dependencies = [
 name = "codex-extension-items"
 version = "0.0.41"
 dependencies = [
- "codex-utils-absolute-path",
+ "codex-path",
  "pretty_assertions",
  "schemars 0.8.22",
  "serde",
@@ -3560,9 +3546,8 @@ name = "codex-file-system"
 version = "0.0.41"
 dependencies = [
  "bytes",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "futures",
  "serde",
 ]
@@ -3585,9 +3570,8 @@ dependencies = [
  "anyhow",
  "chrono",
  "codex-file-system",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "futures",
  "gix",
  "once_cell",
@@ -3630,7 +3614,7 @@ name = "codex-home"
 version = "0.0.41"
 dependencies = [
  "codex-extension-api",
- "codex-utils-absolute-path",
+ "codex-path",
  "pretty_assertions",
  "tempfile",
  "tokio",
@@ -3643,9 +3627,9 @@ dependencies = [
  "anyhow",
  "chrono",
  "codex-config",
+ "codex-path",
  "codex-plugin",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-output-truncation",
  "futures",
  "pretty_assertions",
@@ -3703,11 +3687,10 @@ dependencies = [
  "codex-login",
  "codex-model-provider",
  "codex-model-provider-info",
+ "codex-path",
  "codex-protocol",
  "codex-tools",
- "codex-utils-absolute-path",
  "codex-utils-image",
- "codex-utils-path-uri",
  "http 1.5.0",
  "pretty_assertions",
  "schemars 0.8.22",
@@ -3721,9 +3704,8 @@ dependencies = [
 name = "codex-install-context"
 version = "0.0.41"
 dependencies = [
+ "codex-path",
  "codex-product-info",
- "codex-utils-absolute-path",
- "codex-utils-home-dir",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -3746,10 +3728,10 @@ dependencies = [
  "codex-core",
  "codex-install-context",
  "codex-network-proxy",
+ "codex-path",
  "codex-process-hardening",
  "codex-protocol",
  "codex-sandboxing",
- "codex-utils-absolute-path",
  "globset",
  "landlock",
  "libc",
@@ -3841,11 +3823,11 @@ dependencies = [
  "codex-login",
  "codex-model-provider",
  "codex-otel",
+ "codex-path",
  "codex-plugin",
  "codex-product-info",
  "codex-protocol",
  "codex-rmcp-client",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "futures",
  "pretty_assertions",
@@ -3875,10 +3857,9 @@ dependencies = [
  "codex-features",
  "codex-login",
  "codex-mcp",
+ "codex-path",
  "codex-plugin",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "pretty_assertions",
  "serde_json",
  "tempfile",
@@ -3900,9 +3881,9 @@ dependencies = [
  "codex-home",
  "codex-image-generation-extension",
  "codex-login",
+ "codex-path",
  "codex-protocol",
  "codex-shell-command",
- "codex-utils-absolute-path",
  "codex-utils-cli",
  "codex-utils-json-to-toml",
  "core_test_support",
@@ -3929,8 +3910,8 @@ dependencies = [
  "codex-extension-api",
  "codex-features",
  "codex-otel",
+ "codex-path",
  "codex-tools",
- "codex-utils-absolute-path",
  "codex-utils-output-truncation",
  "codex-utils-template",
  "pretty_assertions",
@@ -3946,9 +3927,9 @@ dependencies = [
 name = "codex-memories-read"
 version = "0.0.41"
 dependencies = [
+ "codex-path",
  "codex-protocol",
  "codex-shell-command",
- "codex-utils-absolute-path",
  "pretty_assertions",
 ]
 
@@ -3968,6 +3949,7 @@ dependencies = [
  "codex-model-provider-info",
  "codex-models-manager",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
  "codex-rollout",
  "codex-rollout-trace",
@@ -3975,7 +3957,6 @@ dependencies = [
  "codex-state",
  "codex-terminal-detection",
  "codex-tools",
- "codex-utils-absolute-path",
  "codex-utils-output-truncation",
  "codex-utils-template",
  "core_test_support",
@@ -4032,9 +4013,9 @@ name = "codex-model-provider-info"
 version = "0.0.41"
 dependencies = [
  "codex-api",
+ "codex-path",
  "codex-product-info",
  "codex-protocol",
- "codex-utils-absolute-path",
  "http 1.5.0",
  "maplit",
  "pretty_assertions",
@@ -4075,8 +4056,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap",
- "codex-utils-absolute-path",
- "codex-utils-home-dir",
+ "codex-path",
  "codex-utils-rustls-provider",
  "globset",
  "pretty_assertions",
@@ -4112,8 +4092,8 @@ version = "0.0.41"
 dependencies = [
  "chrono",
  "codex-api",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-string",
  "eventsource-stream",
  "gethostname",
@@ -4138,13 +4118,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-path"
+version = "0.0.41"
+dependencies = [
+ "base64 0.22.1",
+ "codex-product-info",
+ "dirs",
+ "dunce",
+ "pretty_assertions",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "ts-rs",
+ "url",
+ "urlencoding",
+]
+
+[[package]]
 name = "codex-plugin"
 version = "0.0.41"
 dependencies = [
  "codex-config",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "pretty_assertions",
  "thiserror 2.0.21",
@@ -4173,8 +4171,8 @@ dependencies = [
  "codex-context-fragments",
  "codex-execpolicy",
  "codex-git-utils",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-template",
  "pretty_assertions",
 ]
@@ -4190,9 +4188,8 @@ dependencies = [
  "codex-execpolicy",
  "codex-extension-items",
  "codex-network-proxy",
- "codex-utils-absolute-path",
+ "codex-path",
  "codex-utils-image",
- "codex-utils-path-uri",
  "codex-utils-string",
  "encoding_rs",
  "globset",
@@ -4261,12 +4258,11 @@ dependencies = [
  "codex-config",
  "codex-exec-server",
  "codex-keyring-store",
+ "codex-path",
  "codex-product-info",
  "codex-protocol",
  "codex-secrets",
  "codex-utils-cargo-bin",
- "codex-utils-home-dir",
- "codex-utils-path-uri",
  "codex-utils-pty",
  "futures",
  "keyring",
@@ -4300,9 +4296,9 @@ dependencies = [
  "codex-file-search",
  "codex-git-utils",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
  "codex-state",
- "codex-utils-path",
  "pretty_assertions",
  "regex",
  "serde",
@@ -4337,10 +4333,8 @@ version = "0.0.41"
 dependencies = [
  "anyhow",
  "codex-network-proxy",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
- "codex-utils-home-dir",
- "codex-utils-path-uri",
  "codex-windows-sandbox",
  "dunce",
  "libc",
@@ -4381,8 +4375,8 @@ version = "0.0.41"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "libc",
  "once_cell",
  "pretty_assertions",
@@ -4402,8 +4396,8 @@ version = "0.0.41"
 dependencies = [
  "anyhow",
  "clap",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "libc",
  "pretty_assertions",
  "serde",
@@ -4424,10 +4418,9 @@ dependencies = [
  "codex-exec-server",
  "codex-extension-api",
  "codex-mcp",
+ "codex-path",
  "codex-protocol",
  "codex-tools",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
  "codex-utils-string",
  "pretty_assertions",
  "schemars 0.8.22",
@@ -4497,10 +4490,10 @@ dependencies = [
  "codex-git-utils",
  "codex-install-context",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
  "codex-rollout",
  "codex-state",
- "codex-utils-path",
  "pretty_assertions",
  "serde",
  "serde_json",
@@ -4527,8 +4520,8 @@ dependencies = [
  "codex-extension-items",
  "codex-features",
  "codex-file-system",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
  "codex-utils-output-truncation",
  "codex-utils-pty",
@@ -4579,6 +4572,7 @@ dependencies = [
  "codex-model-provider-info",
  "codex-models-manager",
  "codex-otel",
+ "codex-path",
  "codex-plugin",
  "codex-product-info",
  "codex-protocol",
@@ -4587,13 +4581,9 @@ dependencies = [
  "codex-shell-command",
  "codex-state",
  "codex-terminal-detection",
- "codex-utils-absolute-path",
  "codex-utils-approval-presets",
  "codex-utils-cargo-bin",
  "codex-utils-cli",
- "codex-utils-home-dir",
- "codex-utils-path",
- "codex-utils-path-uri",
  "codex-utils-plugins",
  "codex-utils-sandbox-summary",
  "codex-utils-string",
@@ -4668,20 +4658,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-utils-absolute-path"
-version = "0.0.41"
-dependencies = [
- "dirs",
- "dunce",
- "pretty_assertions",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "tempfile",
- "ts-rs",
-]
-
-[[package]]
 name = "codex-utils-approval-presets"
 version = "0.0.41"
 dependencies = [
@@ -4719,17 +4695,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-utils-home-dir"
-version = "0.0.41"
-dependencies = [
- "codex-product-info",
- "codex-utils-absolute-path",
- "dirs",
- "pretty_assertions",
- "tempfile",
-]
-
-[[package]]
 name = "codex-utils-image"
 version = "0.0.41"
 dependencies = [
@@ -4761,38 +4726,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "codex-utils-path"
-version = "0.0.41"
-dependencies = [
- "codex-utils-absolute-path",
- "dunce",
- "pretty_assertions",
- "tempfile",
-]
-
-[[package]]
-name = "codex-utils-path-uri"
-version = "0.0.41"
-dependencies = [
- "base64 0.22.1",
- "codex-utils-absolute-path",
- "pretty_assertions",
- "schemars 0.8.22",
- "serde",
- "serde_json",
- "thiserror 2.0.21",
- "ts-rs",
- "url",
- "urlencoding",
-]
-
-[[package]]
 name = "codex-utils-plugins"
 version = "0.0.41"
 dependencies = [
  "codex-exec-server",
- "codex-utils-absolute-path",
- "codex-utils-path-uri",
+ "codex-path",
  "serde",
  "serde_json",
  "tempfile",
@@ -4828,8 +4766,8 @@ version = "0.0.41"
 dependencies = [
  "codex-core",
  "codex-model-provider-info",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "pretty_assertions",
 ]
 
@@ -4901,8 +4839,8 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "codex-otel",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-pty",
  "codex-utils-string",
  "dirs-next",
@@ -5211,10 +5149,9 @@ dependencies = [
  "codex-login",
  "codex-model-provider-info",
  "codex-models-manager",
+ "codex-path",
  "codex-protocol",
- "codex-utils-absolute-path",
  "codex-utils-cargo-bin",
- "codex-utils-path-uri",
  "ctor 0.6.3",
  "futures",
  "notify",

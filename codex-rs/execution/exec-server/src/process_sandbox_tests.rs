@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 #[cfg(target_os = "macos")]
 use codex_network_proxy::ManagedNetworkSandboxContext;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::PathUri;
 #[cfg(unix)]
 use codex_protocol::models::PermissionProfile;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_path_uri::PathUri;
 use pretty_assertions::assert_eq;
 
 use super::prepare_exec_request;

@@ -328,7 +328,7 @@ fn map_fs_error(err: io::Error) -> JSONRPCErrorError {
 
 #[cfg(test)]
 mod tests {
-    use codex_utils_path_uri::PathUri;
+    use codex_path::path_uri::PathUri;
     use pretty_assertions::assert_eq;
     use serde_json::json;
 

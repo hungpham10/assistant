@@ -1,7 +1,7 @@
 use codex_config::HooksFile;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_path_uri::PathConvention;
-use codex_utils_path_uri::PathUri;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::PathConvention;
+use codex_path::path_uri::PathUri;
 use codex_utils_plugins::find_plugin_manifest_path;
 use serde::Deserialize;
 use serde_json::Value as JsonValue;
@@ -512,6 +512,8 @@ mod tests {
     use super::load_plugin_manifest;
     use codex_exec_server::EnvironmentManager;
     use codex_exec_server::LOCAL_ENVIRONMENT_ID;
+    use codex_path::absolute_path::AbsolutePathBuf;
+    use codex_path::path_uri::PathUri;
     use codex_plugin::PluginProvider;
     use codex_plugin::ResolvedPlugin;
     use codex_plugin::manifest::PluginManifest as GenericPluginManifest;
@@ -521,8 +523,6 @@ mod tests {
     use codex_plugin::manifest::PluginManifestPaths;
     use codex_protocol::capabilities::CapabilityRootLocation;
     use codex_protocol::capabilities::SelectedCapabilityRoot;
-    use codex_utils_absolute_path::AbsolutePathBuf;
-    use codex_utils_path_uri::PathUri;
     use pretty_assertions::assert_eq;
     use std::fs;
     use std::path::Path;

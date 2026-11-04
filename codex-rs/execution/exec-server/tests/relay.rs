@@ -24,7 +24,7 @@ use codex_exec_server::NoiseRendezvousConnectArgs;
 use codex_exec_server::NoiseRendezvousConnectBundle;
 use codex_exec_server::ProcessId;
 use codex_exec_server::RemoteEnvironmentConfig;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use futures::SinkExt;
 use futures::StreamExt;
 use http::HeaderMap;

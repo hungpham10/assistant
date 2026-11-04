@@ -1,5 +1,6 @@
 use super::*;
 use crate::tools::sandboxing::SandboxAttempt;
+use codex_path::path_uri::PathUri;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::models::FileSystemPermissions;
@@ -11,7 +12,6 @@ use codex_sandboxing::SandboxManager;
 use codex_sandboxing::SandboxType;
 use codex_sandboxing::policy_transforms::effective_file_system_sandbox_policy;
 use codex_sandboxing::policy_transforms::effective_network_sandbox_policy;
-use codex_utils_path_uri::PathUri;
 use core_test_support::PathBufExt;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
@@ -254,7 +254,7 @@ async fn file_system_sandbox_context_uses_active_attempt() {
     assert_eq!(native_permissions, expected_permissions);
     assert_eq!(
         sandbox.cwd,
-        Some(codex_utils_path_uri::PathUri::from_abs_path(&path))
+        Some(codex_path::path_uri::PathUri::from_abs_path(&path))
     );
     assert_eq!(
         sandbox.windows_sandbox_level,

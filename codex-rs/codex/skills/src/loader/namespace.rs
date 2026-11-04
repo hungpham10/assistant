@@ -1,5 +1,5 @@
 use codex_exec_server::ExecutorFileSystem;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use codex_utils_plugins::plugin_namespace_for_root_uri;
 use codex_utils_plugins::plugin_namespace_for_skill_uri;
 use futures::future::join_all;

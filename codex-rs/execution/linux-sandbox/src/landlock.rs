@@ -5,12 +5,12 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::error::CodexErr;
 use codex_protocol::error::Result;
 use codex_protocol::error::SandboxErr;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::protocol::NetworkSandboxPolicy;
-use codex_utils_absolute_path::AbsolutePathBuf;
 
 use landlock::ABI;
 #[allow(unused_imports)]

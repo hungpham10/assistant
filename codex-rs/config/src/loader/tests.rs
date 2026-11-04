@@ -7,7 +7,7 @@ use codex_file_system::FileSystemReadStream;
 use codex_file_system::FileSystemSandboxContext;
 use codex_file_system::ReadDirectoryEntry;
 use codex_file_system::RemoveOptions;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use pretty_assertions::assert_eq;
 use tempfile::tempdir;
 

@@ -1,4 +1,4 @@
-use codex_utils_absolute_path::AbsolutePathBuf;
+use crate::absolute_path::AbsolutePathBuf;
 use dirs::home_dir;
 use std::path::PathBuf;
 
@@ -105,7 +105,7 @@ fn is_open_interpreter() -> bool {
 #[cfg(test)]
 mod tests {
     use super::find_codex_home_from_env;
-    use codex_utils_absolute_path::AbsolutePathBuf;
+    use crate::absolute_path::AbsolutePathBuf;
     use dirs::home_dir;
     use pretty_assertions::assert_eq;
     use std::fs;

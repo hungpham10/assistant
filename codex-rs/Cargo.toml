@@ -83,14 +83,12 @@ members = [
     "observability/otel",
     "tools/spec",
     "servers/websocket-client",
-    "utils/absolute-path",
-    "utils/path-uri",
+    "utils/path",
     "utils/cargo-bin",
     "fs/git-utils",
     "utils/cache",
     "utils/image",
     "utils/json-to-toml",
-    "utils/home-dir",
     "utils/pty",
     "utils/rustls-provider",
     "utils/string",
@@ -98,7 +96,6 @@ members = [
     "utils/sandbox-summary",
     "utils/approval-presets",
     "utils/output-truncation",
-    "utils/path-utils",
     "utils/plugins",
     "utils/stream-parser",
     "utils/template",
@@ -228,17 +225,14 @@ codex-thread-store = { path = "state/thread-store" }
 codex-tools = { path = "tools/spec" }
 codex-tui = { path = "tui" }
 codex-uds = { path = "platform/uds" }
-codex-utils-absolute-path = { path = "utils/absolute-path" }
+codex-path = { path = "utils/path" }
 codex-utils-approval-presets = { path = "utils/approval-presets" }
 codex-utils-cache = { path = "utils/cache" }
 codex-utils-cargo-bin = { path = "utils/cargo-bin" }
 codex-utils-cli = { path = "utils/cli" }
-codex-utils-home-dir = { path = "utils/home-dir" }
 codex-utils-image = { path = "utils/image" }
 codex-utils-json-to-toml = { path = "utils/json-to-toml" }
 codex-utils-output-truncation = { path = "utils/output-truncation" }
-codex-utils-path = { path = "utils/path-utils" }
-codex-utils-path-uri = { path = "utils/path-uri" }
 codex-utils-plugins = { path = "utils/plugins" }
 codex-utils-pty = { path = "utils/pty" }
 codex-utils-rustls-provider = { path = "utils/rustls-provider" }

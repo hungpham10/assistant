@@ -45,7 +45,7 @@ fn sanitized_websocket_display_address(raw: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_utils_absolute_path::AbsolutePathBuf;
+    use codex_path::absolute_path::AbsolutePathBuf;
 
     #[test]
     fn remote_connection_status_value_formats_display_value() -> color_eyre::Result<()> {

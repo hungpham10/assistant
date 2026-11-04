@@ -98,8 +98,7 @@ codex-state = { workspace = true }
 codex-terminal-detection = { workspace = true }
 codex-tui = { workspace = true }
 codex-uds = { workspace = true, optional = true }
-codex-utils-absolute-path = { workspace = true }
-codex-utils-path = { workspace = true }
+codex-path = { workspace = true }
 crossterm = { workspace = true }
 http = { workspace = true }
 libc = { workspace = true }

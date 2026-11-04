@@ -3,12 +3,6 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use crate::client::HttpTransport;
-use crate::client::Request;
-use crate::client::RequestBody;
-use crate::client::Response;
-use crate::client::StreamResponse;
-use crate::client::TransportError;
 use anyhow::Result;
 use bytes::Bytes;
 use codex_api::ApiError;
@@ -19,6 +13,12 @@ use codex_api::Provider;
 use codex_api::ResponsesApiRequest;
 use codex_api::ResponsesClient;
 use codex_api::ResponsesOptions;
+use codex_api::client::HttpTransport;
+use codex_api::client::Request;
+use codex_api::client::RequestBody;
+use codex_api::client::Response;
+use codex_api::client::StreamResponse;
+use codex_api::client::TransportError;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::SessionSource;
@@ -149,7 +149,11 @@ fn provider(name: &str) -> Provider {
 #[derive(Debug, Default)]
 struct FlakyTransportState {
     attempts: i64,
-    requests: Vec<(RequestBody, HeaderMap, crate::client::RequestCompression)>,
+    requests: Vec<(
+        RequestBody,
+        HeaderMap,
+        codex_api::client::RequestCompression,
+    )>,
 }
 
 #[derive(Clone)]
@@ -177,7 +181,13 @@ impl FlakyTransport {
             .attempts
     }
 
-    fn requests(&self) -> Vec<(RequestBody, HeaderMap, crate::client::RequestCompression)> {
+    fn requests(
+        &self,
+    ) -> Vec<(
+        RequestBody,
+        HeaderMap,
+        codex_api::client::RequestCompression,
+    )> {
         self.state
             .lock()
             .expect("flaky transport state mutex should not be poisoned")
@@ -444,7 +454,7 @@ async fn streaming_client_retries_on_transport_error() -> Result<()> {
         requests[0].1.get(http::header::CONTENT_ENCODING),
         Some(&HeaderValue::from_static("zstd"))
     );
-    assert_eq!(requests[0].2, crate::client::RequestCompression::None);
+    assert_eq!(requests[0].2, codex_api::client::RequestCompression::None);
     Ok(())
 }
 

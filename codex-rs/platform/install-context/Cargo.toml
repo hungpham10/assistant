@@ -14,8 +14,7 @@ workspace = true
 
 [dependencies]
 codex-product-info = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
-codex-utils-home-dir = { workspace = true }
+codex-path = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

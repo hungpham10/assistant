@@ -253,7 +253,7 @@ fn set_features(turn: &mut TurnContext, features: &[Feature]) {
 }
 
 fn zsh_fork_config_for_spec_plan_tests() -> codex_tools::ZshForkConfig {
-    let placeholder_exe = codex_utils_absolute_path::AbsolutePathBuf::try_from(
+    let placeholder_exe = codex_path::absolute_path::AbsolutePathBuf::try_from(
         std::env::current_exe().expect("current exe path"),
     )
     .expect("current exe should be absolute");

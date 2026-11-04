@@ -47,11 +47,11 @@ mod view_image;
 pub(crate) mod view_image_spec;
 mod wait_for_environment;
 
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBufGuard;
 use codex_sandboxing::policy_transforms::intersect_permission_profiles;
 use codex_sandboxing::policy_transforms::merge_permission_profiles;
 use codex_sandboxing::policy_transforms::normalize_additional_permissions;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_absolute_path::AbsolutePathBufGuard;
 use serde::Deserialize;
 use serde_json::Map;
 use serde_json::Value;
@@ -341,6 +341,7 @@ mod tests {
     use super::normalize_and_validate_additional_permissions;
     use super::permissions_are_preapproved;
     use crate::sandboxing::SandboxPermissions;
+    use codex_path::absolute_path::AbsolutePathBuf;
     use codex_protocol::models::AdditionalPermissionProfile;
     use codex_protocol::models::FileSystemPermissions;
     use codex_protocol::models::NetworkPermissions;
@@ -352,7 +353,6 @@ mod tests {
     use codex_protocol::protocol::GranularApprovalConfig;
     use codex_sandboxing::policy_transforms::intersect_permission_profiles;
     use codex_sandboxing::policy_transforms::merge_permission_profiles;
-    use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
     use tempfile::tempdir;
 

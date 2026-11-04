@@ -56,12 +56,9 @@ codex-shell-command = { workspace = true }
 codex-state = { workspace = true }
 codex-terminal-detection = { workspace = true }
 codex-utils-approval-presets = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-cli = { workspace = true }
-codex-utils-home-dir = { workspace = true }
 codex-local-providers = { workspace = true }
-codex-utils-path = { workspace = true }
-codex-utils-path-uri = { workspace = true }
 codex-utils-plugins = { workspace = true }
 codex-utils-sandbox-summary = { workspace = true }
 codex-utils-string = { workspace = true }

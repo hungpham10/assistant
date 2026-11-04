@@ -12,7 +12,7 @@ use codex_exec_server::WriteResponse;
 use codex_exec_server::WriteStatus;
 use codex_exec_server_protocol::JSONRPCMessage;
 use codex_exec_server_protocol::JSONRPCResponse;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use common::exec_server::exec_server;
 use pretty_assertions::assert_eq;
 

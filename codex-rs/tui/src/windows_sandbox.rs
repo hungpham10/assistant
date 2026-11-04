@@ -9,11 +9,11 @@
 use crate::legacy_core::config::Config;
 use codex_config::types::WindowsSandboxModeToml;
 use codex_features::Feature;
+#[cfg(target_os = "windows")]
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::config_types::WindowsSandboxLevel;
 #[cfg(target_os = "windows")]
 use codex_protocol::models::PermissionProfile;
-#[cfg(target_os = "windows")]
-use codex_utils_absolute_path::AbsolutePathBuf;
 #[cfg(target_os = "windows")]
 use std::collections::HashMap;
 use std::path::Path;

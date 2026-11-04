@@ -22,7 +22,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 [dev-dependencies]
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 maplit = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile = { workspace = true }

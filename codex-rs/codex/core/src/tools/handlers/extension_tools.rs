@@ -169,6 +169,8 @@ mod tests {
     use codex_extension_items::ExtensionItem;
     use codex_extension_items::image_generation::ImageGenerationItem;
     use codex_extension_items::web_search::WebSearchItem;
+    use codex_path::absolute_path::test_support::PathExt;
+    use codex_path::absolute_path::test_support::test_path_buf;
     use codex_protocol::items::TurnItem;
     use codex_protocol::models::ContentItem;
     use codex_protocol::models::ResponseItem;
@@ -176,8 +178,6 @@ mod tests {
     use codex_protocol::protocol::ImageGenerationBeginEvent;
     use codex_protocol::protocol::ImageGenerationEndEvent;
     use codex_tools::ExtensionTurnItem;
-    use codex_utils_absolute_path::test_support::PathExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
     use serde_json::json;
     use tokio::sync::Mutex;

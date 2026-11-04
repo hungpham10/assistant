@@ -13,8 +13,8 @@ use codex_exec_server::Environment;
 use codex_exec_server::EnvironmentManager;
 use codex_exec_server::HttpClient;
 use codex_exec_server::ReqwestHttpClient;
+use codex_path::path_uri::PathUri;
 use codex_protocol::models::PermissionProfile;
-use codex_utils_path_uri::PathUri;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -113,7 +113,7 @@ mod tests {
     use codex_config::McpServerConfig;
     use codex_config::McpServerTransportConfig;
     use codex_exec_server::EnvironmentManager;
-    use codex_utils_path_uri::LegacyAppPathString;
+    use codex_path::path_uri::LegacyAppPathString;
     use pretty_assertions::assert_eq;
 
     use super::*;

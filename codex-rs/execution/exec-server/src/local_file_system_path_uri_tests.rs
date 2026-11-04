@@ -1,4 +1,4 @@
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use pretty_assertions::assert_eq;
 use tokio::io;
 

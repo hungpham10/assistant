@@ -1,5 +1,5 @@
 use codex_core_skills::model::SkillDependencies;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 
 /// Source authority that owns a skill package and must be used to read it.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

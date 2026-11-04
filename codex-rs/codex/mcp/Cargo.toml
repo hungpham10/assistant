@@ -28,7 +28,7 @@ codex-plugin = { workspace = true }
 codex-product-info = { workspace = true }
 codex-protocol = { workspace = true }
 codex-rmcp-client = { workspace = true }
-codex-utils-path-uri = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-plugins = { workspace = true }
 futures = { workspace = true }
 regex-lite = { workspace = true }

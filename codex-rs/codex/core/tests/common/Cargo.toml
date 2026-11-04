@@ -27,9 +27,8 @@ codex-login = { workspace = true }
 codex-model-provider-info = { workspace = true }
 codex-models-manager = { workspace = true }
 codex-protocol = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-cargo-bin = { workspace = true }
-codex-utils-path-uri = { workspace = true }
 ctor = { workspace = true }
 futures = { workspace = true }
 notify = { workspace = true }

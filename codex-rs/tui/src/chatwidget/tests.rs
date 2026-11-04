@@ -129,6 +129,8 @@ pub(super) use codex_models_manager::test_support::construct_model_info_offline_
 pub(super) use codex_models_manager::test_support::get_model_offline_for_tests;
 pub(super) use codex_otel::RuntimeMetricsSummary;
 pub(super) use codex_otel::SessionTelemetry;
+pub(super) use codex_path::absolute_path::AbsolutePathBuf;
+pub(super) use codex_path::path_uri::LegacyAppPathString;
 pub(super) use codex_protocol::ThreadId;
 pub(super) use codex_protocol::account::PlanType;
 pub(super) use codex_protocol::approvals::GuardianAssessmentAction;
@@ -163,9 +165,7 @@ pub(super) use codex_protocol::user_input::TextElement;
 pub(super) use codex_terminal_detection::Multiplexer;
 pub(super) use codex_terminal_detection::TerminalInfo;
 pub(super) use codex_terminal_detection::TerminalName;
-pub(super) use codex_utils_absolute_path::AbsolutePathBuf;
 pub(super) use codex_utils_approval_presets::builtin_approval_presets;
-pub(super) use codex_utils_path_uri::LegacyAppPathString;
 pub(super) use crossterm::event::KeyCode;
 pub(super) use crossterm::event::KeyEvent;
 pub(super) use crossterm::event::KeyModifiers;

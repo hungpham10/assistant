@@ -73,7 +73,7 @@ pub(super) async fn run_remote_compact_attempt(
             .environments
             .primary()
             .and_then(|turn_environment| turn_environment.cwd().to_abs_path().ok())
-            .map(codex_utils_absolute_path::AbsolutePathBuf::into_path_buf),
+            .map(codex_path::absolute_path::AbsolutePathBuf::into_path_buf),
         base_instructions,
         output_schema: None,
         output_schema_strict: true,

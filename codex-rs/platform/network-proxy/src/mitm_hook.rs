@@ -5,7 +5,7 @@ use crate::policy::normalize_host;
 use anyhow::Context as _;
 use anyhow::Result;
 use anyhow::anyhow;
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 use globset::GlobBuilder;
 use globset::GlobMatcher;
 use rama_http::HeaderValue;

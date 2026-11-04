@@ -22,7 +22,7 @@ use core_test_support::responses::start_mock_server;
 use core_test_support::test_codex::test_codex;
 use core_test_support::test_codex::turn_permission_fields;
 use core_test_support::wait_for_event;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use wine_exec_server_test_support::WineExecServer;

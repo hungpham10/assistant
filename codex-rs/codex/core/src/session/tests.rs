@@ -42,6 +42,7 @@ use codex_models_manager::bundled_models_response;
 use codex_models_manager::model_info;
 use codex_models_manager::test_support::construct_model_info_offline_for_tests;
 use codex_models_manager::test_support::get_model_offline_for_tests;
+use codex_path::path_uri::PathUri;
 use codex_protocol::AgentPath;
 use codex_protocol::SessionId;
 use codex_protocol::ThreadId;
@@ -71,7 +72,6 @@ use codex_protocol::protocol::ThreadHistoryMode;
 use codex_protocol::protocol::TurnEnvironmentSelections;
 use codex_protocol::request_permissions::PermissionGrantScope;
 use codex_protocol::request_permissions::RequestPermissionProfile;
-use codex_utils_path_uri::PathUri;
 use tracing::Span;
 
 use crate::connectors::AppInfo;
@@ -1386,7 +1386,7 @@ async fn reload_user_config_layer_updates_base_and_selected_profile_layers() {
         config
             .config_layer_stack
             .get_user_config_file()
-            .map(codex_utils_absolute_path::AbsolutePathBuf::as_path),
+            .map(codex_path::absolute_path::AbsolutePathBuf::as_path),
         Some(profile_config_path.as_path())
     );
     let effective_user_config = config
@@ -4648,7 +4648,7 @@ async fn session_configuration_apply_permission_profile_accepts_direct_write_roo
         TurnEnvironmentSelections::new(cwd.path().abs(), Vec::new());
     let external_write_dir = tempfile::tempdir().expect("create external write root");
     let external_write_path = AbsolutePathBuf::from_absolute_path(
-        codex_utils_absolute_path::canonicalize_preserving_symlinks(external_write_dir.path())
+        codex_path::absolute_path::canonicalize_preserving_symlinks(external_write_dir.path())
             .expect("canonical temp dir"),
     )
     .expect("canonical temp dir should be absolute");
@@ -6865,7 +6865,7 @@ async fn primary_environment_uses_first_turn_environment() {
     let first_environment = turn_context.environments.turn_environments[0].clone();
     #[allow(deprecated)]
     let second_cwd = turn_context.cwd.join("second");
-    let second_cwd_uri = codex_utils_path_uri::PathUri::from_abs_path(&second_cwd);
+    let second_cwd_uri = codex_path::path_uri::PathUri::from_abs_path(&second_cwd);
     turn_context
         .environments
         .turn_environments
@@ -11008,7 +11008,7 @@ async fn session_start_hooks_only_load_from_trusted_project_layers() -> std::io:
         config_layer_stack: Some(config.config_layer_stack.clone()),
         ..codex_hooks::HooksConfig::default()
     });
-    let expected_source_path = codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(
+    let expected_source_path = codex_path::absolute_path::AbsolutePathBuf::from_absolute_path(
         nested_dot_codex.join("hooks.json"),
     )?;
     assert_eq!(

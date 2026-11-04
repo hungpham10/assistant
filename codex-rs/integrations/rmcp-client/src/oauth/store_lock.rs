@@ -14,7 +14,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use anyhow::Result;
-use codex_utils_home_dir::find_codex_home;
+use codex_path::home_dir::find_codex_home;
 
 const OAUTH_LOCK_DIR: &str = "mcp-oauth-locks";
 const STORE_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(60);

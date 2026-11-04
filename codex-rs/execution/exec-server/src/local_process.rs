@@ -978,8 +978,8 @@ fn notification_sender(inner: &Inner) -> Option<RpcNotificationSender> {
 mod tests {
     use super::*;
     use codex_otel::MetricsConfig;
+    use codex_path::path_uri::PathUri;
     use codex_protocol::config_types::ShellEnvironmentPolicyInherit;
-    use codex_utils_path_uri::PathUri;
     use codex_utils_pty::ProcessDriver;
     use opentelemetry_sdk::metrics::InMemoryMetricExporter;
     use opentelemetry_sdk::metrics::data::AggregatedMetrics;

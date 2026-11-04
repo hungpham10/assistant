@@ -11,7 +11,7 @@ use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::TurnStartParams;
 use codex_app_server_protocol::UserInput;
-use codex_utils_path_uri::PathUri;
+use codex_path::path_uri::PathUri;
 use core_test_support::responses;
 use core_test_support::skip_if_remote;
 use tempfile::TempDir;

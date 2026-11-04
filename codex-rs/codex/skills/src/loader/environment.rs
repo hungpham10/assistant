@@ -4,8 +4,8 @@ use std::io;
 use codex_exec_server::ExecutorFileSystem;
 use codex_exec_server::WalkEntryKind;
 use codex_exec_server::WalkOptions;
+use codex_path::path_uri::PathUri;
 use codex_protocol::protocol::Product;
-use codex_utils_path_uri::PathUri;
 use codex_utils_plugins::DISCOVERABLE_PLUGIN_MANIFEST_PATHS;
 use futures::StreamExt;
 

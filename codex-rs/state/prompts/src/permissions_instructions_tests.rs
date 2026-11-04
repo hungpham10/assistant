@@ -1,12 +1,12 @@
 use super::*;
 use codex_execpolicy::Decision;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::test_support::test_path_buf;
 use codex_protocol::permissions::FileSystemAccessMode;
 use codex_protocol::permissions::FileSystemPath;
 use codex_protocol::permissions::FileSystemSandboxEntry;
 use codex_protocol::permissions::FileSystemSandboxPolicy;
 use codex_protocol::permissions::NetworkSandboxPolicy;
-use codex_utils_absolute_path::AbsolutePathBuf;
-use codex_utils_absolute_path::test_support::test_path_buf;
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 

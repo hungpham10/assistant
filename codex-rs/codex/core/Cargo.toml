@@ -68,13 +68,10 @@ codex-state = { workspace = true }
 codex-terminal-detection = { workspace = true }
 codex-thread-store = { workspace = true }
 codex-tools = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-cache = { workspace = true }
 codex-utils-image = { workspace = true }
-codex-utils-home-dir = { workspace = true }
 codex-utils-output-truncation = { workspace = true }
-codex-utils-path = { workspace = true }
-codex-utils-path-uri = { workspace = true }
 codex-utils-plugins = { workspace = true }
 codex-utils-pty = { workspace = true }
 codex-utils-string = { workspace = true }

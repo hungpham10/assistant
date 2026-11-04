@@ -719,7 +719,7 @@ async fn forked_thread_history_line_without_name_shows_id_once_snapshot() {
     let mut chat = chat;
     let temp = tempdir().expect("tempdir");
     chat.config.codex_home =
-        codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
+        codex_path::absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
             .expect("temp dir is absolute");
 
     let forked_from_id =
@@ -748,7 +748,7 @@ async fn app_server_forked_thread_history_line_uses_app_server_title_snapshot() 
     let mut chat = chat;
     let temp = tempdir().expect("tempdir");
     chat.config.codex_home =
-        codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
+        codex_path::absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
             .expect("temp dir is absolute");
 
     let forked_from_id =
@@ -788,7 +788,7 @@ async fn app_server_forked_thread_history_line_without_app_server_name_ignores_l
     let mut chat = chat;
     let temp = tempdir().expect("tempdir");
     chat.config.codex_home =
-        codex_utils_absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
+        codex_path::absolute_path::AbsolutePathBuf::from_absolute_path(temp.path())
             .expect("temp dir is absolute");
 
     let forked_from_id =

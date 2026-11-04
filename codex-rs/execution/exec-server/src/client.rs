@@ -1220,7 +1220,7 @@ mod tests {
     use codex_exec_server_protocol::JSONRPCMessage;
     use codex_exec_server_protocol::JSONRPCNotification;
     use codex_exec_server_protocol::JSONRPCResponse;
-    use codex_utils_path_uri::PathUri;
+    use codex_path::path_uri::PathUri;
     use futures::SinkExt;
     use futures::StreamExt;
     use opentelemetry::trace::TracerProvider as _;

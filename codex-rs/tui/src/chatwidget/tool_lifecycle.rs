@@ -4,7 +4,7 @@
 //! events as transcript cells.
 
 use super::*;
-use codex_utils_path_uri::LegacyAppPathString;
+use codex_path::path_uri::LegacyAppPathString;
 
 impl ChatWidget {
     pub(super) fn on_patch_apply_begin(&mut self, changes: HashMap<PathBuf, FileChange>) {

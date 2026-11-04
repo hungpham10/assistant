@@ -1,5 +1,5 @@
+use codex_path::path_uri::PathUri;
 use codex_protocol::exec_output::ExecToolCallOutput;
-use codex_utils_path_uri::PathUri;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

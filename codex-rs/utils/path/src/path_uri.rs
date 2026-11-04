@@ -2,8 +2,8 @@
 //!
 //! See [`PathUri`] for scheme, normalization, and serialization behavior.
 
+use crate::absolute_path::AbsolutePathBuf;
 use base64::Engine;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde::Deserializer;
@@ -755,5 +755,5 @@ impl fmt::Display for PathConvention {
 }
 
 #[cfg(test)]
-#[path = "tests.rs"]
+#[path = "path_uri/tests.rs"]
 mod tests;

@@ -12,7 +12,7 @@ use codex_extension_api::ThreadStartInput;
 use codex_extension_api::ToolContributor;
 use codex_features::Feature;
 use codex_otel::MetricsClient;
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 
 use crate::local::LocalMemoriesBackend;
 use crate::prompts::build_memory_tool_developer_instructions;

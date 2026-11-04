@@ -4,6 +4,7 @@
 use anyhow::Result;
 use codex_core::config::Constrained;
 use codex_features::Feature;
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::config_types::ApprovalsReviewer;
 use codex_protocol::models::FileSystemPermissions;
 use codex_protocol::models::PermissionProfile;
@@ -16,7 +17,6 @@ use codex_protocol::request_permissions::PermissionGrantScope;
 use codex_protocol::request_permissions::RequestPermissionProfile;
 use codex_protocol::request_permissions::RequestPermissionsResponse;
 use codex_protocol::user_input::UserInput;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use core_test_support::responses::ev_apply_patch_custom_tool_call;
 use core_test_support::responses::ev_assistant_message;
 use core_test_support::responses::ev_completed;

@@ -73,8 +73,8 @@ pub fn hook_states_from_stack(
 mod tests {
     use codex_config::ConfigLayerEntry;
     use codex_config::TomlValue;
-    use codex_utils_absolute_path::test_support::PathBufExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
+    use codex_path::absolute_path::test_support::PathBufExt;
+    use codex_path::absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
 
     use super::*;
