@@ -67,6 +67,7 @@ use crate::tools::registry::ToolExposure;
 use crate::tools::registry::ToolRegistry;
 use crate::tools::registry::override_tool_exposure;
 use crate::tools::router::ToolRouter;
+use crate::tools::families::build_family_registry;
 use crate::tools::router::ToolRouterParams;
 use codex_features::Feature;
 use codex_login::AuthManager;
@@ -633,6 +634,10 @@ fn code_mode_namespace_descriptions(
 
 #[instrument(level = "trace", skip_all)]
 fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
+    let _registry = build_family_registry();
+    for _family in _registry.families() {
+        // families will be registered here
+    }
     add_shell_tools(context, planned_tools);
     add_harness_alias_tools(context, planned_tools);
     add_mcp_resource_tools(context, planned_tools);
