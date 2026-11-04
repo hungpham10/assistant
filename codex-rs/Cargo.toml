@@ -61,6 +61,7 @@ members = [
     "fs/file-search",
     "fs/file-watcher",
     "execution/linux-sandbox",
+    "execution/windows-sandbox",
     "providers/login",
     "codex/mcp",
     "servers/mcp-server",
@@ -240,7 +241,7 @@ codex-utils-sandbox-summary = { path = "utils/sandbox-summary" }
 codex-utils-stream-parser = { path = "utils/stream-parser" }
 codex-utils-string = { path = "utils/string" }
 codex-utils-template = { path = "utils/template" }
-codex-windows-sandbox = { path = "windows-sandbox-rs" }
+codex-windows-sandbox = { path = "execution/windows-sandbox" }
 core_test_support = { path = "codex/core/tests/common" }
 mcp_test_support = { path = "servers/mcp-server/tests/common" }
 

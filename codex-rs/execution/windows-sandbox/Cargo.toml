@@ -48,7 +48,7 @@ windows = { version = "0.58", features = [
 
 [dependencies.codex-protocol]
 package = "codex-protocol"
-path = "../protocol"
+path = "../../protocol"
 
 [dependencies.rand]
 default-features = false

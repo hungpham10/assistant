@@ -128,7 +128,7 @@ url = { workspace = true }
 which = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-codex_windows_sandbox = { package = "codex-windows-sandbox", path = "../windows-sandbox-rs" }
+codex_windows_sandbox = { package = "codex-windows-sandbox", path = "../execution/windows-sandbox" }
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_System_Console",
