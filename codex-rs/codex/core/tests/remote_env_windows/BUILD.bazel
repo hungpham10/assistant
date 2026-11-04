@@ -10,7 +10,7 @@ wine_rust_test(
         "wine-windows-exec-server": "//codex-rs/exec-server/testing:exec-server",
     },
     deps = [
-        "//codex-rs/core/tests/common",
+        "//codex-rs/codex/core/tests/common",
         "//codex-rs/exec-server",
         "//codex-rs/exec-server/testing:wine-exec-server-test-support",
         "//codex-rs/features",

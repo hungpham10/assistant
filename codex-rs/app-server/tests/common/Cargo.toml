@@ -42,7 +42,7 @@ tokio-util = { workspace = true }
 url = { workspace = true }
 uuid = { workspace = true }
 wiremock = { workspace = true }
-core_test_support = { path = "../../../core/tests/common" }
+core_test_support = { path = "../../../codex/core/tests/common" }
 shlex = { workspace = true }
 
 [dev-dependencies]

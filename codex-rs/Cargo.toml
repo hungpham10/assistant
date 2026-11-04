@@ -38,10 +38,10 @@ members = [
     "shell-command",
     "shell-escalation",
     "skills",
-    "core",
-    "core-api",
-    "core-plugins",
-    "core-skills",
+    "codex/core",
+    "codex/api",
+    "codex/plugins",
+    "codex/skills",
     "hooks",
     "http-client",
     "secrets",
@@ -179,10 +179,10 @@ codex-config = { path = "config" }
 codex-connectors = { path = "connectors" }
 codex-connectors-extension = { path = "ext/connectors" }
 codex-context-fragments = { path = "context-fragments" }
-codex-core = { path = "core" }
-codex-core-api = { path = "core-api" }
-codex-core-plugins = { path = "core-plugins" }
-codex-core-skills = { path = "core-skills" }
+codex-core = { path = "codex/core" }
+codex-core-api = { path = "codex/api" }
+codex-core-plugins = { path = "codex/plugins" }
+codex-core-skills = { path = "codex/skills" }
 codex-exec = { path = "exec" }
 codex-file-system = { path = "file-system" }
 codex-exec-server-protocol = { path = "exec-server-protocol" }
@@ -268,7 +268,7 @@ codex-utils-stream-parser = { path = "utils/stream-parser" }
 codex-utils-string = { path = "utils/string" }
 codex-utils-template = { path = "utils/template" }
 codex-windows-sandbox = { path = "windows-sandbox-rs" }
-core_test_support = { path = "core/tests/common" }
+core_test_support = { path = "codex/core/tests/common" }
 mcp_test_support = { path = "mcp-server/tests/common" }
 
 # External
