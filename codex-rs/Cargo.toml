@@ -18,6 +18,7 @@ members = [
     "execution/apply-patch",
     "support/arg0",
     "observability/feedback",
+    "views",
     "features",
     "platform/install-context",
     "cloud/openapi-models",
@@ -30,7 +31,6 @@ members = [
     "cloud/cloud-tasks",
     "cloud/cloud-tasks-client",
     "cloud/cloud-tasks-mock-client",
-    "cli",
     "codex/collaboration-mode-templates",
     "integrations/connectors",
     "config",
@@ -89,7 +89,6 @@ members = [
     "execution/sandboxing",
     "servers/stdio-to-uds",
     "observability/otel",
-    "tui",
     "tools/spec",
     "tools/families",
     "tools/codegraph",
@@ -164,7 +163,7 @@ codex-async-utils = { path = "support/async-utils" }
 codex-backend-client = { path = "cloud/backend-client" }
 codex-chatgpt = { path = "integrations/chatgpt" }
 codex-chat-wire-compat = { path = "servers/chat-wire-compat" }
-codex-cli = { path = "cli" }
+codex-cli = { path = "views/cli" }
 codex-client = { path = "integrations/codex-client" }
 codex-collaboration-mode-templates = { path = "codex/collaboration-mode-templates" }
 codex-cloud-config = { path = "cloud/cloud-config" }
@@ -248,7 +247,7 @@ codex-test-binary-support = { path = "build/test-binary-support" }
 codex-thread-store = { path = "state/thread-store" }
 codex-tools = { path = "tools/spec" }
 codex-tools-families = { path = "tools/families" }
-codex-tui = { path = "tui" }
+codex-tui = { path = "views/tui" }
 codex-uds = { path = "platform/uds" }
 codex-utils-absolute-path = { path = "utils/absolute-path" }
 codex-utils-approval-presets = { path = "utils/approval-presets" }
