@@ -32,3 +32,16 @@ pub trait Component: Send + Sync {
 }
 
 pub type BoxedComponent = Arc<dyn Component>;
+
+
+#[derive(Debug, Clone, Default)]
+pub struct TapConfig {
+    pub components: Vec<String>,
+    pub token_budget: usize,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PipelineProfile {
+    pub components: Vec<crate::family::ComponentSpec>,
+    pub taps: std::collections::HashMap<String, TapConfig>,
+}
