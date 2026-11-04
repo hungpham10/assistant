@@ -3,7 +3,7 @@ use crate::session::turn_context::TurnContext;
 use crate::tools::families::build_family_registry;
 use codex_pipeline::command::{AtCommandParser, CommandParser};
 use codex_pipeline::executor::run_chain;
-use codex_protocol::models::ResponseItem;
+use codex_protocol::models::{ContentItem, ResponseItem};
 use codex_protocol::user_input::UserInput;
 use std::sync::Arc;
 
@@ -27,25 +27,29 @@ pub(crate) async fn run_command_plane(
                         continue;
                     }
                     let outcome = run_chain(&registry, &plan).await;
+                    let mut items_for_budget: Vec<ResponseItem> = Vec::new();
                     for result in outcome.results {
                         let json = serde_json::to_string_pretty(&result.output)
                             .unwrap_or_else(|_| result.output.to_string());
-                        items.push(ResponseItem::Message {
+                        items_for_budget.push(ResponseItem::Message {
                             id: None,
                             role: "user".to_string(),
-                            content: vec![codex_protocol::models::ContentItem::InputText { text: json }],
+                            content: vec![ContentItem::InputText { text: json }],
                             phase: None,
                             internal_chat_message_metadata_passthrough: None,
                         });
                     }
+                    codex_tools::truncate_assistant_output_text_to_token_budget(
+                        &mut items_for_budget,
+                        2000,
+                    );
+                    items.extend(items_for_budget);
                     if !outcome.hints.is_empty() {
                         let hints = outcome.hints.join("\n");
                         items.push(ResponseItem::Message {
                             id: None,
                             role: "user".to_string(),
-                            content: vec![codex_protocol::models::ContentItem::InputText {
-                                text: hints,
-                            }],
+                            content: vec![ContentItem::InputText { text: hints }],
                             phase: None,
                             internal_chat_message_metadata_passthrough: None,
                         });
