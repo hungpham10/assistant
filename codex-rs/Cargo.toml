@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "acp-server",
-    "aws-auth",
+    "providers/aws-auth",
     "analytics",
     "agent-graph-store",
     "agent-identity",
@@ -67,16 +67,16 @@ members = [
     "file-search",
     "file-watcher",
     "linux-sandbox",
-    "lmstudio",
-    "login",
+    "providers/lmstudio",
+    "providers/login",
     "codex-mcp",
     "mcp-server",
     "memories/read",
     "memories/write",
-    "model-provider-info",
-    "models-manager",
+    "providers/model-provider-info",
+    "providers/models-manager",
     "network-proxy",
-    "ollama",
+    "providers/ollama",
     "process-hardening",
     "product-info",
     "protocol",
@@ -148,7 +148,7 @@ codex-agent-graph-store = { path = "agent-graph-store" }
 codex-agent-identity = { path = "agent-identity" }
 codex-ansi-escape = { path = "ansi-escape" }
 codex-api = { path = "codex-api" }
-codex-aws-auth = { path = "aws-auth" }
+codex-aws-auth = { path = "providers/aws-auth" }
 codex-app-server = { path = "app-server" }
 codex-app-server-transport = { path = "app-server-transport" }
 codex-app-server-daemon = { path = "app-server-daemon" }
@@ -205,8 +205,8 @@ codex-git-utils = { path = "git-utils" }
 codex-hooks = { path = "hooks" }
 codex-keyring-store = { path = "keyring-store" }
 codex-linux-sandbox = { path = "linux-sandbox" }
-codex-lmstudio = { path = "lmstudio" }
-codex-login = { path = "login" }
+codex-lmstudio = { path = "providers/lmstudio" }
+codex-login = { path = "providers/login" }
 codex-message-history = { path = "message-history" }
 codex-memories-extension = { path = "ext/memories" }
 codex-web-search-extension = { path = "ext/web-search" }
@@ -215,10 +215,10 @@ codex-memories-write = { path = "memories/write" }
 codex-mcp = { path = "codex-mcp" }
 codex-mcp-extension = { path = "ext/mcp" }
 codex-mcp-server = { path = "mcp-server" }
-codex-model-provider-info = { path = "model-provider-info" }
-codex-models-manager = { path = "models-manager" }
+codex-model-provider-info = { path = "providers/model-provider-info" }
+codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "network-proxy" }
-codex-ollama = { path = "ollama" }
+codex-ollama = { path = "providers/ollama" }
 codex-otel = { path = "otel" }
 codex-plugin = { path = "plugin" }
 codex-model-provider = { path = "model-provider" }
