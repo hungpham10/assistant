@@ -1,11 +1,7 @@
-use codex_pipeline::command::AtCommandParser;
-use codex_pipeline::command::CommandParser;
-use codex_pipeline::component::BoxedComponent;
-use codex_pipeline::component::Component;
-use codex_pipeline::component::ComponentStatus;
-use codex_pipeline::component::StreamMessage;
-use codex_pipeline::family::FamilyPolicy;
-use codex_pipeline::family::ToolFamily;
+use codex_pipeline::command::{AtCommandParser, CommandParser};
+use codex_pipeline::component::{BoxedComponent, Component, ComponentStatus, StreamMessage};
+use codex_pipeline::family::{FamilyPolicy, ToolFamily};
+use serde_json::Value as JsonValue;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -18,7 +14,7 @@ impl ToolFamily for NoopFamily {
         "noop"
     }
 
-    fn policy(&self, _cfg: &serde_json::Value) -> FamilyPolicy {
+    fn policy(&self, _cfg: &JsonValue) -> FamilyPolicy {
         FamilyPolicy {
             enabled: true,
             permit_modes: vec!["default".to_string()],
@@ -30,8 +26,25 @@ impl ToolFamily for NoopFamily {
         Some(Arc::new(AtCommandParser))
     }
 
-    fn build_components(&self, _cfg: &serde_json::Value) -> Vec<BoxedComponent> {
+    fn build_components(&self, _cfg: &JsonValue) -> Vec<BoxedComponent> {
         vec![Arc::new(NoopComponent)]
+    }
+
+    fn run_verb(
+        &self,
+        verb: &str,
+        args: &JsonValue,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<JsonValue>> + Send + '_>> {
+        let verb = verb.to_string();
+        let args = args.clone();
+        Box::pin(async move {
+            Ok(serde_json::json!({
+                "verb": verb,
+                "args": args,
+                "this": { "id": 42, "name": "noop-result" },
+                "ok": true
+            }))
+        })
     }
 }
 
@@ -70,7 +83,7 @@ impl ToolFamily for CodeModeFamily {
         "code_mode"
     }
 
-    fn policy(&self, _cfg: &serde_json::Value) -> FamilyPolicy {
+    fn policy(&self, _cfg: &JsonValue) -> FamilyPolicy {
         FamilyPolicy {
             enabled: true,
             permit_modes: Vec::new(),
@@ -82,7 +95,7 @@ impl ToolFamily for CodeModeFamily {
         Some(Arc::new(AtCommandParser))
     }
 
-    fn build_components(&self, _cfg: &serde_json::Value) -> Vec<BoxedComponent> {
+    fn build_components(&self, _cfg: &JsonValue) -> Vec<BoxedComponent> {
         Vec::new()
     }
 }
