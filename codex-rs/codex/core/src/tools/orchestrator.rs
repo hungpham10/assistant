@@ -648,3 +648,4 @@ fn build_denial_reason_from_output(_output: &ExecToolCallOutput) -> String {
     // output so we can evolve heuristics later without touching call sites.
     "command failed; retry without sandbox?".to_string()
 }
+// pipeline enrichment hook placeholder

@@ -215,6 +215,7 @@ pub(crate) mod session;
 pub(crate) mod step_context;
 pub(crate) mod time_reminder;
 mod token_budget;
+pub(crate) mod command_plane;
 pub(crate) mod turn;
 pub(crate) mod turn_context;
 mod world_state;
