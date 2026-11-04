@@ -5,7 +5,7 @@ members = [
     "observability/analytics",
     "state/agent-graph-store",
     "agents/agent-identity",
-    "cloud/backend-client",
+    "integrations/cloud/backend-client",
     "execution/bwrap",
     "platform/ansi-escape",
     "support/async-utils",
@@ -21,16 +21,16 @@ members = [
     "views",
     "features",
     "platform/install-context",
-    "cloud/openapi-models",
+    "integrations/cloud/openapi-models",
     "servers/chat-wire-compat",
     "tools/code-mode/core",
     "tools/code-mode/host",
     "tools/code-mode/protocol",
     "codex/home",
-    "cloud/cloud-config",
-    "cloud/cloud-tasks",
-    "cloud/cloud-tasks-client",
-    "cloud/cloud-tasks-mock-client",
+    "integrations/cloud/cloud-config",
+    "integrations/cloud/cloud-tasks",
+    "integrations/cloud/cloud-tasks-client",
+    "integrations/cloud/cloud-tasks-mock-client",
     "codex/collaboration-mode-templates",
     "integrations/connectors",
     "config",
@@ -160,15 +160,15 @@ codex-app-server-test-client = { path = "servers/app-server-test-client" }
 codex-apply-patch = { path = "execution/apply-patch" }
 codex-arg0 = { path = "support/arg0" }
 codex-async-utils = { path = "support/async-utils" }
-codex-backend-client = { path = "cloud/backend-client" }
+codex-backend-client = { path = "integrations/cloud/backend-client" }
 codex-chatgpt = { path = "integrations/chatgpt" }
 codex-chat-wire-compat = { path = "servers/chat-wire-compat" }
 codex-cli = { path = "views/cli" }
 codex-client = { path = "integrations/codex-client" }
 codex-collaboration-mode-templates = { path = "codex/collaboration-mode-templates" }
-codex-cloud-config = { path = "cloud/cloud-config" }
-codex-cloud-tasks-client = { path = "cloud/cloud-tasks-client" }
-codex-cloud-tasks-mock-client = { path = "cloud/cloud-tasks-mock-client" }
+codex-cloud-config = { path = "integrations/cloud/cloud-config" }
+codex-cloud-tasks-client = { path = "integrations/cloud/cloud-tasks-client" }
+codex-cloud-tasks-mock-client = { path = "integrations/cloud/cloud-tasks-mock-client" }
 # V8 runtime disabled by default (heavy C++ build); re-enable with
 # `codex-code-mode = { path = "tools/code-mode/core" }` plus the `v8-runtime` feature when
 # features.code_mode is turned on in config.toml.
