@@ -117,14 +117,14 @@ members = [
     "utils/stream-parser",
     "utils/template",
     "integrations/codex-client",
-    "codex/oapi",
+    "codex/oapi/stable",
     "state/state",
     "terminal-detection",
     "test-binary-support",
     "state/thread-manager-sample",
     "state/thread-store",
     "uds",
-    "codex-experimental-api-macros",
+    "code/macros",
     "agents/plugin",
     "integrations/model-provider",
 ]
@@ -147,7 +147,7 @@ codex-analytics = { path = "observability/analytics" }
 codex-agent-graph-store = { path = "state/agent-graph-store" }
 codex-agent-identity = { path = "agents/agent-identity" }
 codex-ansi-escape = { path = "ansi-escape" }
-codex-api = { path = "codex/oapi" }
+codex-api = { path = "codex/oapi/stable" }
 codex-aws-auth = { path = "providers/aws-auth" }
 codex-app-server = { path = "servers/app-server" }
 codex-app-server-transport = { path = "servers/app-server-transport" }
@@ -195,7 +195,7 @@ codex-guardian = { path = "ext/guardian" }
 codex-image-generation-extension = { path = "ext/image-generation" }
 codex-external-agent-migration = { path = "agents/external-agent-migration" }
 codex-external-agent-sessions = { path = "agents/external-agent-sessions" }
-codex-experimental-api-macros = { path = "codex-experimental-api-macros" }
+codex-experimental-api-macros = { path = "code/macros" }
 codex-features = { path = "features" }
 codex-feedback = { path = "feedback" }
 codex-install-context = { path = "install-context" }
