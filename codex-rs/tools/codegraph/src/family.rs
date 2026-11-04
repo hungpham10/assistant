@@ -1,6 +1,6 @@
-use codex_pipeline::command::CommandParser;
-use codex_pipeline::component::BoxedComponent;
-use codex_pipeline::family::{ComponentSpec, FamilyPolicy, ToolFamily};
+use codex_enrich::command::CommandParser;
+use codex_enrich::component::BoxedComponent;
+use codex_enrich::family::{ComponentSpec, FamilyPolicy, ToolFamily};
 use std::sync::Arc;
 
 pub struct CodegraphFamily;

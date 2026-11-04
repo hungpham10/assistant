@@ -1,8 +1,8 @@
 use crate::session::TurnInput;
 use crate::session::turn_context::TurnContext;
 use crate::tools::families::build_family_registry;
-use codex_pipeline::command::{AtCommandParser, CommandParser};
-use codex_pipeline::executor::run_chain;
+use codex_enrich::command::{AtCommandParser, CommandParser};
+use codex_enrich::executor::run_chain;
 use codex_protocol::models::{ContentItem, ResponseItem};
 use codex_protocol::user_input::UserInput;
 use std::sync::Arc;

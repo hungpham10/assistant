@@ -1,6 +1,6 @@
-use codex_pipeline::command::{AtCommandParser, CommandParser};
-use codex_pipeline::component::{BoxedComponent, Component, ComponentStatus, StreamMessage};
-use codex_pipeline::family::{FamilyPolicy, ToolFamily};
+use codex_enrich::command::{AtCommandParser, CommandParser};
+use codex_enrich::component::{BoxedComponent, Component, ComponentStatus, StreamMessage};
+use codex_enrich::family::{FamilyPolicy, ToolFamily};
 use serde_json::Value as JsonValue;
 use std::future::Future;
 use std::pin::Pin;

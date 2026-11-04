@@ -1,4 +1,4 @@
-use codex_pipeline::registry::FamilyRegistry;
+use codex_enrich::registry::FamilyRegistry;
 use codex_tools_families::CodeModeFamily;
 use codex_tools_families::NoopFamily;
 use std::sync::Arc;
