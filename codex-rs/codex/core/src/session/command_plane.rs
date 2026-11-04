@@ -8,11 +8,14 @@ use codex_protocol::user_input::UserInput;
 use std::sync::Arc;
 
 pub(crate) async fn run_command_plane(
-    _turn_context: &Arc<TurnContext>,
+    turn_context: &Arc<TurnContext>,
     input: &[TurnInput],
 ) -> Vec<ResponseItem> {
     let registry = build_family_registry();
     let mut items = Vec::new();
+    let pipeline_cfg = &turn_context.config.pipeline;
+    let token_budget = pipeline_cfg.token_budget;
+    let max_ratio = pipeline_cfg.max_total_context_ratio as u64;
 
     for turn_input in input {
         if let TurnInput::UserInput { content, .. } = turn_input {
@@ -41,8 +44,28 @@ pub(crate) async fn run_command_plane(
                     }
                     codex_tools::truncate_assistant_output_text_to_token_budget(
                         &mut items_for_budget,
-                        2000,
+                        token_budget,
                     );
+
+                    // Check total context ratio if possible
+                    if let Some(ctx_window) = turn_context.model_context_window() {
+                        let mut total_tokens: u64 = 0;
+                        for it in &items_for_budget {
+                            if let ResponseItem::Message { content, .. } = it {
+                                for c in content {
+                                    if let ContentItem::InputText { text } = c {
+                                        total_tokens += (text.len() as u64) / 4;
+                                    }
+                                }
+                            }
+                        }
+                        let limit = (ctx_window as u64) * max_ratio / 100;
+                        if total_tokens > limit && !items_for_budget.is_empty() {
+                            // Drop enrichment on exceed (fail-open, keep prompt)
+                            items_for_budget.clear();
+                        }
+                    }
+
                     items.extend(items_for_budget);
                     if !outcome.hints.is_empty() {
                         let hints = outcome.hints.join("\n");

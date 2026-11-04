@@ -1033,6 +1033,8 @@ pub struct Config {
 
     /// Configuration for the native codegraph tool surface.
     pub codegraph: CodegraphConfig,
+    /// Configuration for the pipeline/enrichment layer.
+    pub pipeline: PipelineConfig,
 
     /// If set to `true`, used only the experimental unified exec tool.
     pub use_experimental_unified_exec_tool: bool,
@@ -1103,6 +1105,21 @@ pub struct CodeModeConfig {
 pub struct CodegraphConfig {
     pub enabled: bool,
     pub permit_modes: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct PipelineConfig {
+    pub token_budget: usize,
+    pub max_total_context_ratio: u8,
+}
+
+impl Default for PipelineConfig {
+    fn default() -> Self {
+        Self {
+            token_budget: 2000,
+            max_total_context_ratio: 85,
+        }
+    }
 }
 
 pub(crate) const DEFAULT_TOKEN_BUDGET_REMINDER_MESSAGE_TEMPLATE: &str = concat!(
@@ -3436,6 +3453,7 @@ impl Config {
             resolve_experimental_request_user_input_enabled(&cfg);
         let code_mode = resolve_code_mode_config(&cfg);
         let codegraph = resolve_codegraph_config(&cfg);
+        let pipeline = PipelineConfig::default();
         let multi_agent_v2 = resolve_multi_agent_v2_config(&cfg);
         let token_budget = resolve_token_budget_config(&cfg, &features)?;
         let rollout_budget = resolve_rollout_budget_config(&cfg, &features)?;
@@ -3981,6 +3999,7 @@ impl Config {
             experimental_request_user_input_enabled,
             code_mode,
             codegraph,
+            pipeline,
             use_experimental_unified_exec_tool,
             background_terminal_max_timeout,
             ghost_snapshot,
