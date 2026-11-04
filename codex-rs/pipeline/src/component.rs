@@ -27,12 +27,14 @@ pub struct StreamMessage {
 
 pub trait Component: Send + Sync {
     fn id(&self) -> &'static str;
-    fn run<'a>(&'a self, msg: StreamMessage) -> Pin<Box<dyn Future<Output = anyhow::Result<StreamMessage>> + Send + 'a>>;
+    fn run<'a>(
+        &'a self,
+        msg: StreamMessage,
+    ) -> Pin<Box<dyn Future<Output = anyhow::Result<StreamMessage>> + Send + 'a>>;
     fn status(&self) -> ComponentStatus;
 }
 
 pub type BoxedComponent = Arc<dyn Component>;
-
 
 #[derive(Debug, Clone, Default)]
 pub struct TapConfig {

@@ -66,7 +66,14 @@ fn parse_at_command(s: &str) -> Option<(VerbCall, usize)> {
                 let args: JsonValue = serde_json::from_str(&format!("{{{args_str}}}"))
                     .or_else(|_| serde_json::from_str(args_str))
                     .unwrap_or_else(|_| serde_json::json!({}));
-                return Some((VerbCall { namespace, verb, args }, paren_end + 1));
+                return Some((
+                    VerbCall {
+                        namespace,
+                        verb,
+                        args,
+                    },
+                    paren_end + 1,
+                ));
             }
         }
     }

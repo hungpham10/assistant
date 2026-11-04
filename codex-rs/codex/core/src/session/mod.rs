@@ -199,6 +199,7 @@ use codex_protocol::error::Result as CodexResult;
 use codex_protocol::exec_output::StreamOutput;
 
 mod code_mode_warning;
+pub(crate) mod command_plane;
 mod config_lock;
 pub(crate) mod context_window;
 mod handlers;
@@ -215,7 +216,6 @@ pub(crate) mod session;
 pub(crate) mod step_context;
 pub(crate) mod time_reminder;
 mod token_budget;
-pub(crate) mod command_plane;
 pub(crate) mod turn;
 pub(crate) mod turn_context;
 mod world_state;
