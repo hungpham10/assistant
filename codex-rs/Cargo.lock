@@ -4197,6 +4197,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-pipeline"
+version = "0.0.41"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "codex-plugin"
 version = "0.0.41"
 dependencies = [

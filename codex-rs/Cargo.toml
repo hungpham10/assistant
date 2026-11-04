@@ -123,6 +123,7 @@ members = [
     "build/test-binary-support",
     "state/thread-manager-sample",
     "state/thread-store",
+    "pipeline",
     "platform/uds",
     "code-mode/macros",
     "agents/plugin",
@@ -220,6 +221,7 @@ codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "platform/network-proxy" }
 codex-ollama = { path = "providers/ollama" }
 codex-otel = { path = "observability/otel" }
+codex-pipeline = { path = "pipeline" }
 codex-plugin = { path = "agents/plugin" }
 codex-model-provider = { path = "integrations/model-provider" }
 codex-process-hardening = { path = "execution/process-hardening" }
