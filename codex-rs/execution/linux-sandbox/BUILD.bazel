@@ -4,6 +4,6 @@ codex_rust_crate(
     name = "linux-sandbox",
     crate_name = "codex_linux_sandbox",
     extra_binaries = [
-        "//codex-rs/bwrap:bwrap",
+        "//codex-rs/execution/bwrap:bwrap",
     ],
 )

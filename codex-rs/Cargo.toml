@@ -2,9 +2,9 @@
 members = [
     "servers/acp-server",
     "providers/aws-auth",
-    "analytics",
-    "agent-graph-store",
-    "agent-identity",
+    "observability/analytics",
+    "state/agent-graph-store",
+    "agents/agent-identity",
     "cloud/backend-client",
     "execution/bwrap",
     "ansi-escape",
@@ -42,7 +42,7 @@ members = [
     "codex/api",
     "codex/plugins",
     "codex/skills",
-    "hooks",
+    "agents/hooks",
     "http-client",
     "secrets",
     "execution/exec",
@@ -61,8 +61,8 @@ members = [
     "ext/mcp",
     "ext/skills",
     "ext/web-search",
-    "external-agent-migration",
-    "external-agent-sessions",
+    "agents/external-agent-migration",
+    "agents/external-agent-sessions",
     "keyring-store",
     "file-search",
     "file-watcher",
@@ -78,17 +78,17 @@ members = [
     "network-proxy",
     "providers/ollama",
     "execution/process-hardening",
-    "product-info",
+    "integrations/product-info",
     "protocol",
     "prompts",
     "rollout",
-    "rollout-trace",
-    "rmcp-client",
+    "observability/rollout-trace",
+    "integrations/rmcp-client",
     "servers/responses-api-proxy",
-    "response-debug-context",
+    "observability/response-debug-context",
     "execution/sandboxing",
     "servers/stdio-to-uds",
-    "otel",
+    "observability/otel",
     "tui",
     "tools",
     "servers/websocket-client",
@@ -116,17 +116,17 @@ members = [
     "utils/fuzzy-match",
     "utils/stream-parser",
     "utils/template",
-    "codex-client",
-    "codex-api",
-    "state",
+    "integrations/codex-client",
+    "api/codex-api",
+    "state/state",
     "terminal-detection",
     "test-binary-support",
-    "thread-manager-sample",
-    "thread-store",
+    "state/thread-manager-sample",
+    "state/thread-store",
     "uds",
     "codex-experimental-api-macros",
-    "plugin",
-    "model-provider",
+    "agents/plugin",
+    "integrations/model-provider",
 ]
 resolver = "2"
 
@@ -143,11 +143,11 @@ license = "Apache-2.0"
 # Internal
 app_test_support = { path = "servers/app-server/tests/common" }
 codex-acp-server = { path = "servers/acp-server" }
-codex-analytics = { path = "analytics" }
-codex-agent-graph-store = { path = "agent-graph-store" }
-codex-agent-identity = { path = "agent-identity" }
+codex-analytics = { path = "observability/analytics" }
+codex-agent-graph-store = { path = "state/agent-graph-store" }
+codex-agent-identity = { path = "agents/agent-identity" }
 codex-ansi-escape = { path = "ansi-escape" }
-codex-api = { path = "codex-api" }
+codex-api = { path = "api/codex-api" }
 codex-aws-auth = { path = "providers/aws-auth" }
 codex-app-server = { path = "servers/app-server" }
 codex-app-server-transport = { path = "servers/app-server-transport" }
@@ -159,10 +159,10 @@ codex-apply-patch = { path = "apply-patch" }
 codex-arg0 = { path = "arg0" }
 codex-async-utils = { path = "async-utils" }
 codex-backend-client = { path = "cloud/backend-client" }
-codex-chatgpt = { path = "chatgpt" }
+codex-chatgpt = { path = "integrations/chatgpt" }
 codex-chat-wire-compat = { path = "servers/chat-wire-compat" }
 codex-cli = { path = "cli" }
-codex-client = { path = "codex-client" }
+codex-client = { path = "integrations/codex-client" }
 codex-collaboration-mode-templates = { path = "collaboration-mode-templates" }
 codex-cloud-config = { path = "cloud/cloud-config" }
 codex-cloud-tasks-client = { path = "cloud/cloud-tasks-client" }
@@ -193,8 +193,8 @@ codex-extension-items = { path = "ext/items" }
 codex-goal-extension = { path = "ext/goal" }
 codex-guardian = { path = "ext/guardian" }
 codex-image-generation-extension = { path = "ext/image-generation" }
-codex-external-agent-migration = { path = "external-agent-migration" }
-codex-external-agent-sessions = { path = "external-agent-sessions" }
+codex-external-agent-migration = { path = "agents/external-agent-migration" }
+codex-external-agent-sessions = { path = "agents/external-agent-sessions" }
 codex-experimental-api-macros = { path = "codex-experimental-api-macros" }
 codex-features = { path = "features" }
 codex-feedback = { path = "feedback" }
@@ -202,7 +202,7 @@ codex-install-context = { path = "install-context" }
 codex-file-search = { path = "file-search" }
 codex-file-watcher = { path = "file-watcher" }
 codex-git-utils = { path = "git-utils" }
-codex-hooks = { path = "hooks" }
+codex-hooks = { path = "agents/hooks" }
 codex-keyring-store = { path = "keyring-store" }
 codex-linux-sandbox = { path = "execution/linux-sandbox" }
 codex-lmstudio = { path = "providers/lmstudio" }
@@ -219,29 +219,29 @@ codex-model-provider-info = { path = "providers/model-provider-info" }
 codex-models-manager = { path = "providers/models-manager" }
 codex-network-proxy = { path = "network-proxy" }
 codex-ollama = { path = "providers/ollama" }
-codex-otel = { path = "otel" }
-codex-plugin = { path = "plugin" }
-codex-model-provider = { path = "model-provider" }
+codex-otel = { path = "observability/otel" }
+codex-plugin = { path = "agents/plugin" }
+codex-model-provider = { path = "integrations/model-provider" }
 codex-process-hardening = { path = "execution/process-hardening" }
-codex-product-info = { path = "product-info" }
+codex-product-info = { path = "integrations/product-info" }
 codex-protocol = { path = "protocol" }
 codex-prompts = { path = "prompts" }
 codex-responses-api-proxy = { path = "servers/responses-api-proxy" }
-codex-response-debug-context = { path = "response-debug-context" }
-codex-rmcp-client = { path = "rmcp-client" }
+codex-response-debug-context = { path = "observability/response-debug-context" }
+codex-rmcp-client = { path = "integrations/rmcp-client" }
 codex-rollout = { path = "rollout" }
-codex-rollout-trace = { path = "rollout-trace" }
+codex-rollout-trace = { path = "observability/rollout-trace" }
 codex-sandboxing = { path = "execution/sandboxing" }
 codex-secrets = { path = "secrets" }
 codex-shell-command = { path = "execution/shell-command" }
 codex-shell-escalation = { path = "execution/shell-escalation" }
 codex-skills-extension = { path = "ext/skills" }
 codex-skills = { path = "skills" }
-codex-state = { path = "state" }
+codex-state = { path = "state/state" }
 codex-stdio-to-uds = { path = "servers/stdio-to-uds" }
 codex-terminal-detection = { path = "terminal-detection" }
 codex-test-binary-support = { path = "test-binary-support" }
-codex-thread-store = { path = "thread-store" }
+codex-thread-store = { path = "state/thread-store" }
 codex-tools = { path = "tools" }
 codex-tui = { path = "tui" }
 codex-uds = { path = "uds" }
