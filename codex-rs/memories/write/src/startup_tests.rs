@@ -534,7 +534,9 @@ async fn build_test_codex_with_memories_config(
         .await
 }
 
-async fn init_state_db(home: &Arc<TempDir>) -> anyhow::Result<Arc<codex_state::StateRuntime>> {
+async fn init_state_db(
+    home: &Arc<TempDir>,
+) -> anyhow::Result<Arc<dyn codex_rollout::RolloutStore>> {
     let db =
         codex_state::StateRuntime::init(home.path().to_path_buf(), "test-provider".into()).await?;
     db.mark_backfill_complete(/*last_watermark*/ None).await?;
@@ -635,7 +637,7 @@ impl ModelProvider for MockMemoryModelProvider {
 }
 
 async fn seed_stage1_output(
-    db: &codex_state::StateRuntime,
+    db: &dyn codex_rollout::RolloutStore,
     codex_home: &Path,
     updated_at: chrono::DateTime<chrono::Utc>,
     raw_memory: &str,
@@ -669,7 +671,7 @@ async fn seed_stage1_output(
 }
 
 async fn seed_stage1_candidate(
-    db: &codex_state::StateRuntime,
+    db: &dyn codex_rollout::RolloutStore,
     codex_home: &Path,
     updated_at: chrono::DateTime<chrono::Utc>,
     rollout_slug: &str,
@@ -804,7 +806,7 @@ async fn wait_for_phase2_workspace_reset(memory_root: &Path) -> anyhow::Result<(
 }
 
 async fn seed_stage1_output_for_existing_thread(
-    db: &codex_state::StateRuntime,
+    db: &dyn codex_rollout::RolloutStore,
     thread_id: ThreadId,
     updated_at: i64,
     raw_memory: &str,

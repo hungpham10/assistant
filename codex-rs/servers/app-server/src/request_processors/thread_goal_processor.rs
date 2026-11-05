@@ -119,7 +119,7 @@ impl ThreadGoalRequestProcessor {
         let outcome = self
             .goal_service
             .set_thread_goal(
-                &state_db,
+                state_db.as_ref(),
                 GoalSetRequest {
                     thread_id,
                     objective: objective
@@ -174,7 +174,7 @@ impl ThreadGoalRequestProcessor {
         let state_db = self.state_db_for_materialized_thread(thread_id).await?;
         let goal = self
             .goal_service
-            .get_thread_goal(&state_db, thread_id)
+            .get_thread_goal(state_db.as_ref(), thread_id)
             .await
             .map_err(goal_service_error)?
             .map(ThreadGoal::from);
@@ -202,7 +202,7 @@ impl ThreadGoalRequestProcessor {
         };
         let cleared = self
             .goal_service
-            .clear_thread_goal(&state_db, thread_id)
+            .clear_thread_goal(state_db.as_ref(), thread_id)
             .await
             .map_err(goal_service_error)?;
 
@@ -271,7 +271,7 @@ impl ThreadGoalRequestProcessor {
             .ok_or_else(|| invalid_request(format!("thread not found: {thread_id}")))?,
         };
         reconcile_rollout(
-            Some(state_db),
+            Some(state_db.as_ref()),
             rollout_path.as_path(),
             self.config.model_provider_id.as_str(),
             /*builder*/ None,

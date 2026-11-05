@@ -9,6 +9,8 @@ use chrono::SecondsFormat;
 use chrono::TimeZone;
 use chrono::Timelike;
 use chrono::Utc;
+use codex_file_system::StdSystemFs;
+use codex_file_system::SystemFs;
 use codex_protocol::ThreadId;
 use serde::Deserialize;
 use serde::Serialize;
@@ -46,6 +48,7 @@ pub(crate) struct KimiCronService {
 struct KimiCronInner {
     state: Mutex<KimiCronState>,
     storage_dir: PathBuf,
+    file_system: Arc<dyn SystemFs>,
     wake_scheduler: Notify,
     cancellation_token: CancellationToken,
     scheduler_task: Mutex<Option<JoinHandle<()>>>,
@@ -88,6 +91,7 @@ impl KimiCronService {
             inner: Arc::new(KimiCronInner {
                 state: Mutex::new(KimiCronState::default()),
                 storage_dir,
+                file_system: Arc::new(StdSystemFs),
                 wake_scheduler: Notify::new(),
                 cancellation_token: CancellationToken::new(),
                 scheduler_task: Mutex::new(None),
@@ -317,8 +321,8 @@ impl KimiCronService {
     }
 
     async fn load_from_disk(&self) {
-        let mut entries = match tokio::fs::read_dir(&self.inner.storage_dir).await {
-            Ok(entries) => entries,
+        let paths = match self.inner.file_system.list_dir(&self.inner.storage_dir) {
+            Ok(paths) => paths,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return,
             Err(error) => {
                 warn!("failed to read Kimi cron storage: {error}");
@@ -326,12 +330,11 @@ impl KimiCronService {
             }
         };
         let mut tasks = Vec::new();
-        while let Ok(Some(entry)) = entries.next_entry().await {
-            let path = entry.path();
+        for path in paths {
             if path.extension().and_then(|value| value.to_str()) != Some("json") {
                 continue;
             }
-            match tokio::fs::read(&path).await {
+            match self.inner.file_system.read_bytes(&path) {
                 Ok(bytes) => match serde_json::from_slice::<CronTask>(&bytes) {
                     Ok(task) if is_valid_id(&task.id) => tasks.push(task),
                     Ok(_) => warn!("ignored malformed Kimi cron task at {}", path.display()),
@@ -352,7 +355,7 @@ impl KimiCronService {
 
     async fn remove_persisted_task(&self, id: &str) {
         let path = self.inner.storage_dir.join(format!("{id}.json"));
-        if let Err(error) = tokio::fs::remove_file(&path).await
+        if let Err(error) = self.inner.file_system.remove_file(&path)
             && error.kind() != std::io::ErrorKind::NotFound
         {
             warn!(

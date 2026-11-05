@@ -37,7 +37,6 @@ use codex_login::token_data::TokenData;
 use codex_login::token_data::parse_chatgpt_jwt_claims;
 use codex_protocol::auth::AuthMode;
 use codex_state::RemoteControlEnrollmentRecord;
-use codex_state::StateRuntime;
 use futures::SinkExt;
 use futures::StreamExt;
 use gethostname::gethostname;
@@ -124,8 +123,10 @@ fn remote_control_auth_dot_json(account_id: Option<&str>) -> AuthDotJson {
     }
 }
 
-async fn remote_control_state_runtime(codex_home: &TempDir) -> Arc<StateRuntime> {
-    StateRuntime::init(codex_home.path().to_path_buf(), "test-provider".to_string())
+async fn remote_control_state_runtime(
+    codex_home: &TempDir,
+) -> Arc<dyn codex_rollout::RolloutStore> {
+    codex_state::StateRuntime::init(codex_home.path().to_path_buf(), "test-provider".to_string())
         .await
         .expect("state runtime should initialize")
 }

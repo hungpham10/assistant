@@ -41,7 +41,7 @@ impl CommandParser for AtCommandParser {
                 let part = part.trim();
                 if let Some(cmd) = parse_single(part) {
                     commands.push(cmd);
-                    if let Some(paren_start) = part.find('(') {
+                    if let Some(_paren_start) = part.find('(') {
                         if let Some(paren_end) = part.find(')') {
                             if let Some(start) = part.find('@') {
                                 let to_remove = &part[start..=paren_end];
@@ -53,7 +53,7 @@ impl CommandParser for AtCommandParser {
             }
         } else if let Some(cmd) = parse_single(input) {
             commands.push(cmd);
-            if let Some(paren_start) = input.find('(') {
+            if let Some(_paren_start) = input.find('(') {
                 if let Some(paren_end) = input.find(')') {
                     if let Some(start) = input.find('@') {
                         let to_remove = &input[start..=paren_end];
@@ -122,8 +122,7 @@ pub fn resolve_refs(args: JsonValue, results: &[JsonValue]) -> Result<JsonValue,
 fn resolve_refs_recursive(value: JsonValue, results: &[JsonValue]) -> Result<JsonValue, RefError> {
     match value {
         JsonValue::String(s) => {
-            if s.starts_with('$') {
-                let path = &s[1..];
+            if let Some(path) = s.strip_prefix('$') {
                 if path.is_empty() {
                     if results.is_empty() {
                         return Err(RefError::Unresolved(s));
@@ -136,8 +135,8 @@ fn resolve_refs_recursive(value: JsonValue, results: &[JsonValue]) -> Result<Jso
                     }
                     return Ok(results[idx].clone());
                 }
-                let path_to_use = if path.starts_with('.') {
-                    &path[1..]
+                let path_to_use = if let Some(stripped) = path.strip_prefix('.') {
+                    stripped
                 } else {
                     path
                 };

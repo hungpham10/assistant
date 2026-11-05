@@ -312,7 +312,7 @@ async fn thread_metadata_update_repairs_loaded_thread_without_resetting_summary(
     let thread_uuid = ThreadId::from_string(&thread_id)?;
     let rollout_path = rollout_path(codex_home.path(), "2025-01-06T08-30-00", &thread_id);
     reconcile_rollout(
-        Some(&state_db),
+        Some(state_db.as_ref()),
         rollout_path.as_path(),
         "mock_provider",
         /*builder*/ None,

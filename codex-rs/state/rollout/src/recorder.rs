@@ -64,7 +64,6 @@ use codex_protocol::protocol::SessionMetaLine;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::ThreadHistoryMode;
 use codex_protocol::protocol::ThreadSource;
-use codex_state::StateRuntime;
 
 /// Writes canonical session rollout items to JSONL.
 ///
@@ -1117,7 +1116,7 @@ fn page_from_filesystem_scan(
 }
 
 async fn fill_missing_thread_item_metadata_from_state_db(
-    state_db_ctx: Option<&StateRuntime>,
+    state_db_ctx: Option<&dyn codex_state::RolloutStore>,
     mut page: ThreadsPage,
 ) -> ThreadsPage {
     let Some(state_db_ctx) = state_db_ctx else {

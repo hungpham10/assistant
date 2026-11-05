@@ -1095,7 +1095,7 @@ async fn goal_service_sets_gets_and_clears_thread_goal() -> anyhow::Result<()> {
 }
 
 async fn installed_tools(
-    runtime: Arc<codex_state::StateRuntime>,
+    runtime: Arc<dyn codex_rollout::RolloutStore>,
     thread_id: ThreadId,
 ) -> Vec<Arc<dyn ToolExecutor<ToolCall>>> {
     installed_tools_with_start(
@@ -1108,7 +1108,7 @@ async fn installed_tools(
 }
 
 async fn installed_tools_with_start(
-    runtime: Arc<codex_state::StateRuntime>,
+    runtime: Arc<dyn codex_rollout::RolloutStore>,
     thread_id: ThreadId,
     session_source: SessionSource,
     persistent_thread_state_available: bool,
@@ -1161,7 +1161,7 @@ struct GoalExtensionHarness {
 
 impl GoalExtensionHarness {
     async fn new(
-        runtime: Arc<codex_state::StateRuntime>,
+        runtime: Arc<dyn codex_rollout::RolloutStore>,
         thread_id: ThreadId,
     ) -> anyhow::Result<Self> {
         let sink = Arc::new(RecordingEventSink::default());
@@ -1353,9 +1353,11 @@ fn tool_call(tool_name: &str, call_id: &str, arguments: serde_json::Value) -> To
     }
 }
 
-async fn test_runtime() -> anyhow::Result<Arc<codex_state::StateRuntime>> {
+async fn test_runtime() -> anyhow::Result<Arc<dyn codex_rollout::RolloutStore>> {
     let tempdir = TempDir::new()?;
-    codex_state::StateRuntime::init(tempdir.keep(), "test-provider".to_string()).await
+    let runtime =
+        codex_state::StateRuntime::init(tempdir.keep(), "test-provider".to_string()).await?;
+    Ok(runtime as Arc<dyn codex_rollout::RolloutStore>)
 }
 
 fn test_thread_id() -> anyhow::Result<ThreadId> {
@@ -1363,7 +1365,7 @@ fn test_thread_id() -> anyhow::Result<ThreadId> {
 }
 
 async fn seed_thread_metadata(
-    runtime: &codex_state::StateRuntime,
+    runtime: &dyn codex_rollout::RolloutStore,
     thread_id: ThreadId,
 ) -> anyhow::Result<()> {
     let builder = codex_state::ThreadMetadataBuilder::new(

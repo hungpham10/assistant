@@ -157,7 +157,7 @@ pub async fn find_thread_names_by_ids(
 pub async fn find_thread_meta_by_name_str(
     codex_home: &Path,
     name: &str,
-    state_db_ctx: Option<&codex_state::StateRuntime>,
+    state_db_ctx: Option<&dyn codex_state::RolloutStore>,
 ) -> std::io::Result<Option<(PathBuf, SessionMetaLine)>> {
     if name.trim().is_empty() {
         return Ok(None);

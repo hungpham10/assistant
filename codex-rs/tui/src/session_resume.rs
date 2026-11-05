@@ -16,7 +16,7 @@ use crate::tui::Tui;
 use codex_path::path_utils;
 use codex_protocol::ThreadId;
 use codex_rollout::open_rollout_line_reader;
-use codex_state::StateRuntime;
+use codex_state::RolloutStore;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -65,7 +65,7 @@ pub(crate) async fn resolve_session_thread_id(
 }
 
 pub(crate) async fn read_session_model(
-    state_db_ctx: Option<&StateRuntime>,
+    state_db_ctx: Option<&dyn RolloutStore>,
     thread_id: ThreadId,
     path: Option<&Path>,
 ) -> Option<String> {
@@ -85,7 +85,7 @@ pub(crate) async fn read_session_model(
 
 pub(crate) async fn resolve_cwd_for_resume_or_fork(
     tui: &mut Tui,
-    state_db_ctx: Option<&StateRuntime>,
+    state_db_ctx: Option<&dyn RolloutStore>,
     current_cwd: &Path,
     thread_id: ThreadId,
     path: Option<&Path>,
@@ -112,7 +112,7 @@ pub(crate) async fn resolve_cwd_for_resume_or_fork(
 }
 
 async fn read_session_cwd(
-    state_db_ctx: Option<&StateRuntime>,
+    state_db_ctx: Option<&dyn RolloutStore>,
     thread_id: ThreadId,
     path: Option<&Path>,
 ) -> Option<PathBuf> {

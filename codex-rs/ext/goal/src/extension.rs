@@ -58,7 +58,7 @@ impl GoalExtensionConfig {
 
 #[derive(Clone)]
 pub struct GoalExtension<C> {
-    state_dbs: Arc<codex_state::StateRuntime>,
+    state_dbs: Arc<dyn codex_rollout::RolloutStore>,
     analytics: GoalAnalytics,
     event_emitter: GoalEventEmitter,
     metrics: GoalMetrics,
@@ -75,7 +75,7 @@ impl<C> std::fmt::Debug for GoalExtension<C> {
 
 impl<C> GoalExtension<C> {
     pub(crate) fn new_with_host_capabilities(
-        state_dbs: Arc<codex_state::StateRuntime>,
+        state_dbs: Arc<dyn codex_rollout::RolloutStore>,
         analytics_events_client: AnalyticsEventsClient,
         event_sink: Arc<dyn ExtensionEventSink>,
         metrics_client: Option<MetricsClient>,
@@ -450,7 +450,7 @@ where
 
 pub fn install_with_backend<C>(
     registry: &mut ExtensionRegistryBuilder<C>,
-    state_dbs: Arc<codex_state::StateRuntime>,
+    state_dbs: Arc<dyn codex_rollout::RolloutStore>,
     analytics_events_client: AnalyticsEventsClient,
     metrics_client: Option<MetricsClient>,
     thread_manager: Weak<ThreadManager>,

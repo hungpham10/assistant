@@ -15,6 +15,7 @@ workspace = true
 [dependencies]
 codex-protocol = { workspace = true }
 codex-state = { workspace = true }
+codex-rollout = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 

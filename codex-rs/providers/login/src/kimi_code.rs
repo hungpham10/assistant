@@ -12,6 +12,8 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 use thiserror::Error;
 
+use crate::auth::default_client::build_reqwest_client;
+
 pub const KIMI_CODE_PROVIDER_ID: &str = "kimi-for-coding";
 
 const DEFAULT_OAUTH_HOST: &str = "https://auth.kimi.com";
@@ -97,7 +99,7 @@ struct OAuthErrorResponse {
 pub async fn request_device_authorization(
     codex_home: &Path,
 ) -> Result<KimiCodeDeviceAuthorization, KimiCodeAuthError> {
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client();
     let response = client
         .post(format!(
             "{}/api/oauth/device_authorization",
@@ -136,7 +138,7 @@ pub async fn complete_device_authorization(
     codex_home: &Path,
     authorization: &KimiCodeDeviceAuthorization,
 ) -> Result<(), KimiCodeAuthError> {
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client();
     loop {
         let response = client
             .post(format!(
@@ -275,7 +277,7 @@ async fn refresh_token(
     codex_home: &Path,
     refresh_token: &str,
 ) -> Result<KimiCodeToken, KimiCodeAuthError> {
-    let client = reqwest::Client::new();
+    let client = build_reqwest_client();
     let response = client
         .post(format!(
             "{}/api/oauth/token",

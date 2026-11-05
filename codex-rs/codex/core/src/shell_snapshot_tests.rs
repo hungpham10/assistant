@@ -11,6 +11,7 @@ use std::process::Command;
 use std::process::Command as StdCommand;
 
 use tempfile::tempdir;
+use tokio::fs;
 
 #[cfg(unix)]
 struct BlockingStdinPipe {
@@ -83,7 +84,7 @@ fn assert_posix_snapshot_sections(snapshot: &str) {
 async fn get_snapshot(shell_type: ShellType) -> Result<String> {
     let dir = tempdir()?;
     let path = dir.path().join("snapshot.sh");
-    write_shell_snapshot(shell_type, &path.abs(), &dir.path().abs()).await?;
+    write_shell_snapshot(shell_type, &StdSystemFs, &path.abs(), &dir.path().abs()).await?;
     let content = fs::read_to_string(&path).await?;
     Ok(content)
 }
@@ -197,6 +198,7 @@ async fn try_create_creates_and_deletes_snapshot_file() -> Result<()> {
     };
 
     let snapshot = ShellSnapshot::try_create(
+        &(Arc::new(StdSystemFs) as Arc<dyn SystemFs>),
         &dir.path().abs(),
         ThreadId::new(),
         &dir.path().abs(),
@@ -226,6 +228,7 @@ async fn try_create_uses_distinct_generation_paths() -> Result<()> {
     };
 
     let initial_snapshot = ShellSnapshot::try_create(
+        &(Arc::new(StdSystemFs) as Arc<dyn SystemFs>),
         &dir.path().abs(),
         session_id,
         &dir.path().abs(),
@@ -235,6 +238,7 @@ async fn try_create_uses_distinct_generation_paths() -> Result<()> {
     .await
     .expect("initial snapshot should be created");
     let refreshed_snapshot = ShellSnapshot::try_create(
+        &(Arc::new(StdSystemFs) as Arc<dyn SystemFs>),
         &dir.path().abs(),
         session_id,
         &dir.path().abs(),
@@ -433,7 +437,13 @@ async fn cleanup_stale_snapshots_removes_orphans_and_keeps_live() -> Result<()> 
     fs::write(&orphan_snapshot, "orphan").await?;
     fs::write(&invalid_snapshot, "invalid").await?;
 
-    cleanup_stale_snapshots(&codex_home, ThreadId::new(), /*state_db*/ None).await?;
+    cleanup_stale_snapshots(
+        Arc::new(StdSystemFs),
+        &codex_home,
+        ThreadId::new(),
+        /*state_db*/ None,
+    )
+    .await?;
 
     assert_eq!(live_snapshot.exists(), true);
     assert_eq!(orphan_snapshot.exists(), false);
@@ -456,7 +466,13 @@ async fn cleanup_stale_snapshots_removes_stale_rollouts() -> Result<()> {
 
     set_file_mtime(&rollout_path, SNAPSHOT_RETENTION + Duration::from_secs(60))?;
 
-    cleanup_stale_snapshots(&codex_home, ThreadId::new(), /*state_db*/ None).await?;
+    cleanup_stale_snapshots(
+        Arc::new(StdSystemFs),
+        &codex_home,
+        ThreadId::new(),
+        /*state_db*/ None,
+    )
+    .await?;
 
     assert_eq!(stale_snapshot.exists(), false);
     Ok(())
@@ -477,7 +493,13 @@ async fn cleanup_stale_snapshots_skips_active_session() -> Result<()> {
 
     set_file_mtime(&rollout_path, SNAPSHOT_RETENTION + Duration::from_secs(60))?;
 
-    cleanup_stale_snapshots(&codex_home, active_session, /*state_db*/ None).await?;
+    cleanup_stale_snapshots(
+        Arc::new(StdSystemFs),
+        &codex_home,
+        active_session,
+        /*state_db*/ None,
+    )
+    .await?;
 
     assert_eq!(active_snapshot.exists(), true);
     Ok(())

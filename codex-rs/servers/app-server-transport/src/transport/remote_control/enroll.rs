@@ -9,7 +9,6 @@ use codex_app_server_protocol::RemoteControlPairingStartResponse;
 use codex_app_server_protocol::RemoteControlPairingStatusResponse;
 use codex_login::default_client::build_reqwest_client;
 use codex_state::RemoteControlEnrollmentRecord;
-use codex_state::StateRuntime;
 use std::io;
 use std::io::ErrorKind;
 use time::OffsetDateTime;
@@ -243,7 +242,7 @@ impl RemoteControlEnrollment {
 }
 
 pub(super) async fn load_persisted_remote_control_enrollment(
-    state_db: Option<&StateRuntime>,
+    state_db: Option<&dyn codex_rollout::RolloutStore>,
     remote_control_target: &RemoteControlTarget,
     account_id: &str,
     app_server_client_name: Option<&str>,
@@ -307,7 +306,7 @@ pub(super) async fn load_persisted_remote_control_enrollment(
 }
 
 pub(super) async fn update_persisted_remote_control_enrollment(
-    state_db: Option<&StateRuntime>,
+    state_db: Option<&dyn codex_rollout::RolloutStore>,
     remote_control_target: &RemoteControlTarget,
     account_id: &str,
     app_server_client_name: Option<&str>,

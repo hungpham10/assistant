@@ -82,7 +82,7 @@ async fn upsert_thread_metadata(
     builder.cwd = codex_home.to_path_buf();
     let metadata = builder.build("test-provider");
     runtime.upsert_thread(&metadata).await.unwrap();
-    runtime
+    runtime as StateDbHandle
 }
 
 #[tokio::test]
@@ -129,7 +129,7 @@ async fn find_prefers_sqlite_path_by_id() {
     write_minimal_rollout_with_id(home.path(), id);
     let state_db = upsert_thread_metadata(home.path(), thread_id, db_path.clone()).await;
 
-    let found = find_thread_path_by_id_str(home.path(), &id.to_string(), Some(&state_db))
+    let found = find_thread_path_by_id_str(home.path(), &id.to_string(), Some(state_db.as_ref()))
         .await
         .unwrap();
 
@@ -148,7 +148,7 @@ async fn find_falls_back_to_filesystem_when_sqlite_has_no_match() {
         .join("sessions/2030/12/30/rollout-2030-12-30T00-00-00-unrelated.jsonl");
     let state_db = upsert_thread_metadata(home.path(), unrelated_thread_id, unrelated_path).await;
 
-    let found = find_thread_path_by_id_str(home.path(), &id.to_string(), Some(&state_db))
+    let found = find_thread_path_by_id_str(home.path(), &id.to_string(), Some(state_db.as_ref()))
         .await
         .unwrap();
 

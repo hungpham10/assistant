@@ -38,7 +38,7 @@ pub(crate) enum ActiveGoalStopReason {
 
 struct GoalRuntimeInner {
     thread_id: ThreadId,
-    state_dbs: Arc<codex_state::StateRuntime>,
+    state_dbs: Arc<dyn codex_rollout::RolloutStore>,
     analytics: GoalAnalytics,
     event_emitter: GoalEventEmitter,
     metrics: GoalMetrics,
@@ -80,7 +80,7 @@ impl std::fmt::Debug for GoalRuntimeHandle {
 impl GoalRuntimeHandle {
     pub(crate) fn new(
         thread_id: ThreadId,
-        state_dbs: Arc<codex_state::StateRuntime>,
+        state_dbs: Arc<dyn codex_rollout::RolloutStore>,
         event_emitter: GoalEventEmitter,
         metrics: GoalMetrics,
         thread_manager: Weak<ThreadManager>,

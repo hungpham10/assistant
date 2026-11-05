@@ -15,10 +15,11 @@ use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
 use anyhow::bail;
+use codex_file_system::StdSystemFs;
+use codex_file_system::SystemFs;
 use codex_otel::SessionTelemetry;
 use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::ThreadId;
-use tokio::fs;
 use tokio::process::Command;
 use tokio::time::timeout;
 use tracing::Instrument;
@@ -30,6 +31,7 @@ pub(crate) struct ShellSnapshot {
 }
 
 struct ShellSnapshotConfig {
+    file_system: Arc<dyn SystemFs>,
     codex_home: AbsolutePathBuf,
     session_id: ThreadId,
     session_telemetry: SessionTelemetry,
@@ -54,6 +56,7 @@ impl ShellSnapshot {
     ) -> Self {
         Self {
             config: Some(Arc::new(ShellSnapshotConfig {
+                file_system: Arc::new(StdSystemFs),
                 codex_home,
                 session_id,
                 session_telemetry,
@@ -93,6 +96,7 @@ impl ShellSnapshot {
                 .session_telemetry
                 .start_timer("codex.shell_snapshot.duration_ms", &[]);
             let snapshot = ShellSnapshot::try_create(
+                &config.file_system,
                 &config.codex_home,
                 config.session_id,
                 &cwd,
@@ -116,6 +120,7 @@ impl ShellSnapshot {
     }
 
     async fn try_create(
+        file_system: &Arc<dyn SystemFs>,
         codex_home: &AbsolutePathBuf,
         session_id: ThreadId,
         session_cwd: &AbsolutePathBuf,
@@ -141,16 +146,29 @@ impl ShellSnapshot {
         // Clean the (unlikely) leaked snapshot files.
         let codex_home = codex_home.clone();
         let cleanup_session_id = session_id;
+        let cleanup_file_system = Arc::clone(file_system);
         tokio::spawn(async move {
-            if let Err(err) =
-                cleanup_stale_snapshots(&codex_home, cleanup_session_id, state_db).await
+            if let Err(err) = cleanup_stale_snapshots(
+                cleanup_file_system,
+                &codex_home,
+                cleanup_session_id,
+                state_db,
+            )
+            .await
             {
                 tracing::warn!("Failed to clean up shell snapshots: {err:?}");
             }
         });
 
         // Make the new snapshot.
-        if let Err(err) = write_shell_snapshot(shell.shell_type, &temp_path, session_cwd).await {
+        if let Err(err) = write_shell_snapshot(
+            shell.shell_type,
+            file_system.as_ref(),
+            &temp_path,
+            session_cwd,
+        )
+        .await
+        {
             tracing::warn!(
                 "Failed to create shell snapshot for {}: {err:?}",
                 shell.name()
@@ -164,13 +182,13 @@ impl ShellSnapshot {
 
         if let Err(err) = validate_snapshot(shell, &temp_path, session_cwd).await {
             tracing::error!("Shell snapshot validation failed: {err:?}");
-            remove_snapshot_file(&temp_path).await;
+            remove_snapshot_file(file_system.as_ref(), &temp_path);
             return Err("validation_failed");
         }
 
-        if let Err(err) = fs::rename(&temp_path, &path).await {
+        if let Err(err) = file_system.rename(&temp_path, &path) {
             tracing::warn!("Failed to finalize shell snapshot: {err:?}");
-            remove_snapshot_file(&temp_path).await;
+            remove_snapshot_file(file_system.as_ref(), &temp_path);
             return Err("write_failed");
         }
 
@@ -186,6 +204,8 @@ impl ShellSnapshotFile {
 
 impl Drop for ShellSnapshotFile {
     fn drop(&mut self) {
+        // std::fs is used directly here because Drop cannot await; the file is
+        // host-local by construction.
         if let Err(err) = std::fs::remove_file(&self.path) {
             tracing::warn!(
                 "Failed to delete shell snapshot at {:?}: {err:?}",
@@ -197,6 +217,7 @@ impl Drop for ShellSnapshotFile {
 
 async fn write_shell_snapshot(
     shell_type: ShellType,
+    file_system: &dyn SystemFs,
     output_path: &AbsolutePathBuf,
     cwd: &AbsolutePathBuf,
 ) -> Result<()> {
@@ -211,14 +232,14 @@ async fn write_shell_snapshot(
 
     if let Some(parent) = output_path.parent() {
         let parent_display = parent.display();
-        fs::create_dir_all(&parent)
-            .await
+        file_system
+            .create_dir_all(&parent)
             .with_context(|| format!("Failed to create snapshot parent {parent_display}"))?;
     }
 
     let snapshot_path = output_path.display();
-    fs::write(output_path, snapshot)
-        .await
+    file_system
+        .write(output_path, snapshot.as_bytes())
         .with_context(|| format!("Failed to write snapshot to {snapshot_path}"))?;
 
     Ok(())
@@ -498,13 +519,14 @@ $envVars | ForEach-Object {
 /// whose rollouts have not been updated within the retention window.
 /// The active session id is exempt from cleanup.
 pub async fn cleanup_stale_snapshots(
+    file_system: Arc<dyn SystemFs>,
     codex_home: &AbsolutePathBuf,
     active_session_id: ThreadId,
     state_db: Option<StateDbHandle>,
 ) -> Result<()> {
     let snapshot_dir = codex_home.join(SNAPSHOT_DIR);
 
-    let mut entries = match fs::read_dir(&snapshot_dir).await {
+    let entries = match file_system.list_dir(&snapshot_dir) {
         Ok(entries) => entries,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(()),
         Err(err) => return Err(err.into()),
@@ -513,17 +535,23 @@ pub async fn cleanup_stale_snapshots(
     let now = SystemTime::now();
     let active_session_id = active_session_id.to_string();
 
-    while let Some(entry) = entries.next_entry().await? {
-        if !entry.file_type().await?.is_file() {
+    for path in entries {
+        // std::fs::metadata is used directly here: the trait surface does not
+        // expose metadata, and this is a host-local best-effort GC pass.
+        let Ok(metadata) = std::fs::metadata(&path) else {
+            continue;
+        };
+        if !metadata.is_file() {
             continue;
         }
 
-        let path = entry.path();
-
-        let file_name = entry.file_name();
+        let file_name = path.file_name();
+        let Some(file_name) = file_name else {
+            continue;
+        };
         let file_name = file_name.to_string_lossy();
         let Some(session_id) = snapshot_session_id_from_file_name(&file_name) else {
-            remove_snapshot_file(&path).await;
+            remove_snapshot_file(file_system.as_ref(), &path);
             continue;
         };
         if session_id == active_session_id {
@@ -533,11 +561,11 @@ pub async fn cleanup_stale_snapshots(
         let rollout_path =
             find_thread_path_by_id_str(codex_home, session_id, state_db.as_deref()).await?;
         let Some(rollout_path) = rollout_path else {
-            remove_snapshot_file(&path).await;
+            remove_snapshot_file(file_system.as_ref(), &path);
             continue;
         };
 
-        let modified = match fs::metadata(&rollout_path).await.and_then(|m| m.modified()) {
+        let modified = match std::fs::metadata(&rollout_path).and_then(|m| m.modified()) {
             Ok(modified) => modified,
             Err(err) => {
                 tracing::warn!(
@@ -553,15 +581,15 @@ pub async fn cleanup_stale_snapshots(
             .ok()
             .is_some_and(|age| age >= SNAPSHOT_RETENTION)
         {
-            remove_snapshot_file(&path).await;
+            remove_snapshot_file(file_system.as_ref(), &path);
         }
     }
 
     Ok(())
 }
 
-async fn remove_snapshot_file(path: &Path) {
-    if let Err(err) = fs::remove_file(path).await {
+fn remove_snapshot_file(file_system: &dyn SystemFs, path: &Path) {
+    if let Err(err) = file_system.remove_file(path) {
         tracing::warn!("Failed to delete shell snapshot at {:?}: {err:?}", path);
     }
 }

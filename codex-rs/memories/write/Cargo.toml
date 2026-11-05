@@ -40,6 +40,8 @@ tokio = { workspace = true, features = ["fs", "rt", "sync", "time"] }
 tracing = { workspace = true, features = ["log"] }
 uuid = { workspace = true, features = ["v4", "v5"] }
 
+codex-file-system = { workspace = true }
+
 [dev-dependencies]
 codex-model-provider-info = { workspace = true }
 codex-models-manager = { workspace = true }

@@ -2332,6 +2332,7 @@ name = "codex-agent-graph-store"
 version = "0.0.41"
 dependencies = [
  "codex-protocol",
+ "codex-rollout",
  "codex-state",
  "pretty_assertions",
  "serde",
@@ -2452,6 +2453,7 @@ dependencies = [
  "codex-features",
  "codex-feedback",
  "codex-file-search",
+ "codex-file-system",
  "codex-file-watcher",
  "codex-git-utils",
  "codex-goal-extension",
@@ -2633,6 +2635,7 @@ dependencies = [
  "codex-model-provider",
  "codex-path",
  "codex-protocol",
+ "codex-rollout",
  "codex-state",
  "codex-uds",
  "codex-utils-rustls-provider",
@@ -3222,6 +3225,7 @@ dependencies = [
  "codex-exec-server",
  "codex-extension-api",
  "codex-features",
+ "codex-file-system",
  "codex-home",
  "codex-image-generation-extension",
  "codex-login",
@@ -3568,7 +3572,9 @@ dependencies = [
  "codex-path",
  "codex-protocol",
  "futures",
+ "pretty_assertions",
  "serde",
+ "tempfile",
 ]
 
 [[package]]
@@ -3617,6 +3623,7 @@ dependencies = [
  "codex-extension-api",
  "codex-otel",
  "codex-protocol",
+ "codex-rollout",
  "codex-state",
  "codex-tools",
  "codex-utils-template",
@@ -3897,6 +3904,7 @@ dependencies = [
  "codex-core",
  "codex-exec-server",
  "codex-extension-api",
+ "codex-file-system",
  "codex-home",
  "codex-image-generation-extension",
  "codex-login",
@@ -3962,6 +3970,7 @@ dependencies = [
  "codex-config",
  "codex-core",
  "codex-features",
+ "codex-file-system",
  "codex-git-utils",
  "codex-login",
  "codex-model-provider",
@@ -4385,6 +4394,21 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "codex-shell-backend"
+version = "0.0.41"
+dependencies = [
+ "codex-network-proxy",
+ "codex-path",
+ "codex-protocol",
+ "codex-utils-pty",
+ "futures",
+ "libc",
+ "tempfile",
+ "tokio",
  "tracing",
 ]
 
@@ -5163,6 +5187,7 @@ dependencies = [
  "codex-exec-server",
  "codex-extension-api",
  "codex-features",
+ "codex-file-system",
  "codex-home",
  "codex-hooks",
  "codex-login",

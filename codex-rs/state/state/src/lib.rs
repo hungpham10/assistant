@@ -16,6 +16,7 @@ mod migrations;
 mod model;
 mod paths;
 mod runtime;
+pub mod state_store;
 mod telemetry;
 
 pub use model::LogEntry;
@@ -88,6 +89,7 @@ pub use runtime::sqlite_error_detail_is_lock;
 pub use runtime::sqlite_integrity_check;
 pub use runtime::state_db_filename;
 pub use runtime::state_db_path;
+pub use state_store::RolloutStore;
 pub use telemetry::DbTelemetry;
 pub use telemetry::DbTelemetryHandle;
 pub use telemetry::install_process_db_telemetry;

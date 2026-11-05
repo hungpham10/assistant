@@ -5,6 +5,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 use uuid::Uuid;
 
 use super::*;
+use crate::StateRuntime;
 
 #[tokio::test]
 async fn sqlite_sink_drops_low_level_opentelemetry_sdk_logs() {

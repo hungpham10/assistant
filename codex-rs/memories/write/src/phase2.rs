@@ -24,7 +24,6 @@ use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::user_input::UserInput;
 use codex_state::Stage1Output;
-use codex_state::StateRuntime;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -216,7 +215,7 @@ mod job {
 
     pub(super) async fn claim(
         context: &MemoryStartupContext,
-        db: &StateRuntime,
+        db: &dyn codex_rollout::RolloutStore,
     ) -> Result<Claim, &'static str> {
         let claim = db
             .memories()
@@ -252,7 +251,7 @@ mod job {
 
     pub(super) async fn failed(
         context: &MemoryStartupContext,
-        db: &StateRuntime,
+        db: &dyn codex_rollout::RolloutStore,
         claim: &Claim,
         reason: &'static str,
     ) {
@@ -280,7 +279,7 @@ mod job {
 
     pub(super) async fn succeed(
         context: &MemoryStartupContext,
-        db: &StateRuntime,
+        db: &dyn codex_rollout::RolloutStore,
         claim: &Claim,
         completion_watermark: i64,
         selected_outputs: &[codex_state::Stage1Output],
@@ -407,7 +406,7 @@ mod agent {
                         false
                     }
                     Err(_) => {
-                        job::failed(context.as_ref(), &db, &claim, "failed_confirm_ownership")
+                        job::failed(context.as_ref(), db.as_ref(), &claim, "failed_confirm_ownership")
                             .await;
                         false
                     }
@@ -415,10 +414,16 @@ mod agent {
                 if still_owns_lock {
                     if let Err(err) = reset_memory_workspace_baseline(&memory_root).await {
                         tracing::error!("failed resetting memory workspace baseline: {err}");
-                        job::failed(context.as_ref(), &db, &claim, "failed_workspace_commit").await;
+                        job::failed(
+                            context.as_ref(),
+                            db.as_ref(),
+                            &claim,
+                            "failed_workspace_commit",
+                        )
+                        .await;
                     } else if !job::succeed(
                         context.as_ref(),
-                        &db,
+                        db.as_ref(),
                         &claim,
                         new_watermark,
                         &selected_outputs,
@@ -432,7 +437,7 @@ mod agent {
                     }
                 }
             } else {
-                job::failed(context.as_ref(), &db, &claim, "failed_agent").await;
+                job::failed(context.as_ref(), db.as_ref(), &claim, "failed_agent").await;
             }
 
             let cleanup_context = Arc::clone(&context);
@@ -450,7 +455,7 @@ mod agent {
     }
 
     async fn loop_agent(
-        db: Arc<StateRuntime>,
+        db: Arc<dyn codex_rollout::RolloutStore>,
         token: String,
         thread_id: ThreadId,
         thread: &codex_core::CodexThread,

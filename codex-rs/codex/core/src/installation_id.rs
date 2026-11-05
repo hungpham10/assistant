@@ -10,15 +10,18 @@ use std::os::unix::fs::OpenOptionsExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
+use codex_file_system::SystemFs;
 use codex_path::absolute_path::AbsolutePathBuf;
-use tokio::fs;
 use uuid::Uuid;
 
 pub(crate) const INSTALLATION_ID_FILENAME: &str = "installation_id";
 
-pub async fn resolve_installation_id(codex_home: &AbsolutePathBuf) -> Result<String> {
+pub async fn resolve_installation_id(
+    codex_home: &AbsolutePathBuf,
+    file_system: &dyn SystemFs,
+) -> Result<String> {
     let path = codex_home.join(INSTALLATION_ID_FILENAME);
-    fs::create_dir_all(codex_home).await?;
+    file_system.create_dir_all(codex_home)?;
     tokio::task::spawn_blocking(move || {
         let mut options = OpenOptions::new();
         options.read(true).write(true).create(true);
@@ -67,6 +70,7 @@ pub async fn resolve_installation_id(codex_home: &AbsolutePathBuf) -> Result<Str
 mod tests {
     use super::INSTALLATION_ID_FILENAME;
     use super::resolve_installation_id;
+    use codex_file_system::StdSystemFs;
     use core_test_support::PathExt;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
@@ -81,7 +85,7 @@ mod tests {
         let codex_home_abs = codex_home.path().abs();
         let persisted_path = codex_home.path().join(INSTALLATION_ID_FILENAME);
 
-        let installation_id = resolve_installation_id(&codex_home_abs)
+        let installation_id = resolve_installation_id(&codex_home_abs, &StdSystemFs)
             .await
             .expect("resolve installation id");
 
@@ -113,7 +117,7 @@ mod tests {
         )
         .expect("write installation id");
 
-        let resolved = resolve_installation_id(&codex_home_abs)
+        let resolved = resolve_installation_id(&codex_home_abs, &StdSystemFs)
             .await
             .expect("resolve installation id");
 
@@ -135,7 +139,7 @@ mod tests {
         )
         .expect("write invalid installation id");
 
-        let resolved = resolve_installation_id(&codex_home_abs)
+        let resolved = resolve_installation_id(&codex_home_abs, &StdSystemFs)
             .await
             .expect("resolve installation id");
 

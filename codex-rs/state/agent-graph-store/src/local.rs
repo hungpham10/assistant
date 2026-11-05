@@ -1,5 +1,4 @@
 use codex_protocol::ThreadId;
-use codex_state::StateRuntime;
 use std::sync::Arc;
 
 use crate::AgentGraphStore;
@@ -10,7 +9,7 @@ use crate::ThreadSpawnEdgeStatus;
 /// SQLite-backed implementation of [`AgentGraphStore`] using an existing state runtime.
 #[derive(Clone)]
 pub struct LocalAgentGraphStore {
-    state_db: Arc<StateRuntime>,
+    state_db: Arc<dyn codex_rollout::state_db::RolloutStore>,
 }
 
 impl std::fmt::Debug for LocalAgentGraphStore {
@@ -23,7 +22,7 @@ impl std::fmt::Debug for LocalAgentGraphStore {
 
 impl LocalAgentGraphStore {
     /// Create a local graph store from an already-initialized state runtime.
-    pub fn new(state_db: Arc<StateRuntime>) -> Self {
+    pub fn new(state_db: Arc<dyn codex_rollout::state_db::RolloutStore>) -> Self {
         Self { state_db }
     }
 }
@@ -126,11 +125,12 @@ fn internal_error(err: impl std::fmt::Display) -> AgentGraphStoreError {
 mod tests {
     use super::*;
     use codex_state::DirectionalThreadSpawnEdgeStatus;
+    use codex_state::StateRuntime;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
     struct TestRuntime {
-        state_db: Arc<StateRuntime>,
+        state_db: Arc<dyn codex_rollout::state_db::RolloutStore>,
         _codex_home: TempDir,
     }
 
