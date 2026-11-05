@@ -1,0 +1,45 @@
+[package]
+name = "codegraph-graph"
+version = "2.2.14"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+codegraph-core = { path = "../codegraph-core" }
+dirs = "6"
+camino = { version = "1.1", features = ["serde1"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+dashmap = "6"
+parking_lot = "0.12"
+smallvec = "1"
+async-trait = "0.1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time"] }
+redis = { version = "1.0", features = ["tokio-comp"], optional = true }
+url = { version = "2.5", optional = true }
+zstd = { version = "0.13", optional = true }
+bincode = { version = "1.3", optional = true }
+lmdb-rkv = { version = "0.14", optional = true }
+fastembed = { version = "5.17.4", optional = true, default-features = false, features = ["hf-hub-rustls-tls", "ort-download-binaries-rustls-tls", "image-models"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { version = "=2.0.0-rc.13", features = ["coreml"], optional = true }
+
+[features]
+default = []
+redis = ["dep:redis", "dep:zstd", "dep:bincode", "dep:url"]
+sqlite = []
+lmdb = ["dep:lmdb-rkv"]
+bloom-search = []
+fastembed = ["dep:fastembed"]
+apple-accel = ["dep:ort"]
+
+[dev-dependencies]
+tempfile = "3"
+codegraph-core = { path = "../codegraph-core" }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "search_bloom"
+harness = false

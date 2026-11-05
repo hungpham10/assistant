@@ -56,17 +56,11 @@ codex-shell-command = { workspace = true }
 codex-state = { workspace = true }
 codex-terminal-detection = { workspace = true }
 codex-utils-approval-presets = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
+codex-path = { workspace = true }
 codex-utils-cli = { workspace = true }
-codex-utils-elapsed = { workspace = true }
-codex-utils-fuzzy-match = { workspace = true }
-codex-utils-home-dir = { workspace = true }
-codex-utils-oss = { workspace = true }
-codex-utils-path = { workspace = true }
-codex-utils-path-uri = { workspace = true }
+codex-local-providers = { workspace = true }
 codex-utils-plugins = { workspace = true }
 codex-utils-sandbox-summary = { workspace = true }
-codex-utils-sleep-inhibitor = { workspace = true }
 codex-utils-string = { workspace = true }
 color-eyre = { workspace = true }
 crossterm = { workspace = true, features = ["bracketed-paste", "event-stream"] }
@@ -129,6 +123,9 @@ tokio-util = { workspace = true, features = ["time"] }
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.9"
+
 [target.'cfg(windows)'.dependencies]
 which = { workspace = true }
 windows-sys = { version = "0.52", features = [
@@ -138,6 +135,8 @@ windows-sys = { version = "0.52", features = [
     "Win32_System_Console",
     "Win32_System_IO",
     "Win32_System_Pipes",
+    "Win32_System_Power",
+    "Win32_System_SystemServices",
     "Win32_System_Threading",
 ] }
 winsplit = "0.1"

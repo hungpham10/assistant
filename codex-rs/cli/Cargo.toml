@@ -48,7 +48,7 @@ cloud = ["dep:codex-cloud-tasks"]
 apply = ["dep:codex-chatgpt"]
 internal-tools = [
     "dep:codex-responses-api-proxy",
-    "dep:codex-stdio-to-uds",
+    "dep:codex-uds",
     "dep:codex-memories-write",
 ]
 # Các feature dưới đây chỉ gate code, không kéo crate riêng.
@@ -68,7 +68,7 @@ codex-app-server-test-client = { workspace = true, optional = true }
 codex-arg0 = { workspace = true }
 codex-api = { workspace = true }
 codex-chatgpt = { workspace = true, optional = true }
-codex-cloud-tasks = { path = "../cloud-tasks", optional = true }
+codex-cloud-tasks = { workspace = true, optional = true }
 codex-utils-cli = { workspace = true }
 codex-config = { workspace = true }
 codex-core = { workspace = true }
@@ -95,11 +95,10 @@ codex-rollout = { workspace = true }
 codex-rollout-trace = { workspace = true }
 codex-sandboxing = { workspace = true }
 codex-state = { workspace = true }
-codex-stdio-to-uds = { workspace = true, optional = true }
 codex-terminal-detection = { workspace = true }
 codex-tui = { workspace = true }
-codex-utils-absolute-path = { workspace = true }
-codex-utils-path = { workspace = true }
+codex-uds = { workspace = true, optional = true }
+codex-path = { workspace = true }
 crossterm = { workspace = true }
 http = { workspace = true }
 libc = { workspace = true }
@@ -129,7 +128,7 @@ url = { workspace = true }
 which = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-codex_windows_sandbox = { package = "codex-windows-sandbox", path = "../windows-sandbox-rs" }
+codex_windows_sandbox = { package = "codex-windows-sandbox", path = "../execution/windows-sandbox" }
 windows-sys = { version = "0.52", features = [
     "Win32_Foundation",
     "Win32_System_Console",

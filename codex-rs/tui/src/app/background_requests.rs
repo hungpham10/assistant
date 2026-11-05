@@ -25,7 +25,7 @@ use codex_app_server_protocol::RequestId;
 use crate::hooks_rpc::fetch_hooks_list;
 use crate::hooks_rpc::write_hook_trust;
 use crate::hooks_rpc::write_hook_trusts;
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 
 const TOKEN_ACTIVITY_FETCH_TIMEOUT: std::time::Duration =
     std::time::Duration::from_secs(/*secs*/ 15);
@@ -1278,8 +1278,8 @@ mod tests {
     use super::*;
     use crate::app::test_support::make_test_app;
     use codex_app_server_protocol::PluginMarketplaceEntry;
+    use codex_path::absolute_path::AbsolutePathBuf;
     use codex_protocol::mcp::Tool;
-    use codex_utils_absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
 
     fn test_absolute_path(path: &str) -> AbsolutePathBuf {

@@ -134,6 +134,8 @@ use codex_git_utils::local_git_branches;
 use codex_git_utils::recent_commits;
 use codex_otel::RuntimeMetricsSummary;
 use codex_otel::SessionTelemetry;
+use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::PathUri;
 use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::ThreadId;
 use codex_protocol::account::PlanType;
@@ -160,9 +162,7 @@ use codex_terminal_detection::Multiplexer;
 use codex_terminal_detection::TerminalInfo;
 use codex_terminal_detection::TerminalName;
 use codex_terminal_detection::terminal_info;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_cli::resume_hint;
-use codex_utils_path_uri::PathUri;
 use codex_utils_plugins::mention_syntax::PLUGIN_TEXT_MENTION_SIGIL;
 use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
 use crossterm::event::KeyCode;
@@ -1144,14 +1144,8 @@ impl ChatWidget {
             false
         };
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
-            name.clone(),
-            enabled,
+            name, enabled,
         ));
-        let state_word = if enabled { "enabled" } else { "disabled" };
-        self.add_info_message(
-            format!("Tool `{name}` {state_word} for this session."),
-            /*hint*/ None,
-        );
     }
 
     pub(crate) fn set_tool_enabled_state(&mut self, name: String, enabled: bool) {
@@ -1161,14 +1155,8 @@ impl ChatWidget {
             self.tools_session_disabled.insert(name.clone());
         }
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
-            name.clone(),
-            enabled,
+            name, enabled,
         ));
-        let state_word = if enabled { "enabled" } else { "disabled" };
-        self.add_info_message(
-            format!("Tool `{name}` {state_word} for this session."),
-            /*hint*/ None,
-        );
     }
 
     pub(crate) fn reset_tools_override(&mut self) {

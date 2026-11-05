@@ -1,0 +1,4 @@
+# Chỉ giữ .gitignore + .gitkeep; nội dung plan là note cá nhân, không commit
+*
+!.gitignore
+!.gitkeep

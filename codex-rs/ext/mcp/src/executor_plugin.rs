@@ -1,4 +1,4 @@
-use codex_connectors_extension::ExecutorPluginConnectorProvider;
+use crate::connector_provider::ExecutorPluginConnectorProvider;
 use codex_core::config::Config;
 use codex_core_plugins::ExecutorPluginProvider;
 use codex_exec_server::EnvironmentManager;

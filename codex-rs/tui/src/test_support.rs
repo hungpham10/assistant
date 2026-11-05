@@ -3,9 +3,9 @@
 use std::sync::LazyLock;
 
 use codex_models_manager::bundled_models_response;
+pub(crate) use codex_path::absolute_path::test_support::PathBufExt;
+pub(crate) use codex_path::absolute_path::test_support::test_path_buf;
 use codex_protocol::openai_models::ModelPreset;
-pub(crate) use codex_utils_absolute_path::test_support::PathBufExt;
-pub(crate) use codex_utils_absolute_path::test_support::test_path_buf;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 

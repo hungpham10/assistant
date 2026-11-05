@@ -19,8 +19,8 @@ use codex_core_skills::model::SkillInterface;
 use codex_core_skills::model::SkillMetadata;
 use codex_core_skills::model::SkillToolDependency;
 use codex_features::Feature;
+use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::parse_command::ParsedCommand;
-use codex_utils_absolute_path::AbsolutePathBuf;
 use codex_utils_plugins::mention_syntax::TOOL_MENTION_SIGIL;
 
 impl ChatWidget {

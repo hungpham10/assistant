@@ -1,0 +1,48 @@
+[package]
+name = "codex-local-providers"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+# Local OSS providers (LM Studio / Ollama) are disabled by default to keep
+# builds lean. Re-enable with `--features oss-providers`.
+[features]
+default = []
+oss-providers = [
+    "dep:async-stream",
+    "dep:bytes",
+    "dep:futures",
+    "dep:memchr",
+    "dep:reqwest",
+    "dep:semver",
+    "dep:serde_json",
+    "dep:tokio",
+    "dep:tracing",
+    "dep:which",
+]
+
+[dependencies]
+codex-core = { workspace = true }
+codex-model-provider-info = { workspace = true }
+async-stream = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+memchr = { workspace = true, optional = true }
+reqwest = { workspace = true, features = ["json", "stream"], optional = true }
+semver = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+which = { workspace = true, optional = true }
+
+[dev-dependencies]
+assert_matches = { workspace = true }
+pretty_assertions = { workspace = true }
+wiremock = { workspace = true }
+tokio = { workspace = true, features = ["full"] }
+
+[lib]
+doctest = false

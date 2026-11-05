@@ -7,7 +7,11 @@ use codex_extension_api::McpServerContributor;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::hosted_plugin_runtime_mcp_server_config;
 
+mod connector_provider;
 mod executor_plugin;
+
+pub use connector_provider::ExecutorPluginConnectorProvider;
+pub use connector_provider::ExecutorPluginConnectorProviderError;
 
 struct HostedPluginRuntimeExtension;
 

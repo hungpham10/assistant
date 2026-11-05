@@ -120,9 +120,9 @@ mod tests {
     use codex_app_server_protocol::SessionSource;
     use codex_app_server_protocol::Thread;
     use codex_app_server_protocol::ThreadStatus;
+    use codex_path::absolute_path::test_support::PathBufExt;
+    use codex_path::absolute_path::test_support::test_path_buf;
     use codex_protocol::ThreadId;
-    use codex_utils_absolute_path::test_support::PathBufExt;
-    use codex_utils_absolute_path::test_support::test_path_buf;
     use pretty_assertions::assert_eq;
 
     fn test_thread(thread_id: ThreadId, source: SessionSource) -> Thread {

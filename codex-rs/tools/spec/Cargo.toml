@@ -1,0 +1,53 @@
+[package]
+edition.workspace = true
+license.workspace = true
+name = "codex-tools"
+version.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+async-trait = { workspace = true }
+codegraph-context = { path = "vendor/codegraph-context" }
+codegraph-core = { path = "vendor/codegraph-core" }
+codegraph-graph = { path = "vendor/codegraph-graph" }
+codegraph-source = { path = "vendor/codegraph-source" }
+codex-code-mode = { workspace = true }
+codex-connectors = { workspace = true }
+codex-enrich = { workspace = true }
+codex-features = { workspace = true }
+codex-file-system = { workspace = true }
+codex-extension-items = { workspace = true }
+codex-protocol = { workspace = true }
+codex-path = { workspace = true }
+codex-utils-output-truncation = { workspace = true }
+codex-utils-pty = { workspace = true }
+codex-utils-string = { workspace = true }
+jsonptr = { workspace = true }
+rmcp = { workspace = true, default-features = false, features = [
+    "base64",
+    "macros",
+    "schemars",
+    "server",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = [
+    "macros",
+    "rt",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
+tracing = { workspace = true }
+urlencoding = { workspace = true }
+
+[dev-dependencies]
+codex-utils-cargo-bin = { workspace = true }
+pretty_assertions = { workspace = true }
+
+[lib]
+doctest = false

@@ -4,9 +4,9 @@ use crate::status::StatusAccountDisplay;
 use crate::text_formatting;
 use chrono::DateTime;
 use chrono::Local;
+use codex_path::path_uri::PathConvention;
+use codex_path::path_uri::PathUri;
 use codex_protocol::account::PlanType;
-use codex_utils_path_uri::PathConvention;
-use codex_utils_path_uri::PathUri;
 use std::path::Path;
 use unicode_width::UnicodeWidthStr;
 
@@ -197,7 +197,7 @@ fn title_case(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::legacy_core::config::ConfigBuilder;
-    use codex_utils_absolute_path::test_support::PathBufExt;
+    use codex_path::absolute_path::test_support::PathBufExt;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 

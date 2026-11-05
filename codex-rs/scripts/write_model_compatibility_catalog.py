@@ -14,8 +14,8 @@ LITELLM_CATALOG_URL = (
     "model_prices_and_context_window.json"
 )
 REPO_ROOT = Path(__file__).resolve().parents[2]
-OUTPUT_PATH = REPO_ROOT / "codex-rs" / "codex-api" / "model_compatibility_catalog.json"
-OVERRIDES_PATH = REPO_ROOT / "codex-rs" / "codex-api" / "model_compatibility_overrides.json"
+OUTPUT_PATH = REPO_ROOT / "codex-rs" / "codex" / "oapi" / "stable" / "model_compatibility_catalog.json"
+OVERRIDES_PATH = REPO_ROOT / "codex-rs" / "codex" / "oapi" / "stable" / "model_compatibility_overrides.json"
 
 
 def load_litellm_catalog() -> dict[str, dict]:

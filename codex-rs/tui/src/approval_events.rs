@@ -15,7 +15,7 @@ use codex_app_server_protocol::ExecPolicyAmendment;
 use codex_app_server_protocol::NetworkApprovalContext;
 use codex_app_server_protocol::NetworkPolicyAmendment;
 use codex_app_server_protocol::NetworkPolicyRuleAction;
-use codex_utils_absolute_path::AbsolutePathBuf;
+use codex_path::absolute_path::AbsolutePathBuf;
 use serde::Deserialize;
 use serde::Serialize;
 

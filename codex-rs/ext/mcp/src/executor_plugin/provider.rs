@@ -2,12 +2,12 @@ use codex_config::McpServerConfig;
 use codex_core_plugins::ResolvedExecutorPlugin;
 use codex_exec_server::ExecutorFileSystem;
 use codex_mcp::parse_executor_plugin_mcp_config;
+use codex_path::path_uri::PathUri;
+use codex_path::path_uri::PathUriParseError;
 use codex_plugin::PluginResourceLocator;
 use codex_plugin::ResolvedPlugin;
 use codex_plugin::ResolvedPluginLocation;
 use codex_plugin::manifest::PluginManifestMcpServers;
-use codex_utils_path_uri::PathUri;
-use codex_utils_path_uri::PathUriParseError;
 use std::io;
 use thiserror::Error;
 

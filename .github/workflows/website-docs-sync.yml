@@ -9,7 +9,7 @@ on:
       - docs.zh.json
       - docs-site/**
       - scripts/check-doc-locales.mjs
-      - codex-rs/core/config.schema.json
+      - codex-rs/codex/core/config.schema.json
   workflow_dispatch:
 
 permissions:

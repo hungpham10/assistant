@@ -96,7 +96,7 @@ pub fn get_update_action() -> Option<UpdateAction> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codex_utils_absolute_path::AbsolutePathBuf;
+    use codex_path::absolute_path::AbsolutePathBuf;
     use pretty_assertions::assert_eq;
 
     #[test]
