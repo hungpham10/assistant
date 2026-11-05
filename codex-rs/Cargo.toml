@@ -4,6 +4,7 @@ members = [
     "providers/aws-auth",
     "observability/analytics",
     "state/agent-graph-store",
+    "state/artifacts",
     "agents/agent-identity",
     "integrations/cloud/backend-client",
     "execution/bwrap",
@@ -131,6 +132,7 @@ app_test_support = { path = "servers/app-server/tests/common" }
 codex-acp-server = { path = "servers/acp-server" }
 codex-analytics = { path = "observability/analytics" }
 codex-agent-graph-store = { path = "state/agent-graph-store" }
+codex-artifacts = { path = "state/artifacts" }
 codex-agent-identity = { path = "agents/agent-identity" }
 codex-ansi-escape = { path = "platform/ansi-escape" }
 codex-api = { path = "codex/oapi/stable" }

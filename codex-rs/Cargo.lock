@@ -2697,6 +2697,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-artifacts"
+version = "0.0.41"
+dependencies = [
+ "anyhow",
+ "codex-path",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "codex-async-utils"
 version = "0.0.41"
 dependencies = [
@@ -3085,6 +3100,7 @@ dependencies = [
  "codex-api",
  "codex-app-server-protocol",
  "codex-apply-patch",
+ "codex-artifacts",
  "codex-async-utils",
  "codex-chat-wire-compat",
  "codex-code-mode",
@@ -3301,8 +3317,11 @@ version = "0.0.41"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
+ "codex-artifacts",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

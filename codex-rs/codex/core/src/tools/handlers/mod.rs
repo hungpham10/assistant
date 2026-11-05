@@ -6,6 +6,7 @@ mod codegraph;
 mod current_time;
 mod dynamic;
 pub(crate) mod extension_tools;
+pub(crate) mod family_verb;
 mod get_context_remaining;
 pub(crate) mod get_context_remaining_spec;
 mod harness_aliases;

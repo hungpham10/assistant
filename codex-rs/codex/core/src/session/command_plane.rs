@@ -1,13 +1,45 @@
 use crate::session::TurnInput;
 use crate::session::turn_context::TurnContext;
 use crate::tools::families::build_family_registry;
+use codex_artifacts::ArtifactStore;
+use codex_enrich::artifacts::ArtifactSink;
 use codex_enrich::command::AtCommandParser;
 use codex_enrich::command::CommandParser;
 use codex_enrich::executor::run_chain;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::user_input::UserInput;
+use codex_utils_output_truncation::TruncationPolicy;
+use codex_utils_output_truncation::approx_token_count;
+use codex_utils_output_truncation::truncate_text;
 use std::sync::Arc;
+
+/// Wraps [`ArtifactStore`] behind the enrich [`ArtifactSink`] trait.
+struct StoreSink {
+    store: ArtifactStore,
+}
+
+impl ArtifactSink for StoreSink {
+    fn store<'a>(
+        &'a self,
+        bytes: Vec<u8>,
+        kind: &'a str,
+        meta: serde_json::Value,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = anyhow::Result<codex_artifacts::ArtifactRef>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(async move {
+            self.store
+                .put(bytes, kind, meta)
+                .await
+                .map_err(|e| anyhow::anyhow!(e))
+        })
+    }
+}
 
 pub(crate) async fn run_command_plane(
     turn_context: &Arc<TurnContext>,
@@ -18,6 +50,13 @@ pub(crate) async fn run_command_plane(
     let pipeline_cfg = &turn_context.config.pipeline;
     let token_budget = pipeline_cfg.token_budget;
     let max_ratio = pipeline_cfg.max_total_context_ratio as u64;
+
+    // Artifact store for this turn; verbs returning `{"artifact": ...}`
+    // payloads get their bytes persisted here instead of inlined.
+    let sink: Option<StoreSink> =
+        ArtifactStore::new(&turn_context.config.codex_home, &turn_context.sub_id)
+            .ok()
+            .map(|store| StoreSink { store });
 
     for turn_input in input {
         if let TurnInput::UserInput { content, .. } = turn_input {
@@ -31,7 +70,12 @@ pub(crate) async fn run_command_plane(
                     if plan.commands.is_empty() {
                         continue;
                     }
-                    let outcome = run_chain(&registry, &plan).await;
+                    let outcome = run_chain(
+                        &registry,
+                        &plan,
+                        sink.as_ref().map(|s| s as &dyn ArtifactSink),
+                    )
+                    .await;
                     let mut items_for_budget: Vec<ResponseItem> = Vec::new();
                     for result in outcome.results {
                         let json = serde_json::to_string_pretty(&result.output)
@@ -44,10 +88,11 @@ pub(crate) async fn run_command_plane(
                             internal_chat_message_metadata_passthrough: None,
                         });
                     }
-                    codex_tools::truncate_assistant_output_text_to_token_budget(
-                        &mut items_for_budget,
-                        token_budget,
-                    );
+
+                    // Enforce the token budget over the injected enrichment
+                    // items themselves (they are user-role InputText, so the
+                    // assistant-only truncation helper does not apply).
+                    enforce_token_budget(&mut items_for_budget, token_budget);
 
                     // Check total context ratio if possible
                     if let Some(ctx_window) = turn_context.model_context_window() {
@@ -85,3 +130,32 @@ pub(crate) async fn run_command_plane(
     }
     items
 }
+
+/// Enforces the enrichment token budget over user-role `InputText` items.
+///
+/// The budget is consumed in item order; once exhausted, later items are
+/// emptied in place (the ratio check may still drop everything afterwards).
+pub(crate) fn enforce_token_budget(items: &mut [ResponseItem], token_budget: usize) {
+    let mut remaining = token_budget;
+    for item in items.iter_mut() {
+        if let ResponseItem::Message { content, .. } = item {
+            for entry in content.iter_mut() {
+                if let ContentItem::InputText { text } = entry {
+                    let cost = approx_token_count(text);
+                    if cost <= remaining {
+                        remaining -= cost;
+                    } else if remaining == 0 {
+                        *text = String::new();
+                    } else {
+                        *text = truncate_text(text, TruncationPolicy::Tokens(remaining));
+                        remaining = 0;
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "command_plane_tests.rs"]
+mod tests;

@@ -1107,7 +1107,7 @@ pub struct CodegraphConfig {
     pub permit_modes: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PipelineConfig {
     pub token_budget: usize,
     pub max_total_context_ratio: u8,
@@ -2539,6 +2539,19 @@ fn resolve_codegraph_config(_config_toml: &ConfigToml) -> CodegraphConfig {
     }
 }
 
+fn resolve_pipeline_config(config_toml: &ConfigToml) -> PipelineConfig {
+    let base = PipelineConfig::default();
+    let Some(pipeline_toml) = config_toml.pipeline.as_ref() else {
+        return base;
+    };
+    PipelineConfig {
+        token_budget: pipeline_toml.token_budget.unwrap_or(base.token_budget),
+        max_total_context_ratio: pipeline_toml
+            .max_total_context_ratio
+            .unwrap_or(base.max_total_context_ratio),
+    }
+}
+
 fn resolve_multi_agent_v2_config(config_toml: &ConfigToml) -> MultiAgentV2Config {
     let base = multi_agent_v2_toml_config(config_toml.features.as_ref());
     let max_concurrent_threads_per_session = base
@@ -3453,7 +3466,7 @@ impl Config {
             resolve_experimental_request_user_input_enabled(&cfg);
         let code_mode = resolve_code_mode_config(&cfg);
         let codegraph = resolve_codegraph_config(&cfg);
-        let pipeline = PipelineConfig::default();
+        let pipeline = resolve_pipeline_config(&cfg);
         let multi_agent_v2 = resolve_multi_agent_v2_config(&cfg);
         let token_budget = resolve_token_budget_config(&cfg, &features)?;
         let rollout_budget = resolve_rollout_budget_config(&cfg, &features)?;

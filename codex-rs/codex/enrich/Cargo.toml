@@ -11,10 +11,15 @@ doctest = false
 workspace = true
 
 [dependencies]
-async-trait.workspace = true
 anyhow.workspace = true
+async-trait.workspace = true
+base64.workspace = true
+codex-artifacts = { workspace = true }
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "macros"] }
+
+[dev-dependencies]
+tempfile.workspace = true

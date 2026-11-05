@@ -2392,6 +2392,25 @@
       ],
       "type": "string"
     },
+    "PipelineConfigToml": {
+      "additionalProperties": false,
+      "description": "`[pipeline]` settings for the enrichment/command-plane layer.",
+      "properties": {
+        "max_total_context_ratio": {
+          "description": "Percentage of the model context window enrichment may occupy.",
+          "format": "uint8",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "token_budget": {
+          "description": "Maximum number of tokens injected per turn by the command plane.",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "PluginConfig": {
       "additionalProperties": false,
       "properties": {
@@ -4619,6 +4638,13 @@
             "messages"
           ],
           "type": "string"
+        },
+        {
+          "description": "Google Gemini native generateContent API.",
+          "enum": [
+            "google"
+          ],
+          "type": "string"
         }
       ]
     },
@@ -5390,6 +5416,15 @@
         }
       ],
       "description": "Optionally specify a personality for the model"
+    },
+    "pipeline": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PipelineConfigToml"
+        }
+      ],
+      "default": null,
+      "description": "Enrichment/command-plane settings."
     },
     "plan_mode_reasoning_effort": {
       "$ref": "#/definitions/ReasoningEffort"

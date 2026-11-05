@@ -188,6 +188,10 @@ pub struct ConfigToml {
     #[serde(default)]
     pub auto_review: Option<AutoReviewToml>,
 
+    /// Enrichment/command-plane settings.
+    #[serde(default)]
+    pub pipeline: Option<PipelineConfigToml>,
+
     #[serde(default)]
     pub shell_environment_policy: ShellEnvironmentPolicyToml,
 
@@ -570,6 +574,16 @@ pub enum ThreadStoreToml {
 pub struct AutoReviewToml {
     /// Additional policy instructions inserted into the guardian prompt.
     pub policy: Option<String>,
+}
+
+/// `[pipeline]` settings for the enrichment/command-plane layer.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct PipelineConfigToml {
+    /// Maximum number of tokens injected per turn by the command plane.
+    pub token_budget: Option<usize>,
+    /// Percentage of the model context window enrichment may occupy.
+    pub max_total_context_ratio: Option<u8>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]

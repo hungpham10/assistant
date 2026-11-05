@@ -36,12 +36,16 @@ pub trait Component: Send + Sync {
 
 pub type BoxedComponent = Arc<dyn Component>;
 
+// Milestone 2: the tap runtime will consume these to run components between
+// chain steps with per-tap token budgets.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct TapConfig {
     pub components: Vec<String>,
     pub token_budget: usize,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Default)]
 pub struct PipelineProfile {
     pub components: Vec<crate::family::ComponentSpec>,

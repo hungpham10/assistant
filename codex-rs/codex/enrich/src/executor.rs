@@ -1,5 +1,6 @@
+use crate::artifacts::ArtifactSink;
+use crate::artifacts::materialize_artifacts;
 use crate::command::CommandPlan;
-use crate::command::VerbCall;
 use crate::command::resolve_refs;
 use crate::component::CommandResult;
 use crate::registry::FamilyRegistry;
@@ -12,7 +13,11 @@ pub struct ChainOutcome {
     pub truncated: bool,
 }
 
-pub async fn run_chain(registry: &FamilyRegistry, plan: &CommandPlan) -> ChainOutcome {
+pub async fn run_chain(
+    registry: &FamilyRegistry,
+    plan: &CommandPlan,
+    sink: Option<&dyn ArtifactSink>,
+) -> ChainOutcome {
     let mut outcome = ChainOutcome::default();
     let mut results_vec: Vec<JsonValue> = Vec::new();
 
@@ -36,7 +41,13 @@ pub async fn run_chain(registry: &FamilyRegistry, plan: &CommandPlan) -> ChainOu
         };
 
         match family.run_verb(&call.verb, &resolved_args).await {
-            Ok(output) => {
+            Ok(mut output) => {
+                if let Err(e) = materialize_artifacts(&mut output, sink).await {
+                    outcome
+                        .hints
+                        .push(format!("artifact materialization failed: {e}"));
+                    break;
+                }
                 results_vec.push(output.clone());
                 outcome.results.push(CommandResult {
                     call: call.clone(),

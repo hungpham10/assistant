@@ -40,6 +40,7 @@ use crate::tools::handlers::WriteStdinHandler;
 use crate::tools::handlers::agent_jobs::ReportAgentJobResultHandler;
 use crate::tools::handlers::agent_jobs::SpawnAgentsOnCsvHandler;
 use crate::tools::handlers::extension_tools::ExtensionToolAdapter;
+use crate::tools::handlers::family_verb::FamilyVerbHandler;
 use crate::tools::handlers::multi_agents::CloseAgentHandler;
 use crate::tools::handlers::multi_agents::ResumeAgentHandler;
 use crate::tools::handlers::multi_agents::SendInputHandler;
@@ -634,10 +635,7 @@ fn code_mode_namespace_descriptions(
 
 #[instrument(level = "trace", skip_all)]
 fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
-    let _registry = build_family_registry();
-    for _family in _registry.families() {
-        // families will be registered here
-    }
+    add_family_tools(planned_tools);
     add_shell_tools(context, planned_tools);
     add_harness_alias_tools(context, planned_tools);
     add_mcp_resource_tools(context, planned_tools);
@@ -649,6 +647,28 @@ fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut Plann
     add_dynamic_tools(context, planned_tools);
     for spec in hosted_model_tool_specs(context) {
         planned_tools.add_hosted_spec(spec);
+    }
+}
+
+/// Registers family verbs that opted into model-visible tool exposure.
+fn add_family_tools(planned_tools: &mut PlannedTools) {
+    let registry = build_family_registry();
+    for family in registry.families() {
+        let policy = family.policy(&serde_json::Value::Null);
+        if !policy.enabled {
+            continue;
+        }
+        for verb_spec in family.verb_specs() {
+            let handler = FamilyVerbHandler {
+                family: Arc::clone(family),
+                verb_spec,
+            };
+            if policy.deferred {
+                planned_tools.add_with_exposure(handler, ToolExposure::Deferred);
+            } else {
+                planned_tools.add(handler);
+            }
+        }
     }
 }
 
