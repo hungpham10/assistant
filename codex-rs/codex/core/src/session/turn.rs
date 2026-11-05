@@ -27,6 +27,7 @@ use crate::hook_runtime::run_turn_stop_hooks;
 use crate::injection::ToolMentionKind;
 use crate::injection::app_id_from_path;
 use crate::injection::tool_kind_for_path;
+use crate::mcp_skill_dependencies::ensure_input_mcp_requirements;
 use crate::mcp_skill_dependencies::maybe_prompt_and_install_mcp_dependencies;
 use crate::mcp_tool_exposure::build_mcp_tool_exposure;
 use crate::mentions::build_connector_slug_counts;
@@ -166,6 +167,11 @@ pub(crate) async fn run_turn(
         error!("Failed to run pre-sampling compact");
         return Ok(None);
     }
+
+    // Install MCP servers required by this turn's input (e.g. skill dependencies)
+    // before capturing the first step context, so the first sampling request
+    // advertises a fresh MCP inventory instead of a stale one.
+    ensure_input_mcp_requirements(&sess, &turn_context, &input, &cancellation_token).await;
 
     // run_turn owns the step used to seed context and make the first sampling request.
     let first_step_context = sess.capture_step_context(Arc::clone(&turn_context)).await;

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use codex_config::ConfigEditsBuilder;
 use codex_config::McpServerConfig;
@@ -16,6 +17,8 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use crate::SkillMetadata;
+use crate::collect_explicit_skill_mentions;
+use crate::session::TurnInput;
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::skills::model::SkillToolDependency;
@@ -76,6 +79,58 @@ pub(crate) async fn maybe_prompt_and_install_mcp_dependencies(
         )
         .await;
     }
+}
+
+/// Ensures MCP servers required by this turn's input are available before the
+/// first step context is captured.
+///
+/// Skills mentioned explicitly in the turn input may declare MCP dependencies.
+/// Installing them (and refreshing the MCP runtime) only happens inside
+/// `build_skills_and_plugins`, which `run_turn` calls *after* the first
+/// `capture_step_context`. That means the first sampling request would advertise
+/// a stale MCP inventory missing the just-installed dependency servers. Calling
+/// this before the first capture closes that gap. It is idempotent: when
+/// nothing is missing, it does nothing.
+pub(crate) async fn ensure_input_mcp_requirements(
+    sess: &Arc<Session>,
+    turn_context: &TurnContext,
+    input: &[TurnInput],
+    cancellation_token: &CancellationToken,
+) {
+    let user_input = input
+        .iter()
+        .filter_map(|item| match item {
+            TurnInput::UserInput { content, .. } => Some(content.as_slice()),
+            TurnInput::ResponseItem(_) | TurnInput::InterAgentCommunication(_) => None,
+        })
+        .flatten()
+        .cloned()
+        .collect::<Vec<_>>();
+    if user_input.is_empty() {
+        return;
+    }
+
+    let skills_outcome = turn_context.turn_skills.snapshot.outcome();
+    // Connector slugs are irrelevant here: we only need the skills' MCP
+    // dependencies, not whether a plain-name mention collides with an app slug.
+    let mentioned_skills = collect_explicit_skill_mentions(
+        &user_input,
+        &skills_outcome.skills,
+        &skills_outcome.disabled_paths,
+        &HashMap::new(),
+    );
+    if mentioned_skills.is_empty() {
+        return;
+    }
+
+    maybe_prompt_and_install_mcp_dependencies(
+        sess,
+        turn_context,
+        cancellation_token,
+        &mentioned_skills,
+        Some(sess.mcp_elicitation_reviewer()),
+    )
+    .await;
 }
 
 pub(crate) async fn maybe_install_mcp_dependencies(
