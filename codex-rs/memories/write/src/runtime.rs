@@ -1,3 +1,4 @@
+use codex_file_system::StdSystemFs;
 use codex_core::CodexThread;
 use codex_core::ModelClient;
 use codex_core::NewThread;
@@ -186,7 +187,7 @@ impl MemoryStartupContext {
         self.thread_id
     }
 
-    pub(crate) fn state_db(&self) -> Option<Arc<StateRuntime>> {
+    pub(crate) fn state_db(&self) -> Option<Arc<dyn codex_rollout::RolloutStore>> {
         self.thread.state_db()
     }
 
@@ -244,7 +245,7 @@ impl MemoryStartupContext {
         prompt: &Prompt,
         context: &StageOneRequestContext,
     ) -> anyhow::Result<(String, Option<TokenUsage>)> {
-        let installation_id = resolve_installation_id(&config.codex_home).await?;
+        let installation_id = resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
         let config_snapshot = self.thread.config_snapshot().await;
         let session_source = config_snapshot.session_source;
         let session_id = SessionId::from(self.thread_id);

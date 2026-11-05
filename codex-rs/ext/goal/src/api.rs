@@ -95,7 +95,7 @@ impl GoalService {
 
     pub async fn get_thread_goal(
         &self,
-        state_db: &codex_state::StateRuntime,
+        state_db: &dyn codex_rollout::RolloutStore,
         thread_id: ThreadId,
     ) -> Result<Option<ThreadGoal>, GoalServiceError> {
         state_db
@@ -108,7 +108,7 @@ impl GoalService {
 
     pub async fn set_thread_goal(
         &self,
-        state_db: &codex_state::StateRuntime,
+        state_db: &dyn codex_rollout::RolloutStore,
         request: GoalSetRequest<'_>,
     ) -> Result<GoalSetOutcome, GoalServiceError> {
         let GoalSetRequest {
@@ -249,7 +249,7 @@ impl GoalService {
 
     pub async fn clear_thread_goal(
         &self,
-        state_db: &codex_state::StateRuntime,
+        state_db: &dyn codex_rollout::RolloutStore,
         thread_id: ThreadId,
     ) -> Result<bool, GoalServiceError> {
         let runtime = self.runtime_for_thread(thread_id);

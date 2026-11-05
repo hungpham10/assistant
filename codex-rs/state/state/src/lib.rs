@@ -16,6 +16,7 @@ mod migrations;
 mod model;
 mod paths;
 mod runtime;
+pub mod state_store;
 mod telemetry;
 
 pub use model::LogEntry;
@@ -26,6 +27,7 @@ pub use model::Phase2JobClaimOutcome;
 pub use runtime::StateRuntime;
 
 pub use audit::ThreadStateAuditRow;
+pub use state_store::RolloutStore;
 pub use audit::read_thread_state_audit_rows;
 /// Low-level storage engine: useful for focused tests.
 ///

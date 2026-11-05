@@ -28,6 +28,7 @@ codex-core = { workspace = true }
 codex-login = { workspace = true }
 codex-model-provider = { workspace = true }
 codex-state = { workspace = true }
+codex-rollout = { workspace = true }
 codex-uds = { workspace = true }
 codex-path = { workspace = true }
 codex-utils-rustls-provider = { workspace = true }

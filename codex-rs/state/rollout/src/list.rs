@@ -1312,7 +1312,7 @@ async fn find_thread_path_by_id_str_in_subdir(
     codex_home: &Path,
     subdir: &str,
     id_str: &str,
-    state_db_ctx: Option<&codex_state::StateRuntime>,
+    state_db_ctx: Option<&dyn codex_state::RolloutStore>,
 ) -> io::Result<Option<PathBuf>> {
     // Validate UUID format early.
     if Uuid::parse_str(id_str).is_err() {
@@ -1518,7 +1518,7 @@ async fn find_rollout_path_by_id_from_filenames(
 pub async fn find_thread_path_by_id_str(
     codex_home: &Path,
     id_str: &str,
-    state_db_ctx: Option<&codex_state::StateRuntime>,
+    state_db_ctx: Option<&dyn codex_state::RolloutStore>,
 ) -> io::Result<Option<PathBuf>> {
     find_thread_path_by_id_str_in_subdir(codex_home, SESSIONS_SUBDIR, id_str, state_db_ctx).await
 }
@@ -1527,7 +1527,7 @@ pub async fn find_thread_path_by_id_str(
 pub async fn find_archived_thread_path_by_id_str(
     codex_home: &Path,
     id_str: &str,
-    state_db_ctx: Option<&codex_state::StateRuntime>,
+    state_db_ctx: Option<&dyn codex_state::RolloutStore>,
 ) -> io::Result<Option<PathBuf>> {
     find_thread_path_by_id_str_in_subdir(codex_home, ARCHIVED_SESSIONS_SUBDIR, id_str, state_db_ctx)
         .await

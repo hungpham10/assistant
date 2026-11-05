@@ -37,7 +37,6 @@ use codex_login::token_data::TokenData;
 use codex_login::token_data::parse_chatgpt_jwt_claims;
 use codex_protocol::auth::AuthMode;
 use codex_state::RemoteControlEnrollmentRecord;
-use codex_state::StateRuntime;
 use futures::SinkExt;
 use futures::StreamExt;
 use gethostname::gethostname;

@@ -106,7 +106,7 @@ pub struct LogDbLayer {
     process_uuid: String,
 }
 
-pub fn start(state_db: std::sync::Arc<StateRuntime>) -> LogDbLayer {
+pub fn start(state_db: std::sync::Arc<dyn crate::RolloutStore>) -> LogDbLayer {
     LogDbLayer::start(state_db)
 }
 
@@ -120,12 +120,12 @@ impl Clone for LogDbLayer {
 }
 
 impl LogDbLayer {
-    pub fn start(state_db: std::sync::Arc<StateRuntime>) -> Self {
+    pub fn start(state_db: std::sync::Arc<dyn crate::RolloutStore>) -> Self {
         Self::start_with_config(state_db, LogSinkQueueConfig::default())
     }
 
     pub fn start_with_config(
-        state_db: std::sync::Arc<StateRuntime>,
+        state_db: std::sync::Arc<dyn crate::RolloutStore>,
         config: LogSinkQueueConfig,
     ) -> Self {
         let config = config.normalized();
@@ -389,7 +389,7 @@ fn current_process_log_uuid() -> &'static str {
 }
 
 async fn run_inserter(
-    state_db: std::sync::Arc<StateRuntime>,
+    state_db: std::sync::Arc<dyn crate::RolloutStore>,
     mut receiver: mpsc::Receiver<LogDbCommand>,
     config: LogSinkQueueConfig,
 ) {
@@ -404,27 +404,27 @@ async fn run_inserter(
                     Some(LogDbCommand::Entry(entry)) => {
                         buffer.push(*entry);
                         if buffer.len() >= config.batch_size {
-                            flush(&state_db, &mut buffer).await;
+                            flush(state_db.as_ref(), &mut buffer).await;
                         }
                     }
                     Some(LogDbCommand::Flush(reply)) => {
-                        flush(&state_db, &mut buffer).await;
+                        flush(state_db.as_ref(), &mut buffer).await;
                         let _ = reply.send(());
                     }
                     None => {
-                        flush(&state_db, &mut buffer).await;
+                        flush(state_db.as_ref(), &mut buffer).await;
                         break;
                     }
                 }
             }
             _ = ticker.tick() => {
-                flush(&state_db, &mut buffer).await;
+                flush(state_db.as_ref(), &mut buffer).await;
             }
         }
     }
 }
 
-async fn flush(state_db: &StateRuntime, buffer: &mut Vec<LogEntry>) {
+async fn flush(state_db: &dyn crate::RolloutStore, buffer: &mut Vec<LogEntry>) {
     if buffer.is_empty() {
         return;
     }

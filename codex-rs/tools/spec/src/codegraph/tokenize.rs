@@ -13,7 +13,7 @@ pub fn tokenize(question: &str) -> Vec<String> {
                 }
             } else if ch.is_uppercase()
                 && !current.is_empty()
-                && !current.chars().last().unwrap().is_uppercase()
+                && !matches!(current.chars().last(), Some(c) if c.is_uppercase())
             {
                 tokens.push(current.to_lowercase());
                 current.clear();

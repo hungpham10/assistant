@@ -34,6 +34,7 @@ members = [
     "integrations/connectors",
     "config",
     "state/context-fragments",
+    "execution/shell-backend",
     "execution/shell-command",
     "execution/shell-escalation",
     "codex/core",
@@ -218,6 +219,7 @@ codex-rollout = { path = "state/rollout" }
 codex-rollout-trace = { path = "observability/rollout-trace" }
 codex-sandboxing = { path = "execution/sandboxing" }
 codex-secrets = { path = "platform/secrets" }
+codex-shell-backend = { path = "execution/shell-backend" }
 codex-shell-command = { path = "execution/shell-command" }
 codex-shell-escalation = { path = "execution/shell-escalation" }
 codex-skills-extension = { path = "ext/skills" }

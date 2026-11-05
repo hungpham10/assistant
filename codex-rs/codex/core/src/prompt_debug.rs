@@ -40,7 +40,8 @@ pub async fn build_prompt_input(
     )?;
 
     let thread_store = thread_store_from_config(&config, state_db.clone());
-    let installation_id = resolve_installation_id(&config.codex_home).await?;
+    let installation_id =
+        resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
     let thread_manager = ThreadManager::new(
         &config,
         Arc::clone(&auth_manager),

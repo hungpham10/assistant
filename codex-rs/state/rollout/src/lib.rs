@@ -76,6 +76,7 @@ pub use session_index::find_thread_names_by_ids;
 pub use session_index::remove_thread_name_entries;
 pub use state_db::StateDbHandle;
 pub use state_db::sqlite_telemetry_recorder;
+pub use codex_state::RolloutStore;
 
 #[cfg(test)]
 mod tests;

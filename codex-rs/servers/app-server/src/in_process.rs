@@ -38,6 +38,7 @@
 //! which wraps this module behind a worker task with async request/response
 //! helpers, surface-specific startup policy, and bounded shutdown.
 
+use codex_file_system::StdSystemFs;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::collections::hash_map::Entry;
@@ -383,7 +384,7 @@ pub async fn start(mut args: InProcessStartArgs) -> IoResult<InProcessClientHand
 
 async fn start_uninitialized(args: InProcessStartArgs) -> IoResult<InProcessClientHandle> {
     let channel_capacity = args.channel_capacity.max(1);
-    let installation_id = resolve_installation_id(&args.config.codex_home).await?;
+    let installation_id = resolve_installation_id(&args.config.codex_home, &codex_file_system::StdSystemFs).await?;
     let (client_tx, mut client_rx) = mpsc::channel::<InProcessClientMessage>(channel_capacity);
     let (event_tx, event_rx) = mpsc::channel::<InProcessServerEvent>(channel_capacity);
 

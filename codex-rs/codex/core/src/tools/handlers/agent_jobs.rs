@@ -6,7 +6,11 @@ use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
 use crate::tools::handlers::multi_agents::build_agent_spawn_config;
 use crate::tools::handlers::parse_arguments;
+use crate::tools::handlers::resolve_tool_environment;
+use codex_file_system::CreateDirectoryOptions;
+use codex_file_system::ExecutorFileSystem;
 use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::PathUri;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::protocol::AgentStatus;
@@ -99,7 +103,7 @@ struct ActiveJobItem {
 
 fn required_state_db(
     session: &Arc<Session>,
-) -> Result<Arc<codex_state::StateRuntime>, FunctionCallError> {
+) -> Result<Arc<dyn codex_rollout::state_db::RolloutStore>, FunctionCallError> {
     session.state_db().ok_or_else(|| {
         FunctionCallError::Fatal("sqlite state db is unavailable for this session".to_string())
     })
@@ -156,7 +160,7 @@ fn normalize_max_runtime_seconds(requested: Option<u64>) -> Result<Option<u64>, 
 async fn run_agent_job_loop(
     session: Arc<Session>,
     turn: Arc<TurnContext>,
-    db: Arc<codex_state::StateRuntime>,
+    db: Arc<dyn codex_rollout::state_db::RolloutStore>,
     job_id: String,
     options: JobRunnerOptions,
 ) -> anyhow::Result<()> {
@@ -313,7 +317,7 @@ async fn run_agent_job_loop(
         }
     }
 
-    if let Err(err) = export_job_csv_snapshot(db.clone(), &job).await {
+    if let Err(err) = export_job_csv_snapshot(db.clone(), &job, job_filesystem(&turn)?).await {
         let message = format!("auto-export failed: {err}");
         db.mark_agent_job_failed(job_id.as_str(), message.as_str())
             .await?;
@@ -327,9 +331,18 @@ async fn run_agent_job_loop(
     Ok(())
 }
 
+fn job_filesystem(turn: &TurnContext) -> anyhow::Result<Arc<dyn ExecutorFileSystem>> {
+    let turn_environment =
+        resolve_tool_environment(&turn.environments, /*environment_id*/ None)
+            .map_err(|err| anyhow::anyhow!("failed to resolve turn environment: {err}"))?
+            .ok_or_else(|| anyhow::anyhow!("primary turn environment is unavailable"))?;
+    Ok(turn_environment.environment.get_filesystem())
+}
+
 async fn export_job_csv_snapshot(
-    db: Arc<codex_state::StateRuntime>,
+    db: Arc<dyn codex_rollout::state_db::RolloutStore>,
     job: &codex_state::AgentJob,
+    fs: Arc<dyn ExecutorFileSystem>,
 ) -> anyhow::Result<()> {
     let items = db
         .list_agent_job_items(job.id.as_str(), /*status*/ None, /*limit*/ None)
@@ -338,15 +351,23 @@ async fn export_job_csv_snapshot(
         .map_err(|err| anyhow::anyhow!("failed to render job csv for auto-export: {err}"))?;
     let output_path = PathBuf::from(job.output_csv_path.clone());
     if let Some(parent) = output_path.parent() {
-        tokio::fs::create_dir_all(parent).await?;
+        let parent_uri = PathUri::from_host_native_path(parent)?;
+        fs.create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            None,
+        )
+        .await?;
     }
-    tokio::fs::write(&output_path, csv_content).await?;
+    let output_uri = PathUri::from_host_native_path(&output_path)?;
+    fs.write_file(&output_uri, csv_content.into_bytes(), None)
+        .await?;
     Ok(())
 }
 
 async fn recover_running_items(
     session: Arc<Session>,
-    db: Arc<codex_state::StateRuntime>,
+    db: Arc<dyn codex_rollout::state_db::RolloutStore>,
     job_id: &str,
     active_items: &mut HashMap<ThreadId, ActiveJobItem>,
     runtime_timeout: Duration,
@@ -470,7 +491,7 @@ async fn wait_for_status_change(active_items: &HashMap<ThreadId, ActiveJobItem>)
 
 async fn reap_stale_active_items(
     session: Arc<Session>,
-    db: Arc<codex_state::StateRuntime>,
+    db: Arc<dyn codex_rollout::state_db::RolloutStore>,
     job_id: &str,
     active_items: &mut HashMap<ThreadId, ActiveJobItem>,
     runtime_timeout: Duration,
@@ -500,7 +521,7 @@ async fn reap_stale_active_items(
 
 async fn finalize_finished_item(
     session: Arc<Session>,
-    db: Arc<codex_state::StateRuntime>,
+    db: Arc<dyn codex_rollout::state_db::RolloutStore>,
     job_id: &str,
     item_id: &str,
     thread_id: ThreadId,

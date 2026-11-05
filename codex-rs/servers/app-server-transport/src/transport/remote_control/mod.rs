@@ -40,7 +40,6 @@ use codex_app_server_protocol::RemoteControlPairingStatusParams;
 use codex_app_server_protocol::RemoteControlPairingStatusResponse;
 use codex_app_server_protocol::RemoteControlStatusChangedNotification;
 use codex_login::AuthManager;
-use codex_state::StateRuntime;
 use futures::FutureExt;
 use gethostname::gethostname;
 use std::error::Error;
@@ -109,7 +108,7 @@ pub struct RemoteControlHandle {
     desired_state_rpc_lock: Arc<Semaphore>,
     desired_state_persistence_lock: Arc<Semaphore>,
     status_tx: Arc<watch::Sender<RemoteControlStatusChangedNotification>>,
-    state_db: Option<Arc<StateRuntime>>,
+    state_db: Option<Arc<dyn codex_rollout::RolloutStore>>,
     remote_control_url: String,
     current_enrollment: CurrentRemoteControlEnrollment,
     pairing_persistence_key: RemoteControlPairingPersistenceKey,
@@ -931,7 +930,7 @@ fn same_remote_control_enrollment(
 
 pub async fn start_remote_control(
     config: RemoteControlStartConfig,
-    state_db: Option<Arc<StateRuntime>>,
+    state_db: Option<Arc<dyn codex_rollout::RolloutStore>>,
     auth_manager: Arc<AuthManager>,
     transport_event_tx: mpsc::Sender<TransportEvent>,
     shutdown_token: CancellationToken,

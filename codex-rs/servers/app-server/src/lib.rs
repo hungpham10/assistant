@@ -681,7 +681,7 @@ pub async fn run_main_with_transport_options(
 
     let feedback_layer = feedback.logger_layer();
     let feedback_metadata_layer = feedback.metadata_layer();
-    let log_db = state_db.clone().map(log_db::start);
+    let log_db = state_db.clone().map(|rt| log_db::start(rt.as_ref()));
     let log_db_layer = log_db
         .clone()
         .map(|layer| layer.with_filter(log_db::default_filter()));
@@ -723,7 +723,7 @@ pub async fn run_main_with_transport_options(
             "remote control is disabled by managed requirements",
         ));
     }
-    let installation_id = resolve_installation_id(&config.codex_home).await?;
+    let installation_id = resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
     let transport_shutdown_token = CancellationToken::new();
     let mut transport_accept_handles = Vec::<JoinHandle<()>>::new();
 

@@ -122,8 +122,7 @@ pub fn resolve_refs(args: JsonValue, results: &[JsonValue]) -> Result<JsonValue,
 fn resolve_refs_recursive(value: JsonValue, results: &[JsonValue]) -> Result<JsonValue, RefError> {
     match value {
         JsonValue::String(s) => {
-            if s.starts_with('$') {
-                let path = &s[1..];
+            if let Some(path) = s.strip_prefix('$') {
                 if path.is_empty() {
                     if results.is_empty() {
                         return Err(RefError::Unresolved(s));
@@ -136,8 +135,8 @@ fn resolve_refs_recursive(value: JsonValue, results: &[JsonValue]) -> Result<Jso
                     }
                     return Ok(results[idx].clone());
                 }
-                let path_to_use = if path.starts_with('.') {
-                    &path[1..]
+                let path_to_use = if let Some(stripped) = path.strip_prefix('.') {
+                    stripped
                 } else {
                     path
                 };

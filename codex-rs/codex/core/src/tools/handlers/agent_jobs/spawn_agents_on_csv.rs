@@ -4,9 +4,11 @@ use crate::tools::context::ToolInvocation;
 use crate::tools::context::ToolPayload;
 use crate::tools::context::boxed_tool_output;
 use crate::tools::handlers::agent_jobs_spec::create_spawn_agents_on_csv_tool;
+use crate::tools::handlers::resolve_tool_environment;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
 use codex_path::absolute_path::AbsolutePathBuf;
+use codex_path::path_uri::PathUri;
 use codex_tools::ToolName;
 use codex_tools::ToolSpec;
 
@@ -79,10 +81,29 @@ pub async fn handle(
     }
 
     let cwd = single_local_environment_cwd(&turn)?;
+    let turn_environment =
+        resolve_tool_environment(&turn.environments, /*environment_id*/ None)?.ok_or_else(
+            || {
+                FunctionCallError::RespondToModel(
+                    "spawn_agents_on_csv requires a primary turn environment".to_string(),
+                )
+            },
+        )?;
+    let fs = turn_environment.environment.get_filesystem();
+    let sandbox = turn
+        .file_system_sandbox_context(/*additional_permissions*/ None, turn_environment.cwd());
+    let input_path_uri = turn_environment.cwd().join(&args.csv_path).map_err(|err| {
+        FunctionCallError::RespondToModel(format!(
+            "failed to resolve csv input {} against environment cwd `{}`: {err}",
+            args.csv_path,
+            turn_environment.cwd(),
+        ))
+    })?;
     let db = required_state_db(&session)?;
     let input_path = cwd.join(args.csv_path);
     let input_path_display = input_path.display().to_string();
-    let csv_content = tokio::fs::read_to_string(&input_path)
+    let csv_content = fs
+        .read_file_text(&input_path_uri, Some(&sandbox))
         .await
         .map_err(|err| {
             FunctionCallError::RespondToModel(format!(
@@ -227,8 +248,12 @@ pub async fn handle(
             FunctionCallError::RespondToModel(format!("agent job {job_id} not found"))
         })?;
     let output_path = PathBuf::from(job.output_csv_path.clone());
-    if !tokio::fs::try_exists(&output_path).await.unwrap_or(false) {
-        export_job_csv_snapshot(db.clone(), &job)
+    let output_exists = match PathUri::from_host_native_path(&output_path) {
+        Ok(output_uri) => fs.get_metadata(&output_uri, None).await.is_ok(),
+        Err(_) => false,
+    };
+    if !output_exists {
+        export_job_csv_snapshot(db.clone(), &job, fs.clone())
             .await
             .map_err(|err| {
                 FunctionCallError::RespondToModel(format!(

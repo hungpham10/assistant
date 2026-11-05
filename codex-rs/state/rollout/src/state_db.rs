@@ -24,7 +24,9 @@ use tracing::info;
 use tracing::warn;
 
 /// Core-facing handle to the SQLite-backed state runtime.
-pub type StateDbHandle = Arc<codex_state::StateRuntime>;
+pub type StateDbHandle = Arc<dyn codex_state::RolloutStore>;
+
+pub use codex_state::RolloutStore;
 
 #[cfg(not(test))]
 const STARTUP_BACKFILL_POLL_INTERVAL: Duration = Duration::from_secs(1);
@@ -303,7 +305,7 @@ pub fn normalize_cwd_for_state_db(cwd: &Path) -> PathBuf {
 /// List thread ids from SQLite for parity checks without rollout scanning.
 #[allow(clippy::too_many_arguments)]
 pub async fn list_thread_ids_db(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     codex_home: &Path,
     page_size: usize,
     cursor: Option<&Cursor>,
@@ -358,7 +360,7 @@ pub async fn list_thread_ids_db(
 /// List thread metadata from SQLite without rollout directory traversal.
 #[allow(clippy::too_many_arguments)]
 pub async fn list_threads_db(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     codex_home: &Path,
     page_size: usize,
     cursor: Option<&Cursor>,
@@ -456,7 +458,7 @@ pub async fn list_threads_db(
 
 /// Look up the rollout path for a thread id using SQLite.
 pub async fn find_rollout_path_by_id(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     thread_id: ThreadId,
     archived_only: Option<bool>,
     stage: &str,
@@ -471,7 +473,7 @@ pub async fn find_rollout_path_by_id(
 }
 
 pub async fn mark_thread_memory_mode_polluted(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     thread_id: ThreadId,
     stage: &str,
 ) {
@@ -489,7 +491,7 @@ pub async fn mark_thread_memory_mode_polluted(
 
 /// Reconcile rollout items into SQLite, falling back to scanning the rollout file.
 pub async fn reconcile_rollout(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     rollout_path: &Path,
     default_provider: &str,
     builder: Option<&ThreadMetadataBuilder>,
@@ -561,7 +563,7 @@ pub async fn reconcile_rollout(
 
 /// Repair a thread's rollout path after filesystem fallback succeeds.
 pub async fn read_repair_rollout_path(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     thread_id: Option<ThreadId>,
     archived_only: Option<bool>,
     rollout_path: &Path,
@@ -628,7 +630,7 @@ pub async fn read_repair_rollout_path(
 /// Apply rollout items incrementally to SQLite.
 #[allow(clippy::too_many_arguments)]
 pub async fn apply_rollout_items(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     rollout_path: &Path,
     default_provider: &str,
     builder: Option<&ThreadMetadataBuilder>,
@@ -671,7 +673,7 @@ pub async fn apply_rollout_items(
 }
 
 pub async fn touch_thread_updated_at(
-    context: Option<&codex_state::StateRuntime>,
+    context: Option<&dyn codex_state::RolloutStore>,
     thread_id: Option<ThreadId>,
     updated_at: DateTime<Utc>,
     stage: &str,

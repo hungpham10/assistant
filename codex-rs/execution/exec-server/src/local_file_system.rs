@@ -144,6 +144,26 @@ impl LocalFileSystem {
         file_system.write_file(path, contents, sandbox).await
     }
 
+    async fn append_file(
+        &self,
+        path: &PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        let (file_system, sandbox) = self.file_system_for(sandbox)?;
+        file_system.append_file(path, contents, sandbox).await
+    }
+
+    async fn rename(
+        &self,
+        from: &PathUri,
+        to: &PathUri,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        let (file_system, sandbox) = self.file_system_for(sandbox)?;
+        file_system.rename(from, to, sandbox).await
+    }
+
     async fn create_directory(
         &self,
         path: &PathUri,
@@ -238,6 +258,24 @@ impl ExecutorFileSystem for LocalFileSystem {
         sandbox: Option<&'a FileSystemSandboxContext>,
     ) -> ExecutorFileSystemFuture<'a, ()> {
         Box::pin(LocalFileSystem::write_file(self, path, contents, sandbox))
+    }
+
+    fn append_file<'a>(
+        &'a self,
+        path: &'a PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(LocalFileSystem::append_file(self, path, contents, sandbox))
+    }
+
+    fn rename<'a>(
+        &'a self,
+        from: &'a PathUri,
+        to: &'a PathUri,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(LocalFileSystem::rename(self, from, to, sandbox))
     }
 
     fn create_directory<'a>(
@@ -355,6 +393,28 @@ impl UnsandboxedFileSystem {
             .await
     }
 
+    async fn append_file(
+        &self,
+        path: &PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        reject_platform_sandbox_context(sandbox)?;
+        self.file_system
+            .append_file(path, contents, /*sandbox*/ None)
+            .await
+    }
+
+    async fn rename(
+        &self,
+        from: &PathUri,
+        to: &PathUri,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        reject_platform_sandbox_context(sandbox)?;
+        self.file_system.rename(from, to, /*sandbox*/ None).await
+    }
+
     async fn create_directory(
         &self,
         path: &PathUri,
@@ -452,6 +512,26 @@ impl ExecutorFileSystem for UnsandboxedFileSystem {
         Box::pin(UnsandboxedFileSystem::write_file(
             self, path, contents, sandbox,
         ))
+    }
+
+    fn append_file<'a>(
+        &'a self,
+        path: &'a PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(UnsandboxedFileSystem::append_file(
+            self, path, contents, sandbox,
+        ))
+    }
+
+    fn rename<'a>(
+        &'a self,
+        from: &'a PathUri,
+        to: &'a PathUri,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(UnsandboxedFileSystem::rename(self, from, to, sandbox))
     }
 
     fn create_directory<'a>(
@@ -571,6 +651,35 @@ impl DirectFileSystem {
         reject_sandbox_context(sandbox)?;
         let path = path.to_abs_path()?;
         tokio::fs::write(path.as_path(), contents).await
+    }
+
+    async fn append_file(
+        &self,
+        path: &PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        reject_sandbox_context(sandbox)?;
+        let path = path.to_abs_path()?;
+        use tokio::io::AsyncWriteExt;
+        let mut file = tokio::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path.as_path())
+            .await?;
+        file.write_all(&contents).await
+    }
+
+    async fn rename(
+        &self,
+        from: &PathUri,
+        to: &PathUri,
+        sandbox: Option<&FileSystemSandboxContext>,
+    ) -> FileSystemResult<()> {
+        reject_sandbox_context(sandbox)?;
+        let from = from.to_abs_path()?;
+        let to = to.to_abs_path()?;
+        tokio::fs::rename(from.as_path(), to.as_path()).await
     }
 
     async fn create_directory(
@@ -743,6 +852,24 @@ impl ExecutorFileSystem for DirectFileSystem {
         sandbox: Option<&'a FileSystemSandboxContext>,
     ) -> ExecutorFileSystemFuture<'a, ()> {
         Box::pin(DirectFileSystem::write_file(self, path, contents, sandbox))
+    }
+
+    fn append_file<'a>(
+        &'a self,
+        path: &'a PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(DirectFileSystem::append_file(self, path, contents, sandbox))
+    }
+
+    fn rename<'a>(
+        &'a self,
+        from: &'a PathUri,
+        to: &'a PathUri,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(DirectFileSystem::rename(self, from, to, sandbox))
     }
 
     fn create_directory<'a>(

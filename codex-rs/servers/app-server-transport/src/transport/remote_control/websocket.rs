@@ -36,7 +36,6 @@ use codex_app_server_protocol::RemoteControlStatusChangedNotification;
 use codex_core::util::backoff;
 use codex_login::AuthManager;
 use codex_login::UnauthorizedRecovery;
-use codex_state::StateRuntime;
 use codex_utils_rustls_provider::ensure_rustls_crypto_provider;
 use futures::SinkExt;
 use futures::StreamExt;
@@ -256,7 +255,7 @@ pub(crate) struct RemoteControlWebsocket {
     installation_id: String,
     server_name: String,
     remote_control_target: Option<RemoteControlTarget>,
-    state_db: Option<Arc<StateRuntime>>,
+    state_db: Option<Arc<dyn codex_rollout::RolloutStore>>,
     auth_manager: Arc<AuthManager>,
     status_publisher: RemoteControlStatusPublisher,
     shutdown_token: CancellationToken,
@@ -400,7 +399,7 @@ pub(super) struct RemoteControlConnectOptions<'a> {
 impl RemoteControlWebsocket {
     pub(crate) fn new(
         config: RemoteControlWebsocketConfig,
-        state_db: Option<Arc<StateRuntime>>,
+        state_db: Option<Arc<dyn codex_rollout::RolloutStore>>,
         auth_manager: Arc<AuthManager>,
         channels: RemoteControlChannels,
         shutdown_token: CancellationToken,
@@ -1313,7 +1312,7 @@ fn next_reconnect_delay(reconnect_attempt: &mut u64) -> (std::time::Duration, bo
 
 pub(super) async fn connect_remote_control_websocket(
     remote_control_target: &RemoteControlTarget,
-    state_db: Option<&StateRuntime>,
+    state_db: Option<&dyn codex_rollout::RolloutStore>,
     mut auth_context: RemoteControlAuthContext<'_>,
     current_enrollment: &CurrentRemoteControlEnrollment,
     connect_options: RemoteControlConnectOptions<'_>,
@@ -1431,7 +1430,7 @@ pub(super) async fn connect_remote_control_websocket(
 
 async fn prepare_remote_control_enrollment(
     remote_control_target: &RemoteControlTarget,
-    state_db: Option<&StateRuntime>,
+    state_db: Option<&dyn codex_rollout::RolloutStore>,
     auth_context: &mut RemoteControlAuthContext<'_>,
     enrollment: &mut Option<RemoteControlEnrollment>,
     connect_options: RemoteControlConnectOptions<'_>,
@@ -1588,7 +1587,7 @@ async fn prepare_remote_control_enrollment(
 }
 
 async fn resolve_desired_state_after_account_change(
-    state_db: &StateRuntime,
+    state_db: &dyn codex_rollout::RolloutStore,
     remote_control_target: &RemoteControlTarget,
     auth_manager: &Arc<AuthManager>,
     account_id: &str,
@@ -1645,7 +1644,7 @@ fn websocket_response_reports_missing_remote_app_server(
 }
 
 async fn replace_remote_control_enrollment_if_matches(
-    state_db: Option<&StateRuntime>,
+    state_db: Option<&dyn codex_rollout::RolloutStore>,
     remote_control_target: &RemoteControlTarget,
     auth_context: RemoteControlEnrollmentAuthContext<'_, '_>,
     current_enrollment: &CurrentRemoteControlEnrollment,
@@ -1697,7 +1696,7 @@ async fn clear_remote_control_server_token_if_matches(
 
 async fn enroll_and_persist_remote_control_server(
     remote_control_target: &RemoteControlTarget,
-    state_db: &StateRuntime,
+    state_db: &dyn codex_rollout::RolloutStore,
     auth_context: RemoteControlEnrollmentAuthContext<'_, '_>,
     enrollment: &mut Option<RemoteControlEnrollment>,
     connect_options: RemoteControlConnectOptions<'_>,

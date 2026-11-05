@@ -3,12 +3,17 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::Path;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::sync::LazyLock;
 use std::sync::Mutex;
 use std::time::Instant;
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use codex_file_system::CreateDirectoryOptions;
+use codex_file_system::ExecutorFileSystem;
+use codex_file_system::FileSystemSandboxContext;
+use codex_path::path_uri::PathUri;
 use codex_protocol::ThreadId;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::models::ContentItem;
@@ -60,6 +65,7 @@ use crate::tools::handlers::multi_agents_common::parse_collab_input;
 use crate::tools::handlers::multi_agents_common::thread_spawn_source;
 use crate::tools::handlers::multi_agents_v2::SpawnAgentHandler as SpawnAgentHandlerV2;
 use crate::tools::handlers::parse_arguments;
+use crate::tools::handlers::resolve_tool_environment;
 use crate::tools::registry::CoreToolRuntime;
 use crate::tools::registry::ToolExecutor;
 
@@ -619,7 +625,8 @@ async fn handle_bash(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
         .and_then(serde_json::Value::as_str)
         .unwrap_or_default();
     if is_zcode {
-        let (harness_output, success) = zcode_bash_output(&invocation, raw_output, exit_code)?;
+        let (harness_output, success) =
+            zcode_bash_output(&invocation, raw_output, exit_code).await?;
         return Ok(boxed_tool_output(FunctionToolOutput::from_text(
             format!("{HARNESS_NO_TRUNCATE_PREFIX}{harness_output}"),
             success,
@@ -732,6 +739,20 @@ fn is_deepseek_tui(invocation: &ToolInvocation) -> bool {
         .is_some_and(|harness| harness == "deepseek-tui")
 }
 
+/// Returns the primary turn environment's filesystem plus the sandbox context for workspace
+/// file operations. Session-home cache paths under `codex_home` pass the sandbox as `None`.
+fn primary_turn_filesystem(
+    invocation: &ToolInvocation,
+) -> Result<(Arc<dyn ExecutorFileSystem>, FileSystemSandboxContext), FunctionCallError> {
+    let turn_environment =
+        resolve_tool_environment(&invocation.turn.environments, /*environment_id*/ None)?
+            .ok_or(FunctionCallError::Fatal("primary environment exists".to_string()))?;
+    let sandbox = invocation
+        .turn
+        .file_system_sandbox_context(/*additional_permissions*/ None, turn_environment.cwd());
+    Ok((turn_environment.environment.get_filesystem(), sandbox))
+}
+
 fn compact_deepseek_exec_shell_output(raw_output: &str) -> String {
     const HEAD_CHARS: usize = 572;
     const TAIL_CHARS: usize = 286;
@@ -753,7 +774,7 @@ fn compact_deepseek_exec_shell_output(raw_output: &str) -> String {
     )
 }
 
-fn zcode_bash_output(
+async fn zcode_bash_output(
     invocation: &ToolInvocation,
     raw_output: &str,
     exit_code: Option<i64>,
@@ -781,11 +802,22 @@ fn zcode_bash_output(
     }
 
     let artifact_path = zcode_persisted_output_path(invocation);
+    let (fs, _sandbox) = primary_turn_filesystem(invocation)?;
+    let artifact_uri = PathUri::from_host_native_path(&artifact_path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Bash failed: {err}")))?;
     if let Some(parent) = artifact_path.parent() {
-        std::fs::create_dir_all(parent)
+        let parent_uri = PathUri::from_host_native_path(parent)
             .map_err(|err| FunctionCallError::RespondToModel(format!("Bash failed: {err}")))?;
+        fs.create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            None,
+        )
+        .await
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Bash failed: {err}")))?;
     }
-    std::fs::write(&artifact_path, output)
+    fs.write_file(&artifact_uri, output.as_bytes().to_vec(), None)
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("Bash failed: {err}")))?;
 
     let size_kb = output.len() as f64 / 1024.0;
@@ -904,7 +936,7 @@ fn zcode_persisted_output_path(invocation: &ToolInvocation) -> PathBuf {
         ))
 }
 
-fn zcode_maybe_persist_large_grep_output(
+async fn zcode_maybe_persist_large_grep_output(
     invocation: &ToolInvocation,
     output: &str,
 ) -> Result<String, FunctionCallError> {
@@ -913,11 +945,22 @@ fn zcode_maybe_persist_large_grep_output(
         return Ok(output.to_string());
     }
     let artifact_path = zcode_persisted_output_path(invocation);
+    let (fs, _sandbox) = primary_turn_filesystem(invocation)?;
+    let artifact_uri = PathUri::from_host_native_path(&artifact_path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Grep failed: {err}")))?;
     if let Some(parent) = artifact_path.parent() {
-        std::fs::create_dir_all(parent)
+        let parent_uri = PathUri::from_host_native_path(parent)
             .map_err(|err| FunctionCallError::RespondToModel(format!("Grep failed: {err}")))?;
+        fs.create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            None,
+        )
+        .await
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Grep failed: {err}")))?;
     }
-    std::fs::write(&artifact_path, output)
+    fs.write_file(&artifact_uri, output.as_bytes().to_vec(), None)
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("Grep failed: {err}")))?;
 
     let size_kb = zcode_format_decimal_kb(output.len());
@@ -1220,7 +1263,10 @@ async fn handle_read(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
             Some(true),
         )));
     }
-    let data = match std::fs::read(&path) {
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Read failed: {err}")))?;
+    let data = match fs.read_file(&path_uri, Some(&sandbox)).await {
         Ok(data) => data,
         Err(err) if is_zcode(&invocation) && err.kind() == std::io::ErrorKind::NotFound => {
             let cwd = harness_fs::primary_cwd(&invocation);
@@ -1310,7 +1356,7 @@ async fn handle_read(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
             )));
         }
         record_zcode_current_file(&invocation, &path);
-        record_zcode_current_file_hash(&invocation, &path, file_hash);
+        record_zcode_current_file_hash(&invocation, &path, file_hash).await;
         let selected_text = selected_read_text(&text, offset, limit);
         let token_count = zcode_estimate_tokens(&selected_text);
         if token_count > ZCODE_READ_MAX_TOKENS
@@ -1421,11 +1467,17 @@ async fn zcode_has_current_file_state(invocation: &ToolInvocation, path: &Path) 
     if zcode_has_current_file(invocation, path) {
         return true;
     }
-    let Ok(bytes) = std::fs::read(path) else {
+    let Ok((fs, sandbox)) = primary_turn_filesystem(invocation) else {
+        return false;
+    };
+    let Ok(path_uri) = PathUri::from_host_native_path(path) else {
+        return false;
+    };
+    let Ok(bytes) = fs.read_file(&path_uri, Some(&sandbox)).await else {
         return false;
     };
     let current_hash = zcode_file_hash(&bytes);
-    zcode_current_file_hash(invocation, path).as_deref() == Some(current_hash.as_str())
+    zcode_current_file_hash(invocation, path).await.as_deref() == Some(current_hash.as_str())
         || zcode_history_has_current_file_state(invocation, path, &current_hash).await
 }
 
@@ -1433,20 +1485,22 @@ fn zcode_file_hash(bytes: &[u8]) -> String {
     format!("{:x}", Sha256::digest(bytes))
 }
 
-fn record_zcode_current_file_hash(invocation: &ToolInvocation, path: &Path, hash: String) {
+async fn record_zcode_current_file_hash(invocation: &ToolInvocation, path: &Path, hash: String) {
     if let Ok(mut files_by_session) = ZCODE_CURRENT_FILE_HASHES.lock() {
         files_by_session
             .entry(zcode_session_key(invocation))
             .or_default()
             .insert(path.to_path_buf(), hash.clone());
     }
-    if let Some(home) = zcode_harness_home() {
-        record_zcode_current_file_hash_at_home(&home, invocation, path, &hash);
+    if let Some(home) = zcode_harness_home()
+        && let Ok((fs, _sandbox)) = primary_turn_filesystem(invocation)
+    {
+        record_zcode_current_file_hash_at_home(fs.as_ref(), &home, invocation, path, &hash).await;
     }
 }
 
-fn zcode_current_file_hash(invocation: &ToolInvocation, path: &Path) -> Option<String> {
-    ZCODE_CURRENT_FILE_HASHES
+async fn zcode_current_file_hash(invocation: &ToolInvocation, path: &Path) -> Option<String> {
+    if let Some(hash) = ZCODE_CURRENT_FILE_HASHES
         .lock()
         .ok()
         .and_then(|files_by_session| {
@@ -1454,10 +1508,13 @@ fn zcode_current_file_hash(invocation: &ToolInvocation, path: &Path) -> Option<S
                 .get(&zcode_session_key(invocation))
                 .and_then(|files| files.get(path).cloned())
         })
-        .or_else(|| {
-            zcode_harness_home()
-                .and_then(|home| zcode_current_file_hash_at_home(&home, invocation, path))
-        })
+    {
+        return Some(hash);
+    }
+    let home = zcode_harness_home()?;
+    let (fs, _sandbox) = primary_turn_filesystem(invocation).ok()?;
+    let hash = zcode_current_file_hash_at_home(fs.as_ref(), &home, invocation, path).await?;
+    (!hash.is_empty()).then_some(hash)
 }
 
 fn zcode_harness_home() -> Option<PathBuf> {
@@ -1467,27 +1524,48 @@ fn zcode_harness_home() -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-fn record_zcode_current_file_hash_at_home(
+async fn record_zcode_current_file_hash_at_home(
+    fs: &dyn ExecutorFileSystem,
     home: &Path,
     invocation: &ToolInvocation,
     path: &Path,
     hash: &str,
 ) {
     let cache_path = zcode_current_file_hash_cache_path(home, invocation, path);
-    if let Some(parent) = cache_path.parent()
-        && std::fs::create_dir_all(parent).is_ok()
+    let Some(parent) = cache_path.parent() else {
+        return;
+    };
+    let Ok(parent_uri) = PathUri::from_host_native_path(parent) else {
+        return;
+    };
+    if fs
+        .create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            None,
+        )
+        .await
+        .is_err()
     {
-        let _ = std::fs::write(cache_path, hash);
+        return;
     }
+    let Ok(cache_uri) = PathUri::from_host_native_path(&cache_path) else {
+        return;
+    };
+    let _ = fs
+        .write_file(&cache_uri, hash.as_bytes().to_vec(), None)
+        .await;
 }
 
-fn zcode_current_file_hash_at_home(
+async fn zcode_current_file_hash_at_home(
+    fs: &dyn ExecutorFileSystem,
     home: &Path,
     invocation: &ToolInvocation,
     path: &Path,
 ) -> Option<String> {
-    let hash =
-        std::fs::read_to_string(zcode_current_file_hash_cache_path(home, invocation, path)).ok()?;
+    let cache_path = zcode_current_file_hash_cache_path(home, invocation, path);
+    let cache_uri = PathUri::from_host_native_path(&cache_path).ok()?;
+    let hash = fs.read_file_text(&cache_uri, None).await.ok()?;
     (!hash.is_empty()).then_some(hash)
 }
 
@@ -1525,7 +1603,7 @@ async fn zcode_current_file_hash_applies(
     path: &Path,
     current_hash: &str,
 ) -> bool {
-    if zcode_current_file_hash(invocation, path).as_deref() != Some(current_hash) {
+    if zcode_current_file_hash(invocation, path).await.as_deref() != Some(current_hash) {
         return false;
     }
     let history = invocation.session.clone_history().await.into_raw_items();
@@ -1757,24 +1835,32 @@ async fn handle_write(
     let arguments = function_arguments(&invocation.payload)?;
     let args: WriteArgs = parse_arguments(arguments)?;
     let path = harness_fs::checked_write_path(&invocation, &args.path, "Write")?;
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
+        let parent_uri = PathUri::from_host_native_path(parent)
             .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
+        fs.create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            Some(&sandbox),
+        )
+        .await
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
     }
     let bytes_written = args.content.len();
     match args.mode.as_deref() {
         Some("append") => {
-            use std::io::Write as _;
-            let mut file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)
-                .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
-            file.write_all(args.content.as_bytes())
+            fs.append_file(&path_uri, args.content.clone().into_bytes(), Some(&sandbox))
+                .await
                 .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
         }
-        _ => std::fs::write(&path, &args.content)
-            .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?,
+        _ => {
+            fs.write_file(&path_uri, args.content.clone().into_bytes(), Some(&sandbox))
+                .await
+                .map_err(|err| FunctionCallError::RespondToModel(format!("Write failed: {err}")))?;
+        }
     }
     let message = if is_zcode(&invocation) {
         record_zcode_current_file(&invocation, &path);
@@ -1782,7 +1868,8 @@ async fn handle_write(
             &invocation,
             &path,
             zcode_file_hash(args.content.as_bytes()),
-        );
+        )
+        .await;
         format!(
             "File created successfully at: {} (file state is current in your context — no need to Read it back)",
             path.display()
@@ -1850,7 +1937,12 @@ async fn handle_edit(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
             Some(false),
         )));
     }
-    let text = std::fs::read_to_string(&path)
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("Edit failed: {err}")))?;
+    let text = fs
+        .read_file_text(&path_uri, Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("Edit failed: {err}")))?;
     let replacements = edit_replacements(&args)?;
     let mut updated = text.clone();
@@ -1874,12 +1966,14 @@ async fn handle_edit(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
             updated.replacen(&replacement.old_text, &replacement.new_text, 1)
         };
     }
-    std::fs::write(&path, &updated)
+    fs.write_file(&path_uri, updated.clone().into_bytes(), Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("Edit failed: {err}")))?;
     record_claude_read_file(&path);
     if is_zcode(&invocation) {
         record_zcode_current_file(&invocation, &path);
-        record_zcode_current_file_hash(&invocation, &path, zcode_file_hash(updated.as_bytes()));
+        record_zcode_current_file_hash(&invocation, &path, zcode_file_hash(updated.as_bytes()))
+            .await;
     }
     if is_claude_code_bare(&invocation) || is_zcode(&invocation) {
         return Ok(boxed_tool_output(FunctionToolOutput::from_text(
@@ -2085,7 +2179,7 @@ async fn handle_grep(invocation: ToolInvocation) -> Result<Box<dyn ToolOutput>, 
             return Ok(boxed_tool_output(FunctionToolOutput::from_text(
                 format!(
                     "{HARNESS_NO_TRUNCATE_PREFIX}{}",
-                    zcode_maybe_persist_large_grep_output(&invocation, &body)?
+                    zcode_maybe_persist_large_grep_output(&invocation, &body).await?
                 ),
                 Some(true),
             )));
@@ -2307,7 +2401,7 @@ async fn handle_opencode_todowrite(
 async fn handle_zcode_todo_read(
     invocation: ToolInvocation,
 ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
-    let todos = zcode_todos(&invocation);
+    let todos = zcode_todos(&invocation).await;
     Ok(boxed_tool_output(FunctionToolOutput::from_text(
         serde_json::to_string(&ZCodeTodoReadOutput { todos }).unwrap_or_else(|_| "{}".to_string()),
         Some(true),
@@ -2331,7 +2425,7 @@ async fn handle_zcode_todo_write(
 ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
     let arguments = function_arguments(&invocation.payload)?;
     let args: ZCodeTodoWriteArgs = parse_arguments(arguments)?;
-    let old_todos = zcode_todos(&invocation);
+    let old_todos = zcode_todos(&invocation).await;
     let old_todos = if old_todos.is_empty() {
         latest_zcode_todos_from_history(
             &invocation.session.clone_history().await.into_raw_items(),
@@ -2344,7 +2438,7 @@ async fn handle_zcode_todo_write(
     if let Ok(mut stored) = ZCODE_TODOS.lock() {
         *stored = args.todos.clone();
     }
-    record_zcode_todos(&invocation, &args.todos);
+    record_zcode_todos(&invocation, &args.todos).await;
     let summary = zcode_todo_summary(&args.todos);
     Ok(boxed_tool_output(FunctionToolOutput::from_text(
         serde_json::to_string(&ZCodeTodoWriteOutput {
@@ -2380,38 +2474,75 @@ fn latest_zcode_todos_from_history(
     })
 }
 
-fn zcode_todos(invocation: &ToolInvocation) -> Vec<ZCodeTodoItem> {
+async fn zcode_todos(invocation: &ToolInvocation) -> Vec<ZCodeTodoItem> {
     let stored = ZCODE_TODOS
         .lock()
         .map(|todos| todos.clone())
         .unwrap_or_default();
     if stored.is_empty() {
-        zcode_harness_home()
-            .and_then(|home| zcode_todos_at_home(&home, invocation))
-            .unwrap_or_default()
+        if let Some(home) = zcode_harness_home()
+            && let Ok((fs, _sandbox)) = primary_turn_filesystem(invocation)
+            && let Some(todos) = zcode_todos_at_home(fs.as_ref(), &home, invocation).await
+        {
+            return todos;
+        }
+        Vec::new()
     } else {
         stored
     }
 }
 
-fn record_zcode_todos(invocation: &ToolInvocation, todos: &[ZCodeTodoItem]) {
-    if let Some(home) = zcode_harness_home() {
-        record_zcode_todos_at_home(&home, invocation, todos);
-    }
-}
-
-fn record_zcode_todos_at_home(home: &Path, invocation: &ToolInvocation, todos: &[ZCodeTodoItem]) {
-    let cache_path = zcode_todo_cache_path(home, invocation);
-    if let Some(parent) = cache_path.parent()
-        && std::fs::create_dir_all(parent).is_ok()
-        && let Ok(serialized) = serde_json::to_string(todos)
+async fn record_zcode_todos(invocation: &ToolInvocation, todos: &[ZCodeTodoItem]) {
+    if let Some(home) = zcode_harness_home()
+        && let Ok((fs, _sandbox)) = primary_turn_filesystem(invocation)
     {
-        let _ = std::fs::write(cache_path, serialized);
+        record_zcode_todos_at_home(fs.as_ref(), &home, invocation, todos).await;
     }
 }
 
-fn zcode_todos_at_home(home: &Path, invocation: &ToolInvocation) -> Option<Vec<ZCodeTodoItem>> {
-    let serialized = std::fs::read_to_string(zcode_todo_cache_path(home, invocation)).ok()?;
+async fn record_zcode_todos_at_home(
+    fs: &dyn ExecutorFileSystem,
+    home: &Path,
+    invocation: &ToolInvocation,
+    todos: &[ZCodeTodoItem],
+) {
+    let cache_path = zcode_todo_cache_path(home, invocation);
+    let Ok(serialized) = serde_json::to_string(todos) else {
+        return;
+    };
+    let Some(parent) = cache_path.parent() else {
+        return;
+    };
+    let Ok(parent_uri) = PathUri::from_host_native_path(parent) else {
+        return;
+    };
+    if fs
+        .create_directory(
+            &parent_uri,
+            CreateDirectoryOptions { recursive: true },
+            None,
+        )
+        .await
+        .is_err()
+    {
+        return;
+    }
+    let Ok(cache_uri) = PathUri::from_host_native_path(&cache_path) else {
+        return;
+    };
+    let _ = fs
+        .write_file(&cache_uri, serialized.into_bytes(), None)
+        .await;
+}
+
+async fn zcode_todos_at_home(
+    fs: &dyn ExecutorFileSystem,
+    home: &Path,
+    invocation: &ToolInvocation,
+) -> Option<Vec<ZCodeTodoItem>> {
+    let cache_path = zcode_todo_cache_path(home, invocation);
+    let cache_uri = PathUri::from_host_native_path(&cache_path).ok()?;
+    let serialized = fs.read_file_text(&cache_uri, None).await.ok()?;
     serde_json::from_str(&serialized).ok()
 }
 
@@ -2974,17 +3105,21 @@ async fn handle_deepseek_list_dir(
 ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
     let args: ReadArgs = parse_arguments(function_arguments(&invocation.payload)?)?;
     let path = harness_fs::checked_read_path(&invocation, &args.path, "list_dir")?;
-    let entries = std::fs::read_dir(&path)
-        .map_err(|err| FunctionCallError::RespondToModel(format!("list_dir failed: {err}")))?
-        .map(|entry| {
-            let entry = entry?;
-            Ok(json!({
-                "name": entry.file_name().to_string_lossy(),
-                "is_dir": entry.file_type()?.is_dir(),
-            }))
-        })
-        .collect::<std::io::Result<Vec<_>>>()
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
         .map_err(|err| FunctionCallError::RespondToModel(format!("list_dir failed: {err}")))?;
+    let entries = fs
+        .read_directory(&path_uri, Some(&sandbox))
+        .await
+        .map_err(|err| FunctionCallError::RespondToModel(format!("list_dir failed: {err}")))?
+        .into_iter()
+        .map(|entry| {
+            json!({
+                "name": entry.file_name,
+                "is_dir": entry.is_directory,
+            })
+        })
+        .collect::<Vec<_>>();
     let output = format_deepseek_list_dir(&entries);
     Ok(boxed_tool_output(FunctionToolOutput::from_text(
         output,
@@ -2997,7 +3132,12 @@ async fn handle_deepseek_read_file(
 ) -> Result<Box<dyn ToolOutput>, FunctionCallError> {
     let args: ReadArgs = parse_arguments(function_arguments(&invocation.payload)?)?;
     let path = harness_fs::checked_read_path(&invocation, &args.path, "read_file")?;
-    let text = std::fs::read_to_string(&path)
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("read_file failed: {err}")))?;
+    let text = fs
+        .read_file_text(&path_uri, Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("read_file failed: {err}")))?;
     if let Ok(mut counts) = DEEPSEEK_READ_FILE_COUNTS.lock() {
         let count = counts.entry(path).or_insert(0);
@@ -3065,8 +3205,12 @@ async fn handle_deepseek_write_file(
     let arguments = function_arguments(&invocation.payload)?;
     let args: WriteArgs = parse_arguments(arguments)?;
     let path = harness_fs::checked_write_path(&invocation, &args.path, "write_file")?;
-    let previous = std::fs::read_to_string(&path).ok();
-    std::fs::write(&path, &args.content)
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("write_file failed: {err}")))?;
+    let previous = fs.read_file_text(&path_uri, Some(&sandbox)).await.ok();
+    fs.write_file(&path_uri, args.content.clone().into_bytes(), Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("write_file failed: {err}")))?;
     let output = if let Some(previous) = previous {
         let diff = format_deepseek_write_file_diff(&path, &previous, &args.content);
@@ -3102,7 +3246,12 @@ async fn handle_deepseek_edit_file(
     let args: DeepSeekEditFileArgs = parse_arguments(function_arguments(&invocation.payload)?)?;
     let path = harness_fs::checked_read_path(&invocation, &args.path, "edit_file")?;
     harness_fs::ensure_write_allowed(&invocation, &path, "edit_file")?;
-    let text = std::fs::read_to_string(&path)
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("edit_file failed: {err}")))?;
+    let text = fs
+        .read_file_text(&path_uri, Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("edit_file failed: {err}")))?;
     let matches = text.matches(&args.search).count();
     if matches == 0 {
@@ -3110,8 +3259,13 @@ async fn handle_deepseek_edit_file(
             "edit_file failed: search not found".to_string(),
         ));
     }
-    std::fs::write(&path, text.replacen(&args.search, &args.replace, 1))
-        .map_err(|err| FunctionCallError::RespondToModel(format!("edit_file failed: {err}")))?;
+    fs.write_file(
+        &path_uri,
+        text.replacen(&args.search, &args.replace, 1).into_bytes(),
+        Some(&sandbox),
+    )
+    .await
+    .map_err(|err| FunctionCallError::RespondToModel(format!("edit_file failed: {err}")))?;
     let diff = format_deepseek_edit_file_diff(&path, &text, &args.search, &args.replace);
     Ok(boxed_tool_output(FunctionToolOutput::from_text(
         format!("{diff}\nReplaced 1 occurrence in {}", path.display()),
@@ -3133,7 +3287,12 @@ async fn handle_deepseek_apply_patch(
     let args: DeepSeekApplyPatchArgs = parse_arguments(function_arguments(&invocation.payload)?)?;
     let path = harness_fs::checked_read_path(&invocation, &args.path, "apply_patch")?;
     harness_fs::ensure_write_allowed(&invocation, &path, "apply_patch")?;
-    let text = std::fs::read_to_string(&path)
+    let (fs, sandbox) = primary_turn_filesystem(&invocation)?;
+    let path_uri = PathUri::from_host_native_path(&path)
+        .map_err(|err| FunctionCallError::RespondToModel(format!("apply_patch failed: {err}")))?;
+    let text = fs
+        .read_file_text(&path_uri, Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("apply_patch failed: {err}")))?;
     if args.fuzz.is_none() {
         let first_line = text.lines().next().unwrap_or_default();
@@ -3179,7 +3338,8 @@ async fn handle_deepseek_apply_patch(
     } else {
         format!("{text}\nPATCH_OK = True\n")
     };
-    std::fs::write(&path, updated)
+    fs.write_file(&path_uri, updated.into_bytes(), Some(&sandbox))
+        .await
         .map_err(|err| FunctionCallError::RespondToModel(format!("apply_patch failed: {err}")))?;
     let _ = args.patch;
     Ok(boxed_tool_output(FunctionToolOutput::from_text(
@@ -4037,6 +4197,7 @@ The agent starts with no context from this conversation, so the prompt briefs it
 #[cfg(test)]
 mod tests {
     use super::*;
+    use codex_exec_server::LocalFileSystem;
     use codex_protocol::models::PermissionProfile;
     use codex_protocol::protocol::FileSystemAccessMode;
     use codex_protocol::protocol::FileSystemPath;
@@ -4056,6 +4217,10 @@ mod tests {
     use crate::tools::context::ToolPayload;
     use crate::tools::registry::ToolExecutor;
     use crate::turn_diff_tracker::TurnDiffTracker;
+
+    fn test_fs() -> LocalFileSystem {
+        LocalFileSystem::unsandboxed()
+    }
 
     async fn invocation(
         workspace: &TempDir,
@@ -4261,8 +4426,9 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
 
-        let (output, success) =
-            zcode_bash_output(&invocation, &raw_output, Some(7)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, &raw_output, Some(7))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, Some(false));
         assert!(output.starts_with("Exit code 7\nZCODE_LARGE_STDERR_0000"));
@@ -4275,8 +4441,9 @@ mod tests {
         let workspace = tempfile::tempdir().expect("workspace temp dir");
         let invocation = invocation(&workspace, "Bash", json!({})).await;
 
-        let (output, success) =
-            zcode_bash_output(&invocation, "\n# first line\n", Some(1)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, "\n# first line\n", Some(1))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, Some(false));
         assert_eq!(output, "Exit code 1\n# first line");
@@ -4288,8 +4455,9 @@ mod tests {
         let invocation = invocation(&workspace, "Bash", json!({})).await;
         let raw_output = "# energy cache pickup restores energy and clears cell\n  ✗ energy increased by ENERGY_PICKUP (expected 30, got 29)\n\n# exit is sealed until all relics are collected\n  ✗ at exit x (expected 9, got 1)\n\n========================================\nPassed: 115   Failed: 2\n\nFailures:\n  - energy increased by ENERGY_PICKUP (expected 30, got 29)\n  - at exit x (expected 9, got 1)\n";
 
-        let (output, success) =
-            zcode_bash_output(&invocation, raw_output, Some(1)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, raw_output, Some(1))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, Some(false));
         assert_eq!(
@@ -4304,8 +4472,9 @@ mod tests {
         let invocation = invocation(&workspace, "Bash", json!({})).await;
         let raw_output = "     Error: Expected 2 but got 1 — two relics\n    at assertEq (/workspace/tests/game-logic.test.js:35:22)\n     Error: Assertion failed: exit reports locked\n    at assert (/workspace/tests/game-logic.test.js:32:20)\n\nSignal Cartographer — game-logic tests\n  19 passed, 4 failed\n✗ collecting a relic consumes it and increments count\n  ✗ exit is locked until all relics are collected";
 
-        let (output, success) =
-            zcode_bash_output(&invocation, raw_output, Some(1)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, raw_output, Some(1))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, Some(false));
         assert_eq!(
@@ -4320,8 +4489,9 @@ mod tests {
         let invocation = invocation(&workspace, "Bash", json!({})).await;
         let raw_output = "     Error: Expected 2 but got 1 — two relics\n    at assertEq (/workspace/tests/game-logic.test.js:35:22)\n     Error: Assertion failed: exit reports locked\n    at assert (/workspace/tests/game-logic.test.js:32:20)\n     Error: Expected \"won\" but got \"playing\" — game won\n    at assertEq (/workspace/tests/game-logic.test.js:35:22)\n     Error: Expected \"won\" but got \"playing\" — won\n    at assertEq (/workspace/tests/game-logic.test.js:35:22)\n\nSignal Cartographer — game-logic tests\n  19 passed, 4 failed\n✗ collecting a relic consumes it and increments count\n  ✗ exit is locked until all relics are collected\n  ✗ reaching exit after all relics wins and scores\n  ✗ score includes relic value and energy bonus";
 
-        let (output, success) =
-            zcode_bash_output(&invocation, raw_output, Some(1)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, raw_output, Some(1))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, Some(false));
         assert_eq!(
@@ -4344,8 +4514,9 @@ mod tests {
             "fixture should cover captured ZCode inline stdout size without exceeding the inline limit"
         );
 
-        let (output, success) =
-            zcode_bash_output(&invocation, &raw_output, Some(0)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, &raw_output, Some(0))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, None);
         assert!(output.starts_with("0\tWEB_RESEARCH_ANIMATION"));
@@ -4358,8 +4529,9 @@ mod tests {
         let workspace = tempfile::tempdir().expect("workspace temp dir");
         let invocation = invocation(&workspace, "Bash", json!({})).await;
 
-        let (output, success) =
-            zcode_bash_output(&invocation, "hello\n", /*exit_code*/ None).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, "hello\n", /*exit_code*/ None)
+            .await
+            .expect("bash output");
 
         assert_eq!(success, None);
         assert_eq!(output, "hello");
@@ -4371,8 +4543,9 @@ mod tests {
         let invocation = invocation(&workspace, "Bash", json!({})).await;
         let raw_output = "\n Tutorials\n \n \n";
 
-        let (output, success) =
-            zcode_bash_output(&invocation, raw_output, Some(0)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, raw_output, Some(0))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, None);
         assert_eq!(output, " Tutorials");
@@ -4384,8 +4557,9 @@ mod tests {
         let invocation = invocation(&workspace, "Bash", json!({})).await;
         let raw_output = " \n <html\n lang=\"en-US\"\n";
 
-        let (output, success) =
-            zcode_bash_output(&invocation, raw_output, Some(0)).expect("bash output");
+        let (output, success) = zcode_bash_output(&invocation, raw_output, Some(0))
+            .await
+            .expect("bash output");
 
         assert_eq!(success, None);
         assert_eq!(output, " <html\n lang=\"en-US\"");
@@ -4519,10 +4693,19 @@ mod tests {
         let second_invocation = first_invocation.clone();
         let hash = zcode_file_hash(b"alpha\nbeta\ngamma\n");
 
-        record_zcode_current_file_hash_at_home(home.path(), &first_invocation, &path, &hash);
+        record_zcode_current_file_hash_at_home(
+            &test_fs(),
+            home.path(),
+            &first_invocation,
+            &path,
+            &hash,
+        )
+        .await;
 
         assert_eq!(
-            zcode_current_file_hash_at_home(home.path(), &second_invocation, &path).as_deref(),
+            zcode_current_file_hash_at_home(&test_fs(), home.path(), &second_invocation, &path)
+                .await
+                .as_deref(),
             Some(hash.as_str())
         );
     }
@@ -5120,12 +5303,15 @@ mod tests {
             priority: "high".to_string(),
         }];
 
-        record_zcode_todos_at_home(home.path(), &invocation, &todos);
+        record_zcode_todos_at_home(&test_fs(), home.path(), &invocation, &todos).await;
         if let Ok(mut stored) = ZCODE_TODOS.lock() {
             stored.clear();
         }
 
-        assert_eq!(zcode_todos_at_home(home.path(), &invocation), Some(todos));
+        assert_eq!(
+            zcode_todos_at_home(&test_fs(), home.path(), &invocation).await,
+            Some(todos)
+        );
     }
 
     #[tokio::test]

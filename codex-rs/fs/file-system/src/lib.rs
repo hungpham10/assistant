@@ -1,8 +1,11 @@
 mod find_up;
+mod system_fs;
 
 pub use find_up::FindUpErrorPolicy;
 pub use find_up::find_nearest_ancestor_with_markers;
 pub use find_up::find_nearest_native_ancestor_with_markers;
+pub use system_fs::StdSystemFs;
+pub use system_fs::SystemFs;
 
 use bytes::Bytes;
 use codex_path::absolute_path::AbsolutePathBuf;
@@ -332,6 +335,44 @@ pub trait ExecutorFileSystem: Send + Sync {
         sandbox: Option<&'a FileSystemSandboxContext>,
     ) -> ExecutorFileSystemFuture<'a, WalkOutcome> {
         Box::pin(walk_via_directory_reads(self, path, options, sandbox))
+    }
+
+    /// Appends `contents` to an existing file, creating it if it does not yet exist.
+    ///
+    /// The default implementation composes `read_file` + `write_file`, which is correct
+    /// but not atomic and bounds-limited by the implementation's read limits.
+    /// Backends with a native append should override this.
+    fn append_file<'a>(
+        &'a self,
+        path: &'a PathUri,
+        contents: Vec<u8>,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        Box::pin(async move {
+            let mut existing = match self.read_file(path, sandbox).await {
+                Ok(existing) => existing,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => Vec::new(),
+                Err(err) => return Err(err),
+            };
+            existing.extend(contents);
+            self.write_file(path, existing, sandbox).await
+        })
+    }
+
+    /// Atomically renames (moves) `from` to `to` within this filesystem.
+    fn rename<'a>(
+        &'a self,
+        from: &'a PathUri,
+        to: &'a PathUri,
+        sandbox: Option<&'a FileSystemSandboxContext>,
+    ) -> ExecutorFileSystemFuture<'a, ()> {
+        let _ = (from, to, sandbox);
+        Box::pin(async {
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "filesystem rename is not supported by this backend",
+            ))
+        })
     }
 
     fn remove<'a>(

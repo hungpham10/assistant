@@ -1564,9 +1564,10 @@ async fn prefers_apikey_when_config_prefers_apikey_even_with_chatgpt_tokens() {
     .expect("Failed to load CodexAuth")
     .expect("No CodexAuth found in codex_home");
     let auth_manager = codex_core::test_support::auth_manager_from_auth(auth);
-    let installation_id = resolve_installation_id(&config.codex_home)
-        .await
-        .expect("resolve installation id");
+    let installation_id =
+        resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs)
+            .await
+            .expect("resolve installation id");
     let thread_manager = ThreadManager::new(
         &config,
         auth_manager,

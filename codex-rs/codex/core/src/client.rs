@@ -80,7 +80,6 @@ use codex_login::CodexAuth;
 use codex_login::RefreshTokenError;
 use codex_login::UnauthorizedRecovery;
 use codex_login::default_client::build_default_reqwest_client_for_route;
-use codex_login::default_client::build_reqwest_client;
 use codex_model_provider::AgentIdentitySessionFallback;
 use codex_model_provider::ProviderAuthScope;
 use codex_otel::SessionTelemetry;
@@ -703,7 +702,14 @@ impl ModelClient {
         sideband_headers.extend(sideband_websocket_auth_headers(
             client_setup.api_auth.as_ref(),
         ));
-        let transport = ReqwestTransport::new(build_reqwest_client());
+        let request_url = client_setup.api_provider.url_for_path("realtime/calls");
+        let client = build_default_reqwest_client_for_route(
+            &self.http_client_factory,
+            &request_url,
+            ClientRouteClass::Other,
+        )
+        .map_err(std::io::Error::from)?;
+        let transport = ReqwestTransport::new(client);
         let api_provider = api_provider_override.unwrap_or(client_setup.api_provider);
         let response = ApiRealtimeCallClient::new(transport, api_provider, client_setup.api_auth)
             .create_with_session_and_headers(sdp, session_config, extra_headers)
@@ -734,7 +740,16 @@ impl ModelClient {
         }
 
         let client_setup = self.current_client_setup().await?;
-        let transport = ReqwestTransport::new(build_reqwest_client());
+        let request_url = client_setup
+            .api_provider
+            .url_for_path(MEMORIES_SUMMARIZE_ENDPOINT);
+        let client = build_default_reqwest_client_for_route(
+            &self.http_client_factory,
+            &request_url,
+            ClientRouteClass::Api,
+        )
+        .map_err(std::io::Error::from)?;
+        let transport = ReqwestTransport::new(client);
         let request_telemetry = Self::build_request_telemetry(
             session_telemetry,
             AuthRequestTelemetryContext::new(
@@ -1601,7 +1616,16 @@ impl ModelClientSession {
         let mut pending_retry = PendingUnauthorizedRetry::default();
         loop {
             let client_setup = self.client.current_client_setup().await?;
-            let transport = ReqwestTransport::new(build_reqwest_client());
+            let request_url = client_setup
+                .api_provider
+                .url_for_path(CHAT_COMPLETIONS_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
+            )
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
             let request_auth_context = AuthRequestTelemetryContext::new(
                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
                 client_setup.api_auth.as_ref(),
@@ -1757,12 +1781,16 @@ impl ModelClientSession {
                     session_source: Some(&self.client.state.session_source),
                 },
             )?;
-            let client = ChatCompletionsCompatClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
-                api_provider,
-                api_auth,
+            let request_url = api_provider.url_for_path(CHAT_COMPLETIONS_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
             )
-            .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
+            let client = ChatCompletionsCompatClient::new(transport, api_provider, api_auth)
+                .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             if let Some(title_request) = title_request {
                 match client
                     .stream_chat_request_value(
@@ -1900,12 +1928,16 @@ impl ModelClientSession {
             .map_err(|err| {
                 CodexErr::InvalidRequest(format!("invalid claude-code chat request: {err}"))
             })?;
-            let client = ChatCompletionsCompatClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
-                api_provider,
-                api_auth,
+            let request_url = api_provider.url_for_path(CHAT_COMPLETIONS_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
             )
-            .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
+            let client = ChatCompletionsCompatClient::new(transport, api_provider, api_auth)
+                .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             match client
                 .stream_request(request, self.chat_harness_options())
                 .await
@@ -1979,7 +2011,14 @@ impl ModelClientSession {
         );
         loop {
             let client_setup = self.client.current_client_setup().await?;
-            let transport = ReqwestTransport::new(build_reqwest_client());
+            let request_url = client_setup.api_provider.url_for_path(RESPONSES_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
+            )
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
             let request_auth_context = AuthRequestTelemetryContext::new(
                 client_setup.auth.as_ref().map(CodexAuth::auth_mode),
                 client_setup.api_auth.as_ref(),
@@ -2181,8 +2220,16 @@ impl ModelClientSession {
                 CodexErr::InvalidRequest(format!("invalid claude-code request: {err}"))
             })?;
             normalize_messages_harness_request_for_provider(&api_provider, &mut request);
+            let request_url = api_provider.url_for_path(ANTHROPIC_MESSAGES_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
+            )
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
             let client = ApiAnthropicMessagesClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
+                transport,
                 api_provider.clone(),
                 Arc::new(auth_provider),
             )
@@ -2257,7 +2304,15 @@ impl ModelClientSession {
             return false;
         }
 
-        let client = build_reqwest_client();
+        let request_url = api_provider.url_for_path("");
+        let Ok(client) = build_default_reqwest_client_for_route(
+            &self.client.http_client_factory,
+            &request_url,
+            ClientRouteClass::Api,
+        ) else {
+            warn!("claude-code startup HEAD preflight client build failed; continuing");
+            return true;
+        };
         if let Err(err) = client
             .head(api_provider.url_for_path(""))
             .header("user-agent", CLAUDE_CODE_STARTUP_HEAD_USER_AGENT)
@@ -2340,12 +2395,17 @@ impl ModelClientSession {
                 &self.client.state.harness,
                 self.client.state.harness_guidance,
             );
-            let client = ApiAnthropicMessagesClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
-                api_provider,
-                Arc::new(auth_provider),
+            let request_url = api_provider.url_for_path(ANTHROPIC_MESSAGES_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
             )
-            .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
+            let client =
+                ApiAnthropicMessagesClient::new(transport, api_provider, Arc::new(auth_provider))
+                    .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             if responses_metadata.is_compaction_request() {
                 let request =
                     build_zcode_compaction_request(&guided_prompt, model_info).map_err(|err| {
@@ -2457,12 +2517,17 @@ impl ModelClientSession {
             );
             let request =
                 build_zcode_read_session_context_request(model_info, prompt.clone(), max_tokens);
-            let client = ApiAnthropicMessagesClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
-                api_provider,
-                Arc::new(auth_provider),
+            let request_url = api_provider.url_for_path(ANTHROPIC_MESSAGES_ENDPOINT);
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
             )
-            .with_telemetry(Some(request_telemetry), /*sse*/ None);
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
+            let client =
+                ApiAnthropicMessagesClient::new(transport, api_provider, Arc::new(auth_provider))
+                    .with_telemetry(Some(request_telemetry), /*sse*/ None);
             match client.request_value(request, zcode_headers()).await {
                 Ok(value) => return Ok(extract_anthropic_text_response(&value)),
                 Err(ApiError::Transport(
@@ -2960,8 +3025,16 @@ impl ModelClientSession {
                 generation_config: None,
             };
 
+            let request_url = api_provider.url_for_path("");
+            let client = build_default_reqwest_client_for_route(
+                &self.client.http_client_factory,
+                &request_url,
+                ClientRouteClass::Api,
+            )
+            .map_err(std::io::Error::from)?;
+            let transport = ReqwestTransport::new(client);
             let client = ApiGoogleGenerateContentClient::new(
-                ReqwestTransport::new(build_reqwest_client()),
+                transport,
                 api_provider.clone(),
                 Arc::new(CoreAuthProvider {
                     token: Some(api_key),

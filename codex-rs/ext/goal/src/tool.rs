@@ -31,7 +31,7 @@ use crate::spec::create_update_goal_tool;
 pub(crate) struct GoalToolExecutor {
     kind: GoalToolKind,
     thread_id: ThreadId,
-    state_db: Arc<codex_state::StateRuntime>,
+    state_db: Arc<dyn codex_rollout::RolloutStore>,
     accounting_state: Arc<GoalAccountingState>,
     analytics: GoalAnalytics,
     event_emitter: GoalEventEmitter,
@@ -75,7 +75,7 @@ enum CompletionBudgetReport {
 impl GoalToolExecutor {
     pub(crate) fn get(
         thread_id: ThreadId,
-        state_db: Arc<codex_state::StateRuntime>,
+        state_db: Arc<dyn codex_rollout::RolloutStore>,
         accounting_state: Arc<GoalAccountingState>,
         analytics: GoalAnalytics,
         event_emitter: GoalEventEmitter,
@@ -94,7 +94,7 @@ impl GoalToolExecutor {
 
     pub(crate) fn create(
         thread_id: ThreadId,
-        state_db: Arc<codex_state::StateRuntime>,
+        state_db: Arc<dyn codex_rollout::RolloutStore>,
         accounting_state: Arc<GoalAccountingState>,
         analytics: GoalAnalytics,
         event_emitter: GoalEventEmitter,
@@ -113,7 +113,7 @@ impl GoalToolExecutor {
 
     pub(crate) fn update(
         thread_id: ThreadId,
-        state_db: Arc<codex_state::StateRuntime>,
+        state_db: Arc<dyn codex_rollout::RolloutStore>,
         accounting_state: Arc<GoalAccountingState>,
         analytics: GoalAnalytics,
         event_emitter: GoalEventEmitter,
@@ -437,7 +437,7 @@ impl GoalToolResponse {
 }
 
 pub(crate) async fn fill_empty_thread_preview_if_possible(
-    state_db: &codex_state::StateRuntime,
+    state_db: &dyn codex_rollout::RolloutStore,
     thread_id: ThreadId,
     goal: &codex_state::ThreadGoal,
 ) {
