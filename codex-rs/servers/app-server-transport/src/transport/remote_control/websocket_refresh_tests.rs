@@ -26,7 +26,7 @@ use tokio_tungstenite::accept_async;
 
 async fn connect_test_websocket(
     remote_control_target: &RemoteControlTarget,
-    state_db: &StateRuntime,
+    state_db: &dyn codex_rollout::RolloutStore,
     auth_manager: &Arc<AuthManager>,
     current_enrollment: &CurrentRemoteControlEnrollment,
 ) -> io::Result<()> {

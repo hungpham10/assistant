@@ -484,6 +484,7 @@ mod filter_tests;
 
 #[cfg(test)]
 mod tests {
+    use crate::StateRuntime;
     use std::io;
     use std::sync::Arc;
     use std::sync::Mutex;

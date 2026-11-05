@@ -30,14 +30,26 @@ pub trait SystemFs: Send + Sync {
         {
             self.create_dir_all(parent)?;
         }
-        self.write(path, contents)?;
         #[cfg(unix)]
         {
-            // Best effort: the write itself is the primary operation, and a
-            // failure to tighten permissions should not fail the write.
-            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+            use std::io::Write;
+            use std::os::unix::fs::OpenOptionsExt;
+
+            let mut file = std::fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(path)?;
+            file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+            file.write_all(contents)?;
+            file.sync_all()?;
+            Ok(())
         }
-        Ok(())
+        #[cfg(not(unix))]
+        {
+            self.write(path, contents)
+        }
     }
 
     /// Creates a directory and all of its missing parents.

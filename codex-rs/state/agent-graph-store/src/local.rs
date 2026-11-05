@@ -125,6 +125,7 @@ fn internal_error(err: impl std::fmt::Display) -> AgentGraphStoreError {
 mod tests {
     use super::*;
     use codex_state::DirectionalThreadSpawnEdgeStatus;
+    use codex_state::StateRuntime;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 

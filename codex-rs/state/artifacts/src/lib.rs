@@ -147,7 +147,7 @@ impl ArtifactStore {
         kind: &str,
         meta: JsonValue,
     ) -> io::Result<ArtifactRef> {
-        let bytes = self.backend.read(src).await?;
+        let bytes = tokio::fs::read(src).await?;
         self.put(bytes, kind, meta).await
     }
 
@@ -160,7 +160,11 @@ impl ArtifactStore {
     pub async fn cleanup_expired(&self, ttl: Duration) -> io::Result<usize> {
         let mut removed = 0usize;
         let now = std::time::SystemTime::now();
+        let root = self.root.as_path();
         for (path, modified) in self.backend.entries().await? {
+            if path.parent() != Some(root) {
+                continue;
+            }
             if let Ok(age) = now.duration_since(modified)
                 && age > ttl
                 && self.backend.remove(&path).await.is_ok()
