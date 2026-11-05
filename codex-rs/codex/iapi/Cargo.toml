@@ -28,4 +28,5 @@ codex-login = { workspace = true }
 codex-model-provider-info = { workspace = true }
 codex-models-manager = { workspace = true }
 codex-protocol = { workspace = true }
+codex-file-system = { workspace = true }
 codex-path = { workspace = true }

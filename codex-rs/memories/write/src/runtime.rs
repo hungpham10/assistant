@@ -1,4 +1,3 @@
-use codex_file_system::StdSystemFs;
 use codex_core::CodexThread;
 use codex_core::ModelClient;
 use codex_core::NewThread;
@@ -34,7 +33,6 @@ use codex_protocol::protocol::ThreadSource;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::user_input::UserInput;
 use codex_rollout_trace::InferenceTraceContext;
-use codex_state::StateRuntime;
 use codex_terminal_detection::user_agent;
 use futures::StreamExt;
 use std::sync::Arc;
@@ -245,7 +243,8 @@ impl MemoryStartupContext {
         prompt: &Prompt,
         context: &StageOneRequestContext,
     ) -> anyhow::Result<(String, Option<TokenUsage>)> {
-        let installation_id = resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
+        let installation_id =
+            resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
         let config_snapshot = self.thread.config_snapshot().await;
         let session_source = config_snapshot.session_source;
         let session_id = SessionId::from(self.thread_id);

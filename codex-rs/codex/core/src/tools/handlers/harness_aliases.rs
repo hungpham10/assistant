@@ -745,8 +745,9 @@ fn primary_turn_filesystem(
     invocation: &ToolInvocation,
 ) -> Result<(Arc<dyn ExecutorFileSystem>, FileSystemSandboxContext), FunctionCallError> {
     let turn_environment =
-        resolve_tool_environment(&invocation.turn.environments, /*environment_id*/ None)?
-            .ok_or(FunctionCallError::Fatal("primary environment exists".to_string()))?;
+        resolve_tool_environment(&invocation.turn.environments, /*environment_id*/ None)?.ok_or(
+            FunctionCallError::Fatal("primary environment exists".to_string()),
+        )?;
     let sandbox = invocation
         .turn
         .file_system_sandbox_context(/*additional_permissions*/ None, turn_environment.cwd());

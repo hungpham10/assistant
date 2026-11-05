@@ -27,7 +27,6 @@ pub use model::Phase2JobClaimOutcome;
 pub use runtime::StateRuntime;
 
 pub use audit::ThreadStateAuditRow;
-pub use state_store::RolloutStore;
 pub use audit::read_thread_state_audit_rows;
 /// Low-level storage engine: useful for focused tests.
 ///
@@ -90,6 +89,7 @@ pub use runtime::sqlite_error_detail_is_lock;
 pub use runtime::sqlite_integrity_check;
 pub use runtime::state_db_filename;
 pub use runtime::state_db_path;
+pub use state_store::RolloutStore;
 pub use telemetry::DbTelemetry;
 pub use telemetry::DbTelemetryHandle;
 pub use telemetry::install_process_db_telemetry;

@@ -66,9 +66,7 @@ impl SpawnedShellProcess {
     }
 
     /// Takes the piped stdout reader, if the process was spawned with piped stdio.
-    pub fn take_stdout(
-        &mut self,
-    ) -> Option<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+    pub fn take_stdout(&mut self) -> Option<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
         self.child
             .stdout
             .take()
@@ -76,9 +74,7 @@ impl SpawnedShellProcess {
     }
 
     /// Takes the piped stderr reader, if the process was spawned with piped stdio.
-    pub fn take_stderr(
-        &mut self,
-    ) -> Option<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
+    pub fn take_stderr(&mut self) -> Option<Box<dyn tokio::io::AsyncRead + Send + Unpin>> {
         self.child
             .stderr
             .take()

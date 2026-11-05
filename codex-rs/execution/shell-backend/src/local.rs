@@ -8,22 +8,19 @@ use std::process::Stdio;
 use tokio::process::Command;
 use tracing::trace;
 
+use crate::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use crate::ShellProcessBackend;
 use crate::ShellProcessBackendSpawnFuture;
 use crate::SpawnShellRequest;
 use crate::SpawnedShellProcess;
 use crate::StdioPolicy;
-use crate::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 
 /// Default backend: spawns the child process locally in this OS process.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct StdSystemProcessBackend;
 
 impl ShellProcessBackend for StdSystemProcessBackend {
-    fn spawn(
-        &self,
-        request: SpawnShellRequest,
-    ) -> ShellProcessBackendSpawnFuture<'_> {
+    fn spawn(&self, request: SpawnShellRequest) -> ShellProcessBackendSpawnFuture<'_> {
         Box::pin(async move { spawn_local(request).await })
     }
 }

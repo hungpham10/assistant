@@ -610,7 +610,8 @@ impl TestCodexBuilder {
         let auth = self.auth.clone();
         let state_db = codex_core::init_state_db(&config).await;
         let thread_store = thread_store_from_config(&config, state_db.clone());
-        let installation_id = resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
+        let installation_id =
+            resolve_installation_id(&config.codex_home, &codex_file_system::StdSystemFs).await?;
         let user_instructions_provider =
             self.user_instructions_provider.clone().unwrap_or_else(|| {
                 Arc::new(CodexHomeUserInstructionsProvider::new(

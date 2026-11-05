@@ -69,6 +69,7 @@ pub use codex_extension_api::UserInstructionsProvider;
 pub use codex_extension_api::empty_extension_registry;
 pub use codex_features::Feature;
 pub use codex_features::Features;
+pub use codex_file_system::StdSystemFs;
 pub use codex_home::CodexHomeUserInstructionsProvider;
 pub use codex_image_generation_extension::install as install_image_generation_extension;
 pub use codex_login::AuthHeaders;

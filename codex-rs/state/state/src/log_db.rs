@@ -44,7 +44,6 @@ use tracing_subscriber::registry::LookupSpan;
 use uuid::Uuid;
 
 use crate::LogEntry;
-use crate::StateRuntime;
 
 const LOG_QUEUE_CAPACITY: usize = 512;
 const LOG_BATCH_SIZE: usize = 128;

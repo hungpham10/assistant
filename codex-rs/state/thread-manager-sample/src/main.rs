@@ -122,7 +122,8 @@ async fn run_main(arg0_paths: Arg0DispatchPaths) -> anyhow::Result<()> {
         EnvironmentManager::from_codex_home(config.codex_home.clone(), Some(local_runtime_paths))
             .await?,
     );
-    let installation_id = resolve_installation_id(&config.codex_home).await?;
+    let installation_id =
+        resolve_installation_id(&config.codex_home, &codex_core_api::StdSystemFs).await?;
     let user_instructions_provider = Arc::new(CodexHomeUserInstructionsProvider::new(
         config.codex_home.clone(),
     ));

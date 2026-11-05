@@ -41,7 +41,7 @@ impl CommandParser for AtCommandParser {
                 let part = part.trim();
                 if let Some(cmd) = parse_single(part) {
                     commands.push(cmd);
-                    if let Some(paren_start) = part.find('(') {
+                    if let Some(_paren_start) = part.find('(') {
                         if let Some(paren_end) = part.find(')') {
                             if let Some(start) = part.find('@') {
                                 let to_remove = &part[start..=paren_end];
@@ -53,7 +53,7 @@ impl CommandParser for AtCommandParser {
             }
         } else if let Some(cmd) = parse_single(input) {
             commands.push(cmd);
-            if let Some(paren_start) = input.find('(') {
+            if let Some(_paren_start) = input.find('(') {
                 if let Some(paren_end) = input.find(')') {
                     if let Some(start) = input.find('@') {
                         let to_remove = &input[start..=paren_end];

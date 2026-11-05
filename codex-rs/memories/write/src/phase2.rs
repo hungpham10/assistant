@@ -24,7 +24,6 @@ use codex_protocol::protocol::SandboxPolicy;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::user_input::UserInput;
 use codex_state::Stage1Output;
-use codex_state::StateRuntime;
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
@@ -415,7 +414,13 @@ mod agent {
                 if still_owns_lock {
                     if let Err(err) = reset_memory_workspace_baseline(&memory_root).await {
                         tracing::error!("failed resetting memory workspace baseline: {err}");
-                        job::failed(context.as_ref(), db.as_ref(), &claim, "failed_workspace_commit").await;
+                        job::failed(
+                            context.as_ref(),
+                            db.as_ref(),
+                            &claim,
+                            "failed_workspace_commit",
+                        )
+                        .await;
                     } else if !job::succeed(
                         context.as_ref(),
                         db.as_ref(),

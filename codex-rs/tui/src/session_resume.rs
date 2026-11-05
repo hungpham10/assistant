@@ -65,7 +65,7 @@ pub(crate) async fn resolve_session_thread_id(
 }
 
 pub(crate) async fn read_session_model(
-    state_db_ctx: Option<<&StateRuntime>dyn codex_rollout::RolloutStore>,
+    state_db_ctx: Option<&StateRuntime>,
     thread_id: ThreadId,
     path: Option<&Path>,
 ) -> Option<String> {
@@ -85,7 +85,7 @@ pub(crate) async fn read_session_model(
 
 pub(crate) async fn resolve_cwd_for_resume_or_fork(
     tui: &mut Tui,
-    state_db_ctx: Option<<&StateRuntime>dyn codex_rollout::RolloutStore>,
+    state_db_ctx: Option<&StateRuntime>,
     current_cwd: &Path,
     thread_id: ThreadId,
     path: Option<&Path>,
@@ -112,7 +112,7 @@ pub(crate) async fn resolve_cwd_for_resume_or_fork(
 }
 
 async fn read_session_cwd(
-    state_db_ctx: Option<<&StateRuntime>dyn codex_rollout::RolloutStore>,
+    state_db_ctx: Option<&StateRuntime>,
     thread_id: ThreadId,
     path: Option<&Path>,
 ) -> Option<PathBuf> {

@@ -1,5 +1,4 @@
 use codex_protocol::ThreadId;
-use codex_state::StateRuntime;
 use std::sync::Arc;
 
 use crate::AgentGraphStore;
