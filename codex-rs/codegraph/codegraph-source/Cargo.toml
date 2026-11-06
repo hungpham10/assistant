@@ -1,0 +1,19 @@
+[package]
+name = "codegraph-source"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints.rust]
+warnings = "deny"
+
+[dependencies]
+codegraph-core = { path = "../codegraph-core" }
+async-trait = { workspace = true }
+camino = { workspace = true }
+ignore = { workspace = true }
+glob = "0.3"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { workspace = true, features = ["rt", "macros"] }

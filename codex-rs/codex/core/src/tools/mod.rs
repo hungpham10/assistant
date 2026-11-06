@@ -1,4 +1,6 @@
 pub(crate) mod code_mode;
+#[cfg(feature = "codegraph")]
+pub(crate) mod codegraph;
 pub(crate) mod context;
 pub(crate) mod events;
 pub(crate) mod families;

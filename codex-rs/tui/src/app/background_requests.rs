@@ -19,6 +19,10 @@ use codex_app_server_protocol::MarketplaceRemoveParams;
 use codex_app_server_protocol::MarketplaceRemoveResponse;
 use codex_app_server_protocol::MarketplaceUpgradeParams;
 use codex_app_server_protocol::MarketplaceUpgradeResponse;
+use codex_app_server_protocol::ThreadToolInventoryItem;
+use codex_app_server_protocol::ThreadToolsListDetail;
+use codex_app_server_protocol::ThreadToolsListParams;
+use codex_app_server_protocol::ThreadToolsListResponse;
 
 use codex_app_server_protocol::RequestId;
 
@@ -53,6 +57,21 @@ impl App {
                 detail,
                 thread_id,
             });
+        });
+    }
+
+    pub(super) fn fetch_thread_tools_inventory(
+        &mut self,
+        app_server: &AppServerSession,
+        thread_id: ThreadId,
+    ) {
+        let request_handle = app_server.request_handle();
+        let app_event_tx = self.app_event_tx.clone();
+        tokio::spawn(async move {
+            let result = fetch_all_thread_tools(request_handle, thread_id)
+                .await
+                .map_err(|err| err.to_string());
+            app_event_tx.send(AppEvent::ThreadToolsInventoryLoaded { thread_id, result });
         });
     }
 
@@ -716,6 +735,21 @@ impl App {
             overlay.replace_cells(self.transcript_cells.clone());
         }
     }
+
+    pub(super) fn handle_thread_tools_inventory_result(
+        &mut self,
+        thread_id: ThreadId,
+        result: Result<Vec<ThreadToolInventoryItem>, String>,
+    ) {
+        match result {
+            Ok(items) => self
+                .chat_widget
+                .on_thread_tools_inventory_loaded(thread_id, items),
+            Err(_err) => self
+                .chat_widget
+                .on_thread_tools_inventory_load_failed(thread_id),
+        }
+    }
 }
 
 pub(super) async fn fetch_all_mcp_server_statuses(
@@ -750,6 +784,39 @@ pub(super) async fn fetch_all_mcp_server_statuses(
     }
 
     Ok(statuses)
+}
+
+pub(super) async fn fetch_all_thread_tools(
+    request_handle: AppServerRequestHandle,
+    thread_id: ThreadId,
+) -> Result<Vec<ThreadToolInventoryItem>> {
+    let mut cursor = None;
+    let mut items = Vec::new();
+    let thread_id = thread_id.to_string();
+
+    loop {
+        let request_id = RequestId::String(format!("thread-tools-{}", Uuid::new_v4()));
+        let response: ThreadToolsListResponse = request_handle
+            .request_typed(ClientRequest::ThreadToolsList {
+                request_id,
+                params: ThreadToolsListParams {
+                    thread_id: thread_id.clone(),
+                    cursor: cursor.clone(),
+                    limit: Some(100),
+                    detail: Some(ThreadToolsListDetail::Summary),
+                },
+            })
+            .await
+            .wrap_err("thread/tools/list failed in TUI")?;
+        items.extend(response.data);
+        if let Some(next_cursor) = response.next_cursor {
+            cursor = Some(next_cursor);
+        } else {
+            break;
+        }
+    }
+
+    Ok(items)
 }
 
 pub(super) async fn fetch_account_rate_limits(

@@ -661,11 +661,11 @@ impl ThreadRequestProcessor {
                 .map(str::to_string);
             let advertised = entry
                 .get("advertised")
-                .and_then(|v| v.as_bool())
+                .and_then(serde_json::Value::as_bool)
                 .unwrap_or_default();
             let hidden = entry
                 .get("hidden")
-                .and_then(|v| v.as_bool())
+                .and_then(serde_json::Value::as_bool)
                 .unwrap_or_default();
             let exposure = entry
                 .get("exposure")

@@ -32,6 +32,7 @@ full = [
     "exec-server",
     "internal-tools",
     "desktop-app",
+    "codegraph",
 ]
 
 # Console-only: TUI + exec + review + login + logout + completion + update
@@ -51,6 +52,7 @@ internal-tools = [
     "dep:codex-uds",
     "dep:codex-memories-write",
 ]
+codegraph = ["codex-core/codegraph"]
 # Các feature dưới đây chỉ gate code, không kéo crate riêng.
 plugins = []
 session-management = []

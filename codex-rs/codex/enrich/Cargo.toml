@@ -22,4 +22,5 @@ tracing.workspace = true
 tokio = { workspace = true, features = ["fs", "rt-multi-thread", "macros"] }
 
 [dev-dependencies]
+pretty_assertions.workspace = true
 tempfile.workspace = true

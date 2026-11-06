@@ -376,6 +376,36 @@
       },
       "type": "object"
     },
+    "CodegraphToml": {
+      "additionalProperties": false,
+      "description": "`[codegraph]` settings for the codegraph tool surface.\n\n`mode = \"cloud\"` is a forward-looking marker only: today every query routes through the local `codegraph_api::Session` (dsn-based, `sqlite://`). Cloud endpoints / auth are accepted here so configs stay valid once the cloud backend lands; they are not used yet.",
+      "properties": {
+        "auth": {
+          "description": "Cloud auth token (marker only, unused while `mode = \"local\"`).",
+          "type": "string"
+        },
+        "cloud_url": {
+          "description": "Cloud endpoint URL (marker only, unused while `mode = \"local\"`).",
+          "type": "string"
+        },
+        "enabled": {
+          "description": "Register the `codegraph.call` agent tool (default: `true`).",
+          "type": "boolean"
+        },
+        "mode": {
+          "description": "Backend mode: `\"local\"` (default) or `\"cloud\"` (marker only, unused).",
+          "type": "string"
+        },
+        "permit_modes": {
+          "description": "Symbol-match modes permitted for search (default: `[\"lexical\"]`).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
     "ConfigProfile": {
       "additionalProperties": false,
       "description": "Collection of common configuration options that a user can define as a unit in `config.toml`.",
@@ -4744,6 +4774,15 @@
       ],
       "default": null,
       "description": "Preferred backend for storing CLI auth credentials. file (default): Use a file in the Codex home directory. keyring: Use an OS-specific keyring service. auto: Use the keyring if available, otherwise use a file."
+    },
+    "codegraph": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/CodegraphToml"
+        }
+      ],
+      "default": null,
+      "description": "Codegraph tool settings."
     },
     "compact_prompt": {
       "description": "Compact prompt used for history compaction.",

@@ -1,0 +1,93 @@
+[package]
+name = "codegraph-graph"
+version.workspace = true
+edition = "2024"
+license.workspace = true
+
+[lints.rust]
+warnings = "deny"
+
+[dependencies]
+codegraph-core = { path = "../codegraph-core" }
+dirs = { workspace = true }
+
+# SQLite-backed Db (moved here from the removed codegraph-db crate).
+rusqlite = { workspace = true }
+camino = { workspace = true }
+
+# SearchIndex and related modules (moved from codegraph-libs)
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+dashmap = { workspace = true }
+parking_lot = { workspace = true }
+smallvec = "1"
+async-trait = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros", "sync"] }
+
+# For SearchIndex functionality (moved from codegraph-libs)
+redis = { workspace = true, optional = true }
+url = { version = "2.5.8", optional = true }
+zstd = { version = "0.13", optional = true }
+bincode = { version = "1.3", optional = true }
+# Direct dep (not workspace): codegraph-graph needs `load-extension` for
+# sqlite-vss, which the shared workspace sqlx doesn't enable.
+sqlx = { version = "0.9", default-features = false, features = ["runtime-tokio", "sqlite", "sqlite-bundled", "sqlite-load-extension"], optional = true }
+lmdb-rkv = { workspace = true, optional = true }
+
+# Bundled sqlite cho sqlx (giống rusqlite của codegraph-db) — feature
+# unification khiến sqlx dùng chung bản build bundled này, không cần system lib.
+libsqlite3-sys = { version = "0.37", features = ["bundled"], optional = true }
+# fastembed mặc định kéo `hf-hub-native-tls` + `ort/tls-native` → openssl-sys.
+# Khi cross-compile sang musl (AUR/static Linux) pkg-config không tìm được
+# OpenSSL hệ thống → build lỗi. Tắt default-features và dùng biến thể rustls
+# (hf-hub-rustls-tls, ort-download-binaries-rustls-tls) để toàn bộ chain
+# (hf-hub, reqwest, ureq, ort) dùng rustls — build sạch trên mọi target.
+fastembed = { version = "5.17.4", optional = true, default-features = false, features = ["hf-hub-rustls-tls", "ort-download-binaries-rustls-tls", "image-models"] }
+
+# macOS-only: ONNX Runtime compile với feature `coreml` để chạy embedding trên
+# Apple Neural Engine / GPU (Apple Silicon). Chỉ được pull vào khi feature
+# `apple-accel` bật (macOS) → build non-macOS KHÔNG kéo native build này.
+# NOTE: phiên bản `ort` hiện tại (2.0.0-rc.13) KHÔNG expose feature `metal` (Metal
+# EP) — chỉ `coreml`. CoreML trên Apple Silicon đã tận dụng GPU/ANE, nên đây là
+# đường truyền tăng tốc phần cứng duy nhất khả dụng. `ort = "=2.0.0-rc.13"` phải
+# khớp phiên bản fastembed đang dùng để 2 dep unify thành 1 bản build.
+[target.'cfg(target_os = "macos")'.dependencies]
+ort = { version = "=2.0.0-rc.13", features = ["coreml"], optional = true }
+
+[features]
+default = []
+redis = ["dep:redis", "dep:zstd", "dep:bincode", "dep:url"]
+sqlite = ["dep:sqlx", "dep:libsqlite3-sys"]
+lmdb = ["dep:lmdb-rkv"]
+# Backend RDBMS sharded (sqlx postgres/mysql) — một module `storage/rdbms.rs`,
+# mỗi feature bật driver tương ứng; bật cả 2 được.
+postgres = ["dep:sqlx"]
+mysql = ["dep:sqlx"]
+bloom-search = []
+# Embedding backend fastembed (ONNX / sentence-transformers) cho semantic search.
+# OPT-IN: không bật mặc định. Chỉ khi config `[embedding].backend = "fastembed"`
+# (và crate compile `--features fastembed`) thì vector index mới được xây. Nếu
+# bật mà model tải thất bại → init index lỗi (KHÔNG fallback silent sang hashing).
+fastembed = ["dep:fastembed"]
+# macOS-only: bật CoreML/Metal execution provider cho ONNX Runtime (embed trên
+# ANE/GPU). Chỉ có nghĩa khi build trên macOS + `--features fastembed,apple-accel`.
+# Trên non-macOS, bật feature này SẼ LỖI (ort chỉ compile được trên macOS với
+# coreml/metal) → build bình thường `--features fastembed` (CPU + Accelerate SIMD).
+apple-accel = ["dep:ort"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tempfile = "3"
+codegraph-extract = { path = "../codegraph-extract" }
+codegraph-core = { path = "../codegraph-core" }
+criterion = { version = "0.5", features = ["async_tokio"] }
+
+[[bench]]
+name = "search_bloom"
+harness = false
+
+[[bench]]
+name = "lmdb_batch_read"
+harness = false
+required-features = ["lmdb"]

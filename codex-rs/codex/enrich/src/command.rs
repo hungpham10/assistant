@@ -1,6 +1,9 @@
 use serde_json::Value as JsonValue;
 use thiserror::Error;
 
+#[path = "command_segments.rs"]
+mod segments;
+
 #[derive(Debug, Clone)]
 pub struct VerbCall {
     pub namespace: String,
@@ -33,54 +36,41 @@ pub struct AtCommandParser;
 impl CommandParser for AtCommandParser {
     fn parse(&self, input: &str) -> CommandPlan {
         let raw = input.to_string();
-        let mut commands = Vec::new();
-        let mut remaining_prompt = input.to_string();
+        let (prompt_outside, blocks) = segments::extract_enrich_blocks(input);
 
-        if input.contains("->") {
-            for part in input.split("->") {
-                let part = part.trim();
-                if let Some(cmd) = parse_single(part) {
-                    commands.push(cmd);
-                    if let Some(_paren_start) = part.find('(') {
-                        if let Some(paren_end) = part.find(')') {
-                            if let Some(start) = part.find('@') {
-                                let to_remove = &part[start..=paren_end];
-                                remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
-                            }
-                        }
-                    }
-                }
-            }
-        } else if let Some(cmd) = parse_single(input) {
-            commands.push(cmd);
-            if let Some(_paren_start) = input.find('(') {
-                if let Some(paren_end) = input.find(')') {
-                    if let Some(start) = input.find('@') {
-                        let to_remove = &input[start..=paren_end];
-                        remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
-                    }
-                }
-            }
+        if blocks.is_empty() {
+            return CommandPlan {
+                commands: Vec::new(),
+                prompt: input.to_string(),
+                raw,
+            };
         }
 
-        let mut prompt = remaining_prompt
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ");
-        if prompt.trim().is_empty() && input.contains(':') {
-            if let Some(colon_pos) = input.rfind(':') {
-                prompt = input[colon_pos + 1..].trim().to_string();
-            }
-        } else if let Some(colon_pos) = prompt.find(':') {
-            prompt = prompt[colon_pos + 1..].to_string();
+        let mut commands = Vec::new();
+        for block in &blocks {
+            commands.extend(parse_commands_from_block(block));
         }
 
         CommandPlan {
             commands,
-            prompt: prompt.trim().to_string(),
+            prompt: prompt_outside.trim().to_string(),
             raw,
         }
     }
+}
+
+fn parse_commands_from_block(block: &str) -> Vec<VerbCall> {
+    let mut commands = Vec::new();
+    if block.contains("->") {
+        for part in block.split("->") {
+            if let Some(cmd) = parse_single(part.trim()) {
+                commands.push(cmd);
+            }
+        }
+    } else if let Some(cmd) = parse_single(block) {
+        commands.push(cmd);
+    }
+    commands
 }
 
 fn parse_single(s: &str) -> Option<VerbCall> {
@@ -89,26 +79,26 @@ fn parse_single(s: &str) -> Option<VerbCall> {
     }
     if let Some(at_pos) = s.find('@') {
         let sub = &s[at_pos..];
-        if let Some(paren_start) = sub.find('(') {
-            if let Some(paren_end) = sub.find(')') {
-                let prefix = &sub[1..paren_start];
-                if let Some(dot_pos) = prefix.find('.') {
-                    let namespace = prefix[..dot_pos].to_string();
-                    let verb = prefix[dot_pos + 1..].to_string();
-                    let args_str = &sub[paren_start + 1..paren_end];
-                    let args: JsonValue = if args_str.trim().is_empty() {
-                        serde_json::json!({})
-                    } else {
-                        serde_json::from_str(&format!("{{{args_str}}}"))
-                            .or_else(|_| serde_json::from_str(args_str))
-                            .unwrap_or_else(|_| serde_json::json!({}))
-                    };
-                    return Some(VerbCall {
-                        namespace,
-                        verb,
-                        args,
-                    });
-                }
+        if let Some(paren_start) = sub.find('(')
+            && let Some(paren_end) = sub.find(')')
+        {
+            let prefix = &sub[1..paren_start];
+            if let Some(dot_pos) = prefix.find('.') {
+                let namespace = prefix[..dot_pos].to_string();
+                let verb = prefix[dot_pos + 1..].to_string();
+                let args_str = &sub[paren_start + 1..paren_end];
+                let args: JsonValue = if args_str.trim().is_empty() {
+                    serde_json::json!({})
+                } else {
+                    serde_json::from_str(&format!("{{{args_str}}}"))
+                        .or_else(|_| serde_json::from_str(args_str))
+                        .unwrap_or_else(|_| serde_json::json!({}))
+                };
+                return Some(VerbCall {
+                    namespace,
+                    verb,
+                    args,
+                });
             }
         }
     }
@@ -234,26 +224,75 @@ fn resolve_json_path(value: &JsonValue, path: &str) -> Result<JsonValue, ()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_parse_at_command() {
+    fn parse_command_in_enrich_fence() {
         let parser = AtCommandParser;
-        let plan = parser.parse("@codegraph.search(mode=lex): analyze this");
+        let plan = parser.parse("```@!\n@codegraph.search(mode=lex)\n```\nanalyze this");
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].namespace, "codegraph");
+        assert_eq!(plan.commands[0].verb, "search");
+        assert_eq!(plan.prompt, "analyze this");
+    }
+
+    #[test]
+    fn parse_chain_in_enrich_fence() {
+        let parser = AtCommandParser;
+        let plan =
+            parser.parse("```@!\n@codegraph.search(query=test) -> @codegraph.flow(id=$.id)\n```");
+        assert_eq!(plan.commands.len(), 2);
+        assert_eq!(plan.commands[0].namespace, "codegraph");
+        assert_eq!(plan.commands[0].verb, "search");
+        assert_eq!(plan.commands[1].verb, "flow");
+    }
+
+    #[test]
+    fn parse_one_liner_enrich_fence() {
+        let parser = AtCommandParser;
+        let plan = parser.parse("```@! @codegraph.search(query=test) ```");
         assert_eq!(plan.commands.len(), 1);
         assert_eq!(plan.commands[0].namespace, "codegraph");
         assert_eq!(plan.commands[0].verb, "search");
     }
 
     #[test]
-    fn test_parse_chain() {
+    fn rust_compiler_log_is_not_parsed() {
         let parser = AtCommandParser;
-        let plan = parser.parse("@codegraph.search(query=test) -> @codegraph.flow(id=$.id)");
-        assert_eq!(plan.commands.len(), 2);
-        assert_eq!(plan.commands[1].verb, "flow");
+        let input = "error[E0308]: mismatched types\n --> src/main.rs:5:12\n  |\n5 |     let x: i32 = \"hello\";\n  |            ---   ^^^^^^^ expected `i32`, found `&str`";
+        let plan = parser.parse(input);
+        assert_eq!(plan.commands.len(), 0);
+        assert_eq!(plan.prompt, input);
     }
 
     #[test]
-    fn test_resolve_refs() {
+    fn at_command_in_plain_text_is_ignored() {
+        let parser = AtCommandParser;
+        let input = "please run @codegraph.search(mode=lex): analyze this";
+        let plan = parser.parse(input);
+        assert_eq!(plan.commands.len(), 0);
+        assert_eq!(plan.prompt, input);
+    }
+
+    #[test]
+    fn at_command_in_regular_rust_fence_is_ignored() {
+        let parser = AtCommandParser;
+        let input = "```rust\n@codegraph.search(mode=lex)\n// --> src/main.rs:1:1\n```";
+        let plan = parser.parse(input);
+        assert_eq!(plan.commands.len(), 0);
+        assert_eq!(plan.prompt, input);
+    }
+
+    #[test]
+    fn unclosed_enrich_fence_still_parses() {
+        let parser = AtCommandParser;
+        let plan = parser.parse("```@!\n@codegraph.search(query=test)");
+        assert_eq!(plan.commands.len(), 1);
+        assert_eq!(plan.commands[0].verb, "search");
+    }
+
+    #[test]
+    fn resolve_refs_works() {
         let results = vec![serde_json::json!({"symbols": [{"id": 42}]})];
         let args = serde_json::json!({"id": "$.symbols[0].id"});
         let resolved = resolve_refs(args, &results).unwrap();

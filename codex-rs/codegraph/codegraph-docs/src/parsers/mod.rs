@@ -1,0 +1,1259 @@
+use crate::ir::ByteSpan;
+use crate::ir::Document;
+use crate::ir::Kind;
+use crate::ir::Node;
+use crate::ir::Scalar;
+use anyhow::Result;
+use serde::Deserialize;
+use std::collections::HashMap;
+
+/// Generic document parser: turns a raw source file into the normalized
+/// `Document` IR (no format-specific graph).
+pub trait DocParser: Send + Sync {
+    /// Format name (e.g. `"yaml"`, `"json"`, `"toml"`).
+    fn format(&self) -> &'static str;
+    /// Parse `source` into `Document`. `id` is assigned by the caller.
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document>;
+}
+
+/// Recursive representation of a parsed value (used by all format parsers).
+#[derive(Debug, Clone)]
+pub enum RecursiveNode {
+    Map(Vec<(String, RecursiveNode, ByteSpan)>),
+    Array(Vec<(RecursiveNode, ByteSpan)>),
+    String(String, ByteSpan),
+    Number(f64, ByteSpan),
+    Bool(bool, ByteSpan),
+    Null(ByteSpan),
+    /// Markdown heading: text tiêu đề + các node con (paragraph/header/code).
+    /// Node gốc của markdown cũng dùng variant này (text rỗng) → `Kind::Root`.
+    Header(String, Vec<(RecursiveNode, ByteSpan)>, ByteSpan),
+    /// Fenced code block: ngôn ngữ (nếu có) + nội dung thô.
+    Code(Option<String>, String, ByteSpan),
+}
+
+/// Build a `Document` from `RecursiveNode`, assigning global node ids and
+/// wiring parent/children.
+pub fn build_document(path: String, format: String, id: u64, root: RecursiveNode) -> Document {
+    let mut builder = DocBuilder {
+        doc_id: id,
+        nodes: HashMap::new(),
+        order: Vec::new(),
+        next_id: 2, // root = 1
+    };
+    let root_id = 1;
+    builder.walk(
+        root_id,
+        None,
+        None,
+        None,
+        &root,
+        ByteSpan { start: 0, end: 0 },
+    );
+    let nodes = builder.order;
+    Document {
+        id,
+        path,
+        format,
+        root: root_id,
+        nodes,
+    }
+}
+
+struct DocBuilder {
+    doc_id: u64,
+    nodes: HashMap<u64, Node>,
+    order: Vec<Node>,
+    next_id: u64,
+}
+
+impl DocBuilder {
+    fn walk(
+        &mut self,
+        id: u64,
+        parent: Option<u64>,
+        key: Option<String>,
+        index: Option<u32>,
+        node: &RecursiveNode,
+        span: ByteSpan,
+    ) -> Node {
+        let (kind, value) = match node {
+            RecursiveNode::Map(_) => (Kind::Map, None),
+            RecursiveNode::Array(_) => (Kind::Array, None),
+            RecursiveNode::String(s, _) => (Kind::String, Some(Scalar::String(s.clone()))),
+            RecursiveNode::Number(n, _) => (Kind::Number, Some(Scalar::Number(*n))),
+            RecursiveNode::Bool(b, _) => (Kind::Bool, Some(Scalar::Bool(*b))),
+            RecursiveNode::Null(_) => (Kind::Null, Some(Scalar::Null)),
+            // Markdown: node gốc (id 1, text rỗng) là Root; header con là Header.
+            RecursiveNode::Header(..) => {
+                if id == 1 {
+                    (Kind::Root, None)
+                } else {
+                    (Kind::Header, None)
+                }
+            }
+            RecursiveNode::Code(_, code, _) => (Kind::Code, Some(Scalar::String(code.clone()))),
+        };
+        // Header tự mang key = text tiêu đề; root markdown (text rỗng) không key.
+        // Code block dùng key = ngôn ngữ (nếu fence có khai báo).
+        let key = match node {
+            RecursiveNode::Header(text, _, _) if id != 1 && !text.is_empty() => Some(text.clone()),
+            RecursiveNode::Code(lang, _, _) => lang.clone().or(key),
+            _ => key,
+        };
+        let built_node = Node {
+            id,
+            kind,
+            parent,
+            key,
+            index,
+            span,
+            value,
+            children: Vec::new(),
+            doc: self.doc_id,
+        };
+        self.order.push(built_node.clone());
+        let order_idx = self.order.len() - 1;
+        self.nodes.insert(id, built_node.clone());
+        // Link parent → child.
+        if let Some(pid) = parent
+            && let Some(p) = self.nodes.get_mut(&pid)
+        {
+            p.children.push(id);
+        }
+        // Recurse.
+        match node {
+            RecursiveNode::Map(entries) => {
+                for (k, child, child_span) in entries {
+                    let child_id = self.next_id;
+                    self.next_id += 1;
+                    let child_node = self.walk(
+                        child_id,
+                        Some(id),
+                        Some(k.clone()),
+                        None,
+                        child,
+                        *child_span,
+                    );
+                    self.nodes.insert(child_id, child_node);
+                }
+            }
+            RecursiveNode::Array(items) => {
+                for (i, (child, child_span)) in items.iter().enumerate() {
+                    let child_id = self.next_id;
+                    self.next_id += 1;
+                    let child_node =
+                        self.walk(child_id, Some(id), None, Some(i as u32), child, *child_span);
+                    self.nodes.insert(child_id, child_node);
+                }
+            }
+            RecursiveNode::Header(_, items, _) => {
+                for (i, (child, child_span)) in items.iter().enumerate() {
+                    let child_id = self.next_id;
+                    self.next_id += 1;
+                    let child_node =
+                        self.walk(child_id, Some(id), None, Some(i as u32), child, *child_span);
+                    self.nodes.insert(child_id, child_node);
+                }
+            }
+            _ => {}
+        }
+        // Sync children vào `order` — lúc push ban đầu `children` còn rỗng,
+        // các link parent→child chỉ xuất hiện sau khi đệ quy xong.
+        if let Some(p) = self.nodes.get(&id) {
+            self.order[order_idx].children = p.children.clone();
+        }
+        // Return a clone of the built node (children already filled in `order`).
+        self.nodes.get(&id).cloned().unwrap_or(built_node)
+    }
+}
+
+// ── YAML parser ──────────────────────────────────────────────────────────
+
+pub struct YamlParser;
+
+impl DocParser for YamlParser {
+    fn format(&self) -> &'static str {
+        "yaml"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        // File YAML được phép chứa nhiều document (`---`), vd k8s manifest.
+        let mut values: Vec<serde_yaml::Value> = Vec::new();
+        for doc in serde_yaml::Deserializer::from_str(source) {
+            values.push(serde_yaml::Value::deserialize(doc)?);
+        }
+        let span = ByteSpan {
+            start: 0,
+            end: source.len() as u64,
+        };
+        let root = match values.len() {
+            0 => RecursiveNode::Null(span),
+            1 => convert_yaml_value(&values[0], span),
+            _ => RecursiveNode::Array(
+                values
+                    .iter()
+                    .map(|v| (convert_yaml_value(v, ByteSpan { start: 0, end: 0 }), span))
+                    .collect(),
+            ),
+        };
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+fn convert_yaml_value(value: &serde_yaml::Value, span: ByteSpan) -> RecursiveNode {
+    match value {
+        serde_yaml::Value::Mapping(map) => {
+            let entries = map
+                .iter()
+                .map(|(k, v)| {
+                    let key = k.as_str().map(|s| s.to_string()).unwrap_or_default();
+                    let child_span = ByteSpan { start: 0, end: 0 };
+                    (key, convert_yaml_value(v, child_span), child_span)
+                })
+                .collect();
+            RecursiveNode::Map(entries)
+        }
+        serde_yaml::Value::Sequence(seq) => {
+            let items = seq
+                .iter()
+                .map(|v| {
+                    (
+                        convert_yaml_value(v, ByteSpan { start: 0, end: 0 }),
+                        ByteSpan { start: 0, end: 0 },
+                    )
+                })
+                .collect();
+            RecursiveNode::Array(items)
+        }
+        serde_yaml::Value::String(s) => RecursiveNode::String(s.clone(), span),
+        serde_yaml::Value::Number(n) => {
+            let f = n.as_f64().unwrap_or(0.0);
+            RecursiveNode::Number(f, span)
+        }
+        serde_yaml::Value::Bool(b) => RecursiveNode::Bool(*b, span),
+        serde_yaml::Value::Null => RecursiveNode::Null(span),
+        _ => RecursiveNode::Null(span),
+    }
+}
+
+// ── JSON parser ──────────────────────────────────────────────────────────
+
+pub struct JsonParser;
+
+impl DocParser for JsonParser {
+    fn format(&self) -> &'static str {
+        "json"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        let value: serde_json::Value = serde_json::from_str(source)?;
+        let root = convert_json_value(
+            &value,
+            ByteSpan {
+                start: 0,
+                end: source.len() as u64,
+            },
+        );
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+fn convert_json_value(value: &serde_json::Value, span: ByteSpan) -> RecursiveNode {
+    match value {
+        serde_json::Value::Object(map) => {
+            let entries = map
+                .iter()
+                .map(|(k, v)| {
+                    let key = k.clone();
+                    let child_span = ByteSpan { start: 0, end: 0 };
+                    (key, convert_json_value(v, child_span), child_span)
+                })
+                .collect();
+            RecursiveNode::Map(entries)
+        }
+        serde_json::Value::Array(seq) => {
+            let items = seq
+                .iter()
+                .map(|v| {
+                    (
+                        convert_json_value(v, ByteSpan { start: 0, end: 0 }),
+                        ByteSpan { start: 0, end: 0 },
+                    )
+                })
+                .collect();
+            RecursiveNode::Array(items)
+        }
+        serde_json::Value::String(s) => RecursiveNode::String(s.clone(), span),
+        serde_json::Value::Number(n) => {
+            let f = n.as_f64().unwrap_or(0.0);
+            RecursiveNode::Number(f, span)
+        }
+        serde_json::Value::Bool(b) => RecursiveNode::Bool(*b, span),
+        serde_json::Value::Null => RecursiveNode::Null(span),
+    }
+}
+
+// ── TOML parser ──────────────────────────────────────────────────────────
+
+pub struct TomlParser;
+
+impl DocParser for TomlParser {
+    fn format(&self) -> &'static str {
+        "toml"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        let doc: toml::Value = toml::from_str(source)?;
+        let root = convert_toml_value(
+            &doc,
+            ByteSpan {
+                start: 0,
+                end: source.len() as u64,
+            },
+        );
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+fn convert_toml_value(value: &toml::Value, span: ByteSpan) -> RecursiveNode {
+    match value {
+        toml::Value::Table(map) => {
+            let entries = map
+                .iter()
+                .map(|(k, v)| {
+                    let key = k.clone();
+                    let child_span = ByteSpan { start: 0, end: 0 };
+                    (key, convert_toml_value(v, child_span), child_span)
+                })
+                .collect();
+            RecursiveNode::Map(entries)
+        }
+        toml::Value::Array(seq) => {
+            let items = seq
+                .iter()
+                .map(|v| {
+                    (
+                        convert_toml_value(v, ByteSpan { start: 0, end: 0 }),
+                        ByteSpan { start: 0, end: 0 },
+                    )
+                })
+                .collect();
+            RecursiveNode::Array(items)
+        }
+        toml::Value::String(s) => RecursiveNode::String(s.clone(), span),
+        toml::Value::Integer(n) => RecursiveNode::Number(*n as f64, span),
+        toml::Value::Float(n) => RecursiveNode::Number(*n, span),
+        toml::Value::Boolean(b) => RecursiveNode::Bool(*b, span),
+        toml::Value::Datetime(_) => RecursiveNode::Null(span),
+    }
+}
+
+// ── HCL parser ──────────────────────────────────────────────────────────
+pub struct HclParser;
+
+impl DocParser for HclParser {
+    fn format(&self) -> &'static str {
+        "hcl"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        let value: hcl::Value = hcl::from_str(source)?;
+        let root = convert_hcl_value(
+            &value,
+            ByteSpan {
+                start: 0,
+                end: source.len() as u64,
+            },
+        );
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+fn convert_hcl_value(value: &hcl::Value, span: ByteSpan) -> RecursiveNode {
+    match value {
+        hcl::Value::Object(map) => {
+            let entries = map
+                .iter()
+                .map(|(k, v)| {
+                    let key = k.clone();
+                    let child_span = ByteSpan { start: 0, end: 0 };
+                    (key, convert_hcl_value(v, child_span), child_span)
+                })
+                .collect();
+            RecursiveNode::Map(entries)
+        }
+        hcl::Value::Array(seq) => {
+            let items = seq
+                .iter()
+                .map(|v| {
+                    (
+                        convert_hcl_value(v, ByteSpan { start: 0, end: 0 }),
+                        ByteSpan { start: 0, end: 0 },
+                    )
+                })
+                .collect();
+            RecursiveNode::Array(items)
+        }
+        hcl::Value::String(s) => RecursiveNode::String(s.clone(), span),
+        hcl::Value::Number(n) => RecursiveNode::Number(n.as_f64().unwrap_or(0.0), span),
+        hcl::Value::Bool(b) => RecursiveNode::Bool(*b, span),
+        hcl::Value::Null => RecursiveNode::Null(span),
+    }
+}
+
+// ── markdown parser ──────────────────────────────────────────────────────
+
+pub struct MarkdownParser;
+
+impl DocParser for MarkdownParser {
+    fn format(&self) -> &'static str {
+        "markdown"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        let root = parse_markdown(source);
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+/// Parse markdown theo mô hình bao bọc: header bậc càng nhỏ (h1 < h2 < …)
+/// càng bao bọc rộng — h1 chứa h2, h2 chứa h3… Paragraph là item con của
+/// header gần nhất; fenced code block là node `Code` riêng. Phần tử khác
+/// (list, table, blockquote…) giữ nguyên dạng text paragraph.
+fn parse_markdown(source: &str) -> RecursiveNode {
+    let span = ByteSpan {
+        start: 0,
+        end: source.len() as u64,
+    };
+    let zero = ByteSpan { start: 0, end: 0 };
+    // Stack khung header: (mức #, text tiêu đề, các node con). Khung gốc
+    // level 0, text rỗng → trở thành `Kind::Root`.
+    type MdFrame = (u8, String, Vec<(RecursiveNode, ByteSpan)>);
+    let mut stack: Vec<MdFrame> = vec![(0, String::new(), Vec::new())];
+    let mut para: Vec<String> = Vec::new();
+    let mut fence: Option<Option<String>> = None;
+    let mut code: Vec<String> = Vec::new();
+
+    macro_rules! flush_para {
+        () => {
+            if !para.is_empty() {
+                let text = para.join("\n");
+                para.clear();
+                stack
+                    .last_mut()
+                    .expect("markdown stack always has root frame")
+                    .2
+                    .push((RecursiveNode::String(text, zero), zero));
+            }
+        };
+    }
+
+    for line in source.lines() {
+        let trimmed = line.trim_start();
+        if let Some(open) = fence.as_mut() {
+            // Dòng trong code fence: ``` đóng fence, còn lại là code thô.
+            if trimmed.starts_with("```") {
+                let lang = open.take();
+                fence = None;
+                let body = code.join("\n");
+                code.clear();
+                stack
+                    .last_mut()
+                    .expect("markdown stack always has root frame")
+                    .2
+                    .push((RecursiveNode::Code(lang, body, zero), zero));
+            } else {
+                code.push(line.to_string());
+            }
+            continue;
+        }
+        if let Some(info) = trimmed.strip_prefix("```") {
+            flush_para!();
+            let info = info.trim();
+            let lang = info.split_whitespace().next().filter(|s| !s.is_empty());
+            fence = Some(lang.map(|s| s.to_string()));
+            continue;
+        }
+        // ATX header: 1–6 dấu `#` theo sau bởi space/tab hoặc hết dòng.
+        let hashes = trimmed.bytes().take_while(|&b| b == b'#').count();
+        let is_header = (1..=6).contains(&hashes)
+            && (trimmed.len() == hashes
+                || matches!(trimmed.as_bytes().get(hashes), Some(b' ' | b'\t')));
+        if is_header {
+            flush_para!();
+            let text = trimmed[hashes..].trim().to_string();
+            // Pop về header cha có mức nhỏ hơn; frame bị pop gói thành
+            // `Header` và nối vào items của khung mới hiện hành.
+            while let Some(&(top, _, _)) = stack.last() {
+                if top < hashes as u8 {
+                    break;
+                }
+                let (_, text, items) = stack.pop().expect("checked non-empty");
+                stack
+                    .last_mut()
+                    .expect("root frame has level 0, always stays")
+                    .2
+                    .push((RecursiveNode::Header(text, items, zero), zero));
+            }
+            stack.push((hashes as u8, text, Vec::new()));
+            continue;
+        }
+        if line.trim().is_empty() {
+            flush_para!();
+            continue;
+        }
+        para.push(line.trim_end().to_string());
+    }
+    // Fence chưa đóng: lấy phần code đã thu được làm block cuối.
+    if let Some(lang) = fence.take() {
+        let body = code.join("\n");
+        stack
+            .last_mut()
+            .expect("markdown stack always has root frame")
+            .2
+            .push((RecursiveNode::Code(lang, body, zero), zero));
+    }
+    flush_para!();
+    // Gói toàn bộ stack còn lại thành cây: top trước → lồng vào khung dưới.
+    while stack.len() > 1 {
+        let (_, text, items) = stack.pop().expect("stack.len() > 1");
+        stack
+            .last_mut()
+            .expect("stack.len() > 1 before pop")
+            .2
+            .push((RecursiveNode::Header(text, items, zero), zero));
+    }
+    let (_, text, items) = stack.pop().expect("markdown stack non-empty");
+    RecursiveNode::Header(text, items, span)
+}
+
+// ── nginx parser ──────────────────────────────────────────────────────────
+
+pub struct NginxParser;
+
+impl DocParser for NginxParser {
+    fn format(&self) -> &'static str {
+        "nginx"
+    }
+
+    fn parse(&self, path: &str, source: &str, id: u64) -> Result<Document> {
+        let root = parse_nginx(source)?;
+        Ok(build_document(
+            path.to_string(),
+            self.format().to_string(),
+            id,
+            root,
+        ))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum NginxToken {
+    /// Từ khoá/giá trị (nội dung chuỗi đã bỏ quote).
+    Word(String, u32),
+    /// Nội dung thô của `_by_lua_block` — giữ nguyên, không parse như nginx.
+    LuaCode(String, u32),
+    LBrace(u32),
+    RBrace(u32),
+    Semi(u32),
+}
+
+/// Tokenize theo behavior của lexer gonginx (tham khảo `nginx/parser/lexer.go`):
+/// - `#` đến cuối dòng là comment (bỏ qua).
+/// - Quote `"`, `'`, `` ` `` → 1 word, hỗ trợ escape `\"`; unquote khi tạo value.
+/// - `${...}` là variable reference trong word — `{`/`}` bên trong không phải
+///   block delimiter (Issue 17: `set $x $a${uri}index.html;`).
+/// - Word kết thúc bằng `_by_lua_block` → scan code thô đến `}` đóng (đếm
+///   depth, bỏ qua `{`/`}` trong `#` comment) thành `LuaCode`.
+fn tokenize_nginx(source: &str) -> Result<Vec<NginxToken>> {
+    let chars: Vec<char> = source.chars().collect();
+    let mut tokens = Vec::new();
+    let mut i = 0usize;
+    let mut line = 1u32;
+    let mut last_word = String::new();
+    while let Some(&c) = chars.get(i) {
+        match c {
+            '\n' => {
+                line += 1;
+                i += 1;
+            }
+            c if c.is_whitespace() => i += 1,
+            '#' => {
+                while i < chars.len() && chars[i] != '\n' {
+                    i += 1;
+                }
+            }
+            '{' => {
+                tokens.push(NginxToken::LBrace(line));
+                last_word.clear();
+                i += 1;
+            }
+            '}' => {
+                tokens.push(NginxToken::RBrace(line));
+                last_word.clear();
+                i += 1;
+            }
+            ';' => {
+                tokens.push(NginxToken::Semi(line));
+                last_word.clear();
+                i += 1;
+            }
+            q @ ('"' | '\'' | '`') => {
+                i += 1;
+                let mut word = String::new();
+                loop {
+                    match chars.get(i) {
+                        None | Some('\n') => {
+                            anyhow::bail!(
+                                "unexpected end of file while scanning quoted string at line {line}"
+                            );
+                        }
+                        Some('\\') if chars.get(i + 1) == Some(&q) => {
+                            word.push(q);
+                            i += 2;
+                        }
+                        Some(c2) if *c2 == q => {
+                            i += 1;
+                            break;
+                        }
+                        Some(c2) => {
+                            word.push(*c2);
+                            i += 1;
+                        }
+                    }
+                }
+                tokens.push(NginxToken::Word(word.clone(), line));
+                last_word = word;
+            }
+            _ => {
+                let mut word = String::new();
+                let mut in_var_ref = false;
+                let mut prev = '\0';
+                while let Some(&c2) = chars.get(i) {
+                    if in_var_ref {
+                        if c2 == '}' {
+                            in_var_ref = false;
+                        }
+                        word.push(c2);
+                        prev = c2;
+                        i += 1;
+                        continue;
+                    }
+                    if c2.is_whitespace() || matches!(c2, ';' | '\n') {
+                        break;
+                    }
+                    if c2 == '{' {
+                        if prev == '$' {
+                            in_var_ref = true;
+                            word.push('{');
+                            prev = c2;
+                            i += 1;
+                            continue;
+                        }
+                        break;
+                    }
+                    if c2 == '}' {
+                        break;
+                    }
+                    word.push(c2);
+                    prev = c2;
+                    i += 1;
+                }
+                tokens.push(NginxToken::Word(word.clone(), line));
+                last_word = word;
+            }
+        }
+        // `_by_lua_block {` → nội dung tiếp theo là code thô đến `}` đóng.
+        if last_word.ends_with("_by_lua_block") && chars.get(i) == Some(&'{') {
+            i += 1;
+            let mut code = String::new();
+            let mut depth = 0usize;
+            loop {
+                let Some(&c2) = chars.get(i) else {
+                    anyhow::bail!(
+                        "unexpected end of file while scanning lua code starting at line {line}"
+                    );
+                };
+                if c2 == '#' {
+                    // Comment trong lua: giữ nguyên đến cuối dòng, `{`/`}` trong
+                    // comment không đổi depth.
+                    while i < chars.len() && chars[i] != '\n' {
+                        code.push(chars[i]);
+                        i += 1;
+                    }
+                    continue;
+                }
+                match c2 {
+                    '{' => depth += 1,
+                    '}' if depth == 0 => break,
+                    '}' => depth -= 1,
+                    '\n' => line += 1,
+                    _ => {}
+                }
+                code.push(c2);
+                i += 1;
+            }
+            tokens.push(NginxToken::LuaCode(code, line));
+            last_word.clear();
+        }
+    }
+    Ok(tokens)
+}
+
+fn parse_nginx(source: &str) -> Result<RecursiveNode> {
+    let tokens = tokenize_nginx(source)?;
+    let mut pos = 0;
+    let entries = parse_nginx_entries(&tokens, &mut pos, true)?;
+    Ok(RecursiveNode::Map(entries))
+}
+
+/// Parse một scope: directive `name args...;` hoặc block `name args... { ... }`.
+/// Với scope lồng (top=false) dừng và tiêu thụ `}` đóng; scope top yêu cầu
+/// hết token và không được gặp `}` lạc.
+fn parse_nginx_entries(
+    tokens: &[NginxToken],
+    pos: &mut usize,
+    top: bool,
+) -> Result<Vec<(String, RecursiveNode, ByteSpan)>> {
+    let mut entries: Vec<(String, RecursiveNode, ByteSpan)> = Vec::new();
+    while let Some(tok) = tokens.get(*pos) {
+        match tok {
+            NginxToken::Word(name, line) => {
+                *pos += 1;
+                let mut args: Vec<String> = Vec::new();
+                let (key, value) = loop {
+                    match tokens.get(*pos) {
+                        Some(NginxToken::Word(arg, _)) => {
+                            args.push(arg.clone());
+                            *pos += 1;
+                        }
+                        Some(NginxToken::Semi(_)) => {
+                            *pos += 1;
+                            let value = match args.len() {
+                                0 => RecursiveNode::Null(ByteSpan { start: 0, end: 0 }),
+                                1 => RecursiveNode::String(
+                                    args.remove(0),
+                                    ByteSpan { start: 0, end: 0 },
+                                ),
+                                _ => RecursiveNode::Array(
+                                    args.drain(..)
+                                        .map(|a| {
+                                            (
+                                                RecursiveNode::String(
+                                                    a,
+                                                    ByteSpan { start: 0, end: 0 },
+                                                ),
+                                                ByteSpan { start: 0, end: 0 },
+                                            )
+                                        })
+                                        .collect(),
+                                ),
+                            };
+                            break (name.clone(), value);
+                        }
+                        Some(NginxToken::LuaCode(code, l)) => {
+                            // `_by_lua_block { ... }` — tokenizer đã tiêu thụ `{`
+                            // và gói code thô thành LuaCode; chỉ còn chờ `}`.
+                            *pos += 1;
+                            match tokens.get(*pos) {
+                                Some(NginxToken::RBrace(_)) => {
+                                    *pos += 1;
+                                }
+                                other => {
+                                    let l2 = match other {
+                                        Some(
+                                            NginxToken::Word(_, l2)
+                                            | NginxToken::LuaCode(_, l2)
+                                            | NginxToken::LBrace(l2)
+                                            | NginxToken::RBrace(l2)
+                                            | NginxToken::Semi(l2),
+                                        ) => *l2,
+                                        None => *l,
+                                    };
+                                    anyhow::bail!(
+                                        "expected '}}' after lua code of \"{name}\" at line {l2}"
+                                    );
+                                }
+                            }
+                            break (
+                                name.clone(),
+                                RecursiveNode::String(code.clone(), ByteSpan { start: 0, end: 0 }),
+                            );
+                        }
+                        Some(NginxToken::LBrace(_)) => {
+                            *pos += 1;
+                            let inner = parse_nginx_entries(tokens, pos, false)?;
+                            let key = if args.is_empty() {
+                                name.clone()
+                            } else {
+                                format!("{name} {}", args.join(" "))
+                            };
+                            break (key, RecursiveNode::Map(inner));
+                        }
+                        Some(NginxToken::RBrace(l)) => {
+                            anyhow::bail!("expected ';' or '{{' after \"{name}\" at line {l}");
+                        }
+                        None => {
+                            anyhow::bail!("expected ';' or '{{' after \"{name}\" at line {line}");
+                        }
+                    }
+                };
+                push_nginx_entry(&mut entries, key, value);
+            }
+            NginxToken::RBrace(line) if !top => {
+                *pos += 1;
+                return Ok(entries);
+            }
+            NginxToken::RBrace(line) => {
+                anyhow::bail!("unexpected '}}' at line {line}");
+            }
+            NginxToken::Semi(line) => {
+                anyhow::bail!("unexpected ';' at line {line}");
+            }
+            NginxToken::LBrace(line) => {
+                anyhow::bail!("unexpected '{{' at line {line}");
+            }
+            NginxToken::LuaCode(_, line) => {
+                anyhow::bail!("unexpected lua code outside block at line {line}");
+            }
+        }
+    }
+    if !top {
+        anyhow::bail!("missing '}}' at end of file");
+    }
+    Ok(entries)
+}
+
+/// Thêm entry vào scope; key trùng (nhiều `server {}`, nhiều `add_header;`)
+/// gộp thành `Array`.
+fn push_nginx_entry(
+    entries: &mut Vec<(String, RecursiveNode, ByteSpan)>,
+    key: String,
+    value: RecursiveNode,
+) {
+    let span = ByteSpan { start: 0, end: 0 };
+    if let Some(slot) = entries.iter_mut().find(|(k, _, _)| *k == key) {
+        match &mut slot.1 {
+            RecursiveNode::Array(items) => items.push((value, span)),
+            old => {
+                let prev = old.clone();
+                *old = RecursiveNode::Array(vec![(prev, span), (value, span)]);
+            }
+        }
+    } else {
+        entries.push((key, value, span));
+    }
+}
+
+/// Detect document format từ extension: `tf`/`hcl` → hcl, `yaml`/`yml`,
+/// `json`, `toml`, `conf`/`nginx` → nginx, `md`/`markdown` → markdown.
+/// Lỗi khi extension không nhận diện được.
+pub fn detect_format(path: &str) -> Result<String> {
+    let ext = std::path::Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+    match ext.as_str() {
+        "tf" | "hcl" => Ok("hcl".to_string()),
+        "yaml" | "yml" => Ok("yaml".to_string()),
+        "json" => Ok("json".to_string()),
+        "toml" => Ok("toml".to_string()),
+        "conf" | "nginx" => Ok("nginx".to_string()),
+        "md" | "markdown" => Ok("markdown".to_string()),
+        _ => Err(anyhow::anyhow!(
+            "unknown format for extension .{ext}; specify --format to override"
+        )),
+    }
+}
+
+/// Chọn parser theo format name (`"hcl"`, `"yaml"`, `"json"`, `"toml"`,
+/// `"nginx"`, `"markdown"`).
+pub fn parser_for(format: &str) -> Result<Box<dyn DocParser>> {
+    match format {
+        "hcl" => Ok(Box::new(HclParser)),
+        "yaml" => Ok(Box::new(YamlParser)),
+        "json" => Ok(Box::new(JsonParser)),
+        "toml" => Ok(Box::new(TomlParser)),
+        "nginx" => Ok(Box::new(NginxParser)),
+        "markdown" => Ok(Box::new(MarkdownParser)),
+        _ => Err(anyhow::anyhow!("unsupported document format: {format}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::DocConfig;
+    use crate::DocToken;
+    use crate::DocumentGraph;
+    use codegraph_graph::InMemoryStorage;
+    use std::sync::Arc;
+    use tokio::sync::RwLock as TokioRwLock;
+
+    #[test]
+    fn yaml_parser() {
+        let src = r#"
+service:
+  name: api
+  replicas: 3
+"#;
+        let doc = YamlParser.parse("/tmp/a.yaml", src, 1).unwrap();
+        assert_eq!(doc.nodes.len(), 4); // root, service, name, replicas
+    }
+
+    #[test]
+    fn yaml_parser_multi_document() {
+        let src = "---\nkind: Service\nname: api\n---\nkind: Deployment\nname: web\n";
+        let doc = YamlParser.parse("/tmp/multi.yaml", src, 1).unwrap();
+        // root (Array của 2 doc) + 2 doc + 4 trường con
+        assert_eq!(doc.nodes.len(), 7);
+        assert_eq!(
+            doc.nodes
+                .iter()
+                .filter(|n| n.key == Some("kind".into()))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn nginx_parser_nested_blocks_and_directives() {
+        let src = r#"
+# global comment
+worker_processes auto;
+
+http {
+    include mime.types;
+    server {
+        listen 8080;
+        server_name example.com;
+        location /api {
+            proxy_pass http://backend;
+            add_header X-A 1;
+        }
+    }
+    upstream backend {
+        server 10.0.0.1:8080;
+        server 10.0.0.2:8080;
+    }
+}
+"#;
+        let doc = NginxParser.parse("/etc/nginx/nginx.conf", src, 1).unwrap();
+        let find = |key: &str| doc.nodes.iter().find(|n| n.key.as_deref() == Some(key));
+        // root, worker_processes, http, include, server, listen, server_name,
+        // "location /api", proxy_pass, add_header (Array + 2 strings),
+        // "upstream backend", server trùng (Array + 2 strings) = 16 node.
+        assert_eq!(doc.nodes.len(), 16);
+        // Block có args → key gồm cả args.
+        assert!(find("location /api").is_some());
+        assert!(find("upstream backend").is_some());
+        // Directive nhiều args.
+        assert!(find("worker_processes").is_some());
+        // Trùng key trong upstream gộp thành 1 entry Array với 2 con.
+        let ups = find("upstream backend").unwrap();
+        let servers: Vec<_> = doc
+            .nodes
+            .iter()
+            .filter(|n| n.parent == Some(ups.id) && n.key.as_deref() == Some("server"))
+            .collect();
+        assert_eq!(servers.len(), 1);
+        // Con của entry Array: 2 server theo thứ tự khai báo.
+        let kids: Vec<_> = doc
+            .nodes
+            .iter()
+            .filter(|n| n.parent == Some(servers[0].id))
+            .collect();
+        assert_eq!(kids.len(), 2);
+        assert_eq!(
+            kids[0].value,
+            Some(Scalar::String("10.0.0.1:8080".to_string()))
+        );
+        assert_eq!(
+            kids[1].value,
+            Some(Scalar::String("10.0.0.2:8080".to_string()))
+        );
+    }
+
+    #[test]
+    fn nginx_parser_syntax_errors() {
+        // Thiếu ';' trước '{' lạc.
+        assert!(NginxParser.parse("a.conf", "foo bar }", 1).is_err());
+        // Thiếu '}' cuối file.
+        assert!(
+            NginxParser
+                .parse("a.conf", "http { server { listen 80;", 1)
+                .is_err()
+        );
+        // Dấu ';' đứng một mình.
+        assert!(NginxParser.parse("a.conf", ";", 1).is_err());
+    }
+
+    #[test]
+    fn nginx_parser_variables_quoted_and_lua() {
+        // Issue 17: `${uri}` trong value — `{`/`}` trong var-ref không phải block.
+        let doc = NginxParser
+            .parse(
+                "a.conf",
+                "location / {\n set $serve_URL $fullurl${uri}index.html;\n}",
+                1,
+            )
+            .unwrap();
+        let set = doc
+            .nodes
+            .iter()
+            .find(|n| n.key.as_deref() == Some("set"))
+            .unwrap();
+        // 2 args → Array; `${uri}` giữ nguyên trong arg thứ 2.
+        let last = doc
+            .nodes
+            .iter()
+            .rfind(|n| n.parent == Some(set.id))
+            .unwrap();
+        assert_eq!(
+            last.value,
+            Some(Scalar::String("$fullurl${uri}index.html".to_string()))
+        );
+
+        // Issue 65: quoted string chứa `{`/`}` — không đếm là block delimiter.
+        let doc = NginxParser
+            .parse(
+                "a.conf",
+                "log_format main '{' '\"msec\": \"$msec\" ' '}';\nerror_log off;",
+                1,
+            )
+            .unwrap();
+        assert!(
+            doc.nodes
+                .iter()
+                .any(|n| n.key.as_deref() == Some("error_log"))
+        );
+
+        // Quoted string unquote + escape `\"`.
+        let doc = NginxParser
+            .parse("a.conf", r#"directive "with a quoted \" good.";"#, 1)
+            .unwrap();
+        let d = doc
+            .nodes
+            .iter()
+            .find(|n| n.key.as_deref() == Some("directive"))
+            .unwrap();
+        assert_eq!(
+            d.value,
+            Some(Scalar::String("with a quoted \" good.".to_string()))
+        );
+
+        // `_by_lua_block` — code thô giữ nguyên, `{`/`}` trong comment không đổi depth.
+        let doc = NginxParser
+            .parse(
+                "a.conf",
+                "location = /foo {\n rewrite_by_lua_block {\n  t = { key=\"foo\" } # comment { unexpect\n }\n}\n",
+                1,
+            )
+            .unwrap();
+        let loc = doc
+            .nodes
+            .iter()
+            .find(|n| n.key.as_deref() == Some("location = /foo"))
+            .unwrap();
+        let lua = doc
+            .nodes
+            .iter()
+            .find(|n| n.parent == Some(loc.id) && n.key.as_deref() == Some("rewrite_by_lua_block"))
+            .unwrap();
+        assert!(
+            matches!(lua.value, Some(Scalar::String(ref s)) if s.contains("t = { key=\"foo\" }"))
+        );
+
+        // Unclosed quote → lỗi có số dòng.
+        let err = NginxParser.parse("a.conf", "server {\n set $a \"unterminated\n}", 1);
+        assert!(err.is_err());
+    }
+
+    #[test]
+    fn nginx_detect_format() {
+        assert_eq!(detect_format("conf/nginx.conf").unwrap(), "nginx");
+        assert_eq!(detect_format("a.CONF").unwrap(), "nginx");
+    }
+
+    #[test]
+    fn markdown_parser_header_nesting() {
+        let src = "\
+# Top
+Intro paragraph.
+
+## Section
+Body text.
+
+### Sub
+Sub body.
+
+## Second section
+# Back to top
+Outro.
+";
+        let doc = MarkdownParser.parse("a.md", src, 1).unwrap();
+        let find = |key: &str| doc.nodes.iter().find(|n| n.key.as_deref() == Some(key));
+        // root, Top, intro, Section, body, Sub, sub body, Second section,
+        // Back to top, outro = 10 node.
+        assert_eq!(doc.nodes.len(), 10);
+        assert_eq!(doc.nodes[0].kind, Kind::Root);
+        let top = find("Top").unwrap();
+        assert_eq!(top.kind, Kind::Header);
+        assert_eq!(top.parent, Some(1));
+        // Paragraph là con của header gần nhất.
+        let intro = doc
+            .nodes
+            .iter()
+            .find(|n| n.parent == Some(top.id) && n.kind == Kind::String)
+            .unwrap();
+        assert_eq!(intro.value, Some(Scalar::String("Intro paragraph.".into())));
+        // h2 nằm dưới h1, h3 nằm dưới h2.
+        let section = find("Section").unwrap();
+        assert_eq!(section.parent, Some(top.id));
+        let sub = find("Sub").unwrap();
+        assert_eq!(sub.parent, Some(section.id));
+        let sub_body = doc
+            .nodes
+            .iter()
+            .find(|n| n.parent == Some(sub.id) && n.kind == Kind::String)
+            .unwrap();
+        assert_eq!(sub_body.value, Some(Scalar::String("Sub body.".into())));
+        // h2 mới sau h3 quay về cha là h1; h1 mới về root.
+        let second = find("Second section").unwrap();
+        assert_eq!(second.parent, Some(top.id));
+        let back = find("Back to top").unwrap();
+        assert_eq!(back.parent, Some(1));
+        let outro = doc
+            .nodes
+            .iter()
+            .find(|n| n.parent == Some(back.id) && n.kind == Kind::String)
+            .unwrap();
+        assert_eq!(outro.value, Some(Scalar::String("Outro.".into())));
+    }
+
+    #[test]
+    fn markdown_parser_code_blocks() {
+        let src = "\
+# Doc
+```rust
+fn main() {
+    println!(\"# not a header\");
+}
+```
+After code.
+
+```
+plain fence
+```
+";
+        let doc = MarkdownParser.parse("a.md", src, 1).unwrap();
+        // root, Doc, code(rust), "After code.", code(không lang) = 5 node.
+        assert_eq!(doc.nodes.len(), 5);
+        let doc_header = doc
+            .nodes
+            .iter()
+            .find(|n| n.key.as_deref() == Some("Doc"))
+            .unwrap();
+        let kids: Vec<_> = doc
+            .nodes
+            .iter()
+            .filter(|n| n.parent == Some(doc_header.id))
+            .collect();
+        assert_eq!(kids.len(), 3);
+        // Fence có lang → key = ngôn ngữ, value = code thô; `#` trong code
+        // không bị parse thành header.
+        assert_eq!(kids[0].kind, Kind::Code);
+        assert_eq!(kids[0].key.as_deref(), Some("rust"));
+        assert!(matches!(kids[0].value, Some(Scalar::String(ref s)) if s.contains("not a header")));
+        // Fence không lang → key None.
+        assert_eq!(kids[2].kind, Kind::Code);
+        assert_eq!(kids[2].key, None);
+        assert_eq!(kids[2].value, Some(Scalar::String("plain fence".into())));
+    }
+
+    #[test]
+    fn markdown_parser_preamble_and_unclosed_fence() {
+        // Nội dung trước header đầu tiên nằm ngay dưới root.
+        let doc = MarkdownParser
+            .parse("a.md", "Preamble line.\n\n# Title\n", 1)
+            .unwrap();
+        assert_eq!(doc.nodes.len(), 3); // root, preamble, Title
+        let preamble = doc.nodes[1].clone();
+        assert_eq!(preamble.parent, Some(1));
+        assert_eq!(preamble.kind, Kind::String);
+        assert_eq!(
+            preamble.value,
+            Some(Scalar::String("Preamble line.".into()))
+        );
+
+        // Fence chưa đóng: phần code thu được vẫn thành node Code.
+        let doc = MarkdownParser
+            .parse("a.md", "# T\n```js\nlet x = 1;\n", 1)
+            .unwrap();
+        let code = doc.nodes.iter().find(|n| n.kind == Kind::Code).unwrap();
+        assert_eq!(code.key.as_deref(), Some("js"));
+        assert_eq!(code.value, Some(Scalar::String("let x = 1;".into())));
+    }
+
+    #[tokio::test]
+    async fn markdown_detect_format_and_ingest() {
+        assert_eq!(detect_format("README.md").unwrap(), "markdown");
+        assert_eq!(detect_format("doc.Markdown").unwrap(), "markdown");
+        assert_eq!(parser_for("markdown").unwrap().format(), "markdown");
+
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("README.md");
+        std::fs::write(&p, "# Title\nHello.\n").unwrap();
+        let storage = Arc::new(TokioRwLock::new(InMemoryStorage::default()));
+        let mut graph = DocumentGraph::new(storage, DocConfig::default());
+        graph.ingest_file(p.to_str().unwrap(), None).await.unwrap();
+        // root + Title + Hello = 3.
+        assert_eq!(graph.stats().await.unwrap_or_default().nodes, 3);
+        // Pattern cấu trúc HEADER → STRING tìm thấy paragraph "Hello."
+        let hits = graph
+            .search_struct(&[DocToken::header(), DocToken::str(0)], None)
+            .await
+            .unwrap();
+        assert_eq!(hits.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn nginx_ingest_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("nginx.conf");
+        std::fs::write(&p, "events { worker_connections 1024; }\n").unwrap();
+        let storage = Arc::new(TokioRwLock::new(InMemoryStorage::default()));
+        let mut graph = DocumentGraph::new(storage, DocConfig::default());
+        let _doc_id = graph.ingest_file(p.to_str().unwrap(), None).await.unwrap();
+        // root + events + worker_connections = 3.
+        assert_eq!(graph.stats().await.unwrap_or_default().nodes, 3);
+        assert_eq!(graph.stats().await.unwrap_or_default().docs, 1);
+    }
+}

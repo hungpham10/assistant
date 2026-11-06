@@ -1262,16 +1262,19 @@ fn code_mode_namespace_name<'a>(
 mod tests;
 
 fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
-    let cfg = &context.step_context.turn.config.codegraph;
-    if !cfg.enabled {
-        return;
+    #[cfg(feature = "codegraph")]
+    {
+        let cfg = &context.step_context.turn.config.codegraph;
+        if cfg.enabled {
+            use std::sync::Arc;
+            planned_tools.add_with_exposure(
+                crate::tools::handlers::CodegraphHandler::new(Arc::new(
+                    crate::tools::codegraph::service::CodegraphService,
+                )),
+                codex_tools::ToolExposure::Deferred,
+            );
+        }
     }
-    let cwd = context.step_context.turn.cwd.clone();
-    if let Ok(service) = codex_tools::codegraph::service::CodegraphService::attach(&cwd) {
-        use std::sync::Arc;
-        planned_tools.add_with_exposure(
-            crate::tools::handlers::CodegraphHandler::new(Arc::new(service)),
-            codex_tools::ToolExposure::Deferred,
-        );
-    }
+    #[cfg(not(feature = "codegraph"))]
+    let _ = (context, planned_tools);
 }
