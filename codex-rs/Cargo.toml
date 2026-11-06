@@ -365,7 +365,7 @@ opentelemetry-otlp = { version = "0.31.0", default-features = false, features = 
     "reqwest-blocking-client",
     "reqwest-rustls",
 ] }
-opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry-semantic-conventions = "0.33.1"
 opentelemetry_sdk = "0.31.0"
 os_info = "3.12.0"
 owo-colors = "4.3.0"
