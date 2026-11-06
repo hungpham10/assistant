@@ -10,6 +10,7 @@ use crate::client::ModelClientSession;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
 use crate::collect_explicit_skill_mentions;
+use crate::compact::CompactionFallback;
 use crate::compact::InitialContextInjection;
 use crate::compact::run_inline_auto_compact_task;
 use crate::compact::should_use_remote_compact_task;
@@ -157,7 +158,14 @@ pub(crate) async fn run_turn(
     // new user message are recorded. Estimate pending incoming items (context
     // diffs/full reinjection + user input) and trigger compaction preemptively
     // when they would push the thread over the compaction threshold.
-    if let Err(err) = run_pre_sampling_compact(&sess, &turn_context, &mut client_session).await {
+    if let Err(err) = run_pre_sampling_compact(
+        &sess,
+        &turn_context,
+        &mut client_session,
+        &cancellation_token,
+    )
+    .await
+    {
         if matches!(err, CodexErr::TurnAborted) {
             return Err(err);
         }
@@ -363,9 +371,11 @@ pub(crate) async fn run_turn(
                         Arc::clone(&step_context),
                         /*fallback_step_context*/ None,
                         &mut client_session,
+                        &cancellation_token,
                         InitialContextInjection::BeforeLastUserMessage(Arc::clone(&world_state)),
                         CompactionReason::ContextLimit,
                         CompactionPhase::MidTurn,
+                        CompactionFallback::Foreground,
                     )
                     .await
                     {
@@ -393,9 +403,11 @@ pub(crate) async fn run_turn(
                             Arc::clone(&step_context),
                             /*fallback_step_context*/ None,
                             &mut client_session,
+                            &cancellation_token,
                             InitialContextInjection::DoNotInject,
                             CompactionReason::ContextLimit,
                             CompactionPhase::MidTurn,
+                            CompactionFallback::Foreground,
                         )
                         .await
                     {
@@ -842,30 +854,51 @@ async fn track_turn_resolved_config_analytics(
 
 const DEEPSEEK_TUI_CYCLE_TOKEN_LIMIT: i64 = 28_800;
 
+/// Returns whether pre-turn compaction may run for this session source.
+///
+/// Guardian reviewer sessions evaluate the conversation in full, so compacting their history
+/// before sampling would destroy the context under review and force the review to rerun.
+fn should_compact_pre_turn(turn_context: &TurnContext) -> bool {
+    !crate::guardian::is_guardian_reviewer_source(&turn_context.session_source)
+}
+
 #[instrument(level = "trace", skip_all)]
 async fn run_pre_sampling_compact(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
     client_session: &mut ModelClientSession,
+    cancellation_token: &CancellationToken,
 ) -> CodexResult<()> {
-    maybe_run_previous_model_inline_compact(sess, turn_context, client_session).await?;
-    let token_status =
-        super::context_window::context_window_token_status(sess.as_ref(), turn_context.as_ref())
-            .await;
-    // Compact if the configured auto-compaction budget or usable context window is exhausted.
-    if token_status.token_limit_reached {
-        // Pre-turn compaction runs before run_turn creates the normal sampling step.
-        let step_context = sess.capture_step_context(Arc::clone(turn_context)).await;
-        run_auto_compact(
+    if should_compact_pre_turn(turn_context) {
+        maybe_run_previous_model_inline_compact(
             sess,
-            step_context,
-            /*fallback_step_context*/ None,
+            turn_context,
             client_session,
-            InitialContextInjection::DoNotInject,
-            CompactionReason::ContextLimit,
-            CompactionPhase::PreTurn,
+            cancellation_token,
         )
         .await?;
+        let token_status = super::context_window::context_window_token_status(
+            sess.as_ref(),
+            turn_context.as_ref(),
+        )
+        .await;
+        // Compact if the configured auto-compaction budget or usable context window is exhausted.
+        if token_status.token_limit_reached {
+            // Pre-turn compaction runs before run_turn creates the normal sampling step.
+            let step_context = sess.capture_step_context(Arc::clone(turn_context)).await;
+            run_auto_compact(
+                sess,
+                step_context,
+                /*fallback_step_context*/ None,
+                client_session,
+                cancellation_token,
+                InitialContextInjection::DoNotInject,
+                CompactionReason::ContextLimit,
+                CompactionPhase::PreTurn,
+                CompactionFallback::Foreground,
+            )
+            .await?;
+        }
     }
     Ok(())
 }
@@ -908,6 +941,7 @@ async fn maybe_run_previous_model_inline_compact(
     sess: &Arc<Session>,
     turn_context: &Arc<TurnContext>,
     client_session: &mut ModelClientSession,
+    cancellation_token: &CancellationToken,
 ) -> CodexResult<()> {
     let Some(previous_turn_settings) = sess.previous_turn_settings().await else {
         return Ok(());
@@ -938,9 +972,11 @@ async fn maybe_run_previous_model_inline_compact(
             step_context,
             fallback_step_context,
             client_session,
+            cancellation_token,
             InitialContextInjection::DoNotInject,
             CompactionReason::CompHashChanged,
             CompactionPhase::PreTurn,
+            CompactionFallback::Foreground,
         )
         .await?;
         return Ok(());
@@ -985,9 +1021,11 @@ async fn maybe_run_previous_model_inline_compact(
             step_context,
             fallback_step_context,
             client_session,
+            cancellation_token,
             InitialContextInjection::DoNotInject,
             CompactionReason::ModelDownshift,
             CompactionPhase::PreTurn,
+            CompactionFallback::Foreground,
         )
         .await?;
     }
@@ -1004,9 +1042,11 @@ async fn run_auto_compact(
     step_context: Arc<StepContext>,
     fallback_step_context: Option<Arc<StepContext>>,
     client_session: &mut ModelClientSession,
+    cancellation_token: &CancellationToken,
     initial_context_injection: InitialContextInjection,
     reason: CompactionReason,
     phase: CompactionPhase,
+    fallback: CompactionFallback,
 ) -> CodexResult<()> {
     let turn_context = &step_context.turn;
     if turn_context.config.features.enabled(Feature::TokenBudget) {
@@ -1027,6 +1067,19 @@ async fn run_auto_compact(
             .features
             .enabled(Feature::RemoteCompactionV2)
         {
+            if cancellation_token.is_cancelled() {
+                return Err(CodexErr::TurnAborted);
+            }
+            if matches!(fallback, CompactionFallback::Skip) {
+                // Reserved for the background-candidate path: skip the foreground remote
+                // compaction request instead of re-sending the full history.
+                emit_compact_metric(
+                    &sess.services.session_telemetry,
+                    "remote_v2_skipped",
+                    /*manual*/ false,
+                );
+                return Ok(());
+            }
             emit_compact_metric(
                 &sess.services.session_telemetry,
                 "remote_v2",
@@ -1037,6 +1090,7 @@ async fn run_auto_compact(
                 step_context,
                 fallback_step_context,
                 client_session,
+                cancellation_token,
                 initial_context_injection,
                 reason,
                 phase,

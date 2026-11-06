@@ -42,6 +42,7 @@ use codex_rollout_trace::InferenceTraceContext;
 use codex_utils_output_truncation::approx_token_count;
 use codex_utils_output_truncation::truncate_text;
 use futures::StreamExt;
+use tokio_util::sync::CancellationToken;
 
 #[path = "compact_remote_v2_attempt.rs"]
 mod attempt;
@@ -60,6 +61,7 @@ pub(crate) async fn run_inline_remote_auto_compact_task(
     step_context: Arc<StepContext>,
     fallback_step_context: Option<Arc<StepContext>>,
     client_session: &mut ModelClientSession,
+    cancellation_token: &CancellationToken,
     initial_context_injection: InitialContextInjection,
     reason: CompactionReason,
     phase: CompactionPhase,
@@ -75,6 +77,7 @@ pub(crate) async fn run_inline_remote_auto_compact_task(
         &step_context,
         fallback_step_context.as_ref(),
         Some(client_session),
+        cancellation_token.child_token(),
         initial_context_injection,
         compaction_metadata,
     )
@@ -107,6 +110,8 @@ pub(crate) async fn run_remote_compact_task(
         &step_context,
         /*fallback_step_context*/ None,
         /*client_session*/ None,
+        // Standalone manual compaction has no ambient turn to cancel with.
+        CancellationToken::new(),
         InitialContextInjection::DoNotInject,
         compaction_metadata,
     )
@@ -118,6 +123,7 @@ async fn run_remote_compact_task_inner(
     step_context: &Arc<StepContext>,
     fallback_step_context: Option<&Arc<StepContext>>,
     client_session: Option<&mut ModelClientSession>,
+    cancellation_token: CancellationToken,
     initial_context_injection: InitialContextInjection,
     compaction_metadata: CompactionTurnMetadata,
 ) -> CodexResult<()> {
@@ -160,6 +166,7 @@ async fn run_remote_compact_task_inner(
         step_context,
         fallback_step_context,
         client_session,
+        cancellation_token,
         initial_context_injection,
         compaction_metadata,
         &mut analytics_details,
@@ -198,6 +205,7 @@ async fn run_remote_compact_task_inner_impl(
     step_context: &Arc<StepContext>,
     fallback_step_context: Option<&Arc<StepContext>>,
     mut client_session: Option<&mut ModelClientSession>,
+    cancellation_token: CancellationToken,
     initial_context_injection: InitialContextInjection,
     compaction_metadata: CompactionTurnMetadata,
     analytics_details: &mut CompactionAnalyticsDetails,
@@ -215,15 +223,17 @@ async fn run_remote_compact_task_inner_impl(
     sess.emit_turn_item_started(turn_context, &compaction_item)
         .await;
 
-    let attempt = run_remote_compact_v2_attempt(
-        sess,
-        step_context,
-        client_session.as_deref_mut(),
-        &compaction_trace,
-        compaction_metadata,
-        analytics_details,
-    )
-    .await;
+    let attempt = tokio::select! {
+        _ = cancellation_token.cancelled() => Err(CodexErr::TurnAborted),
+        attempt = run_remote_compact_v2_attempt(
+            sess,
+            step_context,
+            client_session.as_deref_mut(),
+            &compaction_trace,
+            compaction_metadata,
+            analytics_details,
+        ) => attempt,
+    };
     let (attempt, compaction_turn_context) = match attempt {
         Ok(attempt) => (attempt, turn_context),
         Err(error) => {
@@ -241,15 +251,17 @@ async fn run_remote_compact_task_inner_impl(
                     fallback_turn_context.model_info.slug.as_str(),
                     fallback_turn_context.provider.info().name.as_str(),
                 );
-            let fallback_result = run_remote_compact_v2_attempt(
-                sess,
-                fallback_step_context,
-                client_session,
-                &fallback_compaction_trace,
-                compaction_metadata,
-                analytics_details,
-            )
-            .await;
+            let fallback_result = tokio::select! {
+                _ = cancellation_token.cancelled() => Err(CodexErr::TurnAborted),
+                fallback_result = run_remote_compact_v2_attempt(
+                    sess,
+                    fallback_step_context,
+                    client_session,
+                    &fallback_compaction_trace,
+                    compaction_metadata,
+                    analytics_details,
+                ) => fallback_result,
+            };
             record_model_fallback(
                 &sess.services.session_telemetry,
                 turn_context.model_info.slug.as_str(),

@@ -75,6 +75,21 @@ pub(crate) enum InitialContextInjection {
     DoNotInject,
 }
 
+/// Controls whether an auto-compaction that was triggered may run inline (foreground) or should
+/// short-circuit before dispatching any compaction request.
+///
+/// `Foreground` always runs compaction inline; this is the current behavior for every call site.
+/// `Skip` is reserved for a future background-compaction candidate path: when a ready candidate
+/// exists (or a phase/threshold policy decides foreground work would be wasted), remote V2
+/// compaction is skipped instead of re-sending the full history to the server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CompactionFallback {
+    Foreground,
+    // Reserved for the background-compaction candidate path; no caller constructs it yet.
+    #[allow(dead_code)]
+    Skip,
+}
+
 pub(crate) async fn build_compaction_initial_context(
     sess: &Session,
     turn_context: &TurnContext,
