@@ -904,10 +904,6 @@ impl<T: Element> Radix<T> {
 
     /// Thêm child mới (suffix) vào `parent` — transaction 2 ops (new_node + add_child).
     #[inline]
-    #[expect(
-        clippy::await_holding_invalid_type,
-        reason = "storage lock guard must be held across async trait-object Storage calls"
-    )]
     async fn extend(&self, parent: usize, suffix: &[T], value: usize) -> Result<usize> {
         let mut tx = self.storage.read().await.new_tx();
         let id = tx.new_node(Self::from_vec(suffix), value).await?;

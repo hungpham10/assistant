@@ -108,6 +108,10 @@ impl DocumentGraph {
     /// lớn làm open chờ hàng chục giây. Node được đọc **theo nhu cầu** từng
     /// cái (`node()` — hydrate/collect_path), có cache LRU ở storage layer
     /// (`CachedStorage`) và cache in-memory trong `self.nodes`.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn open(storage: Arc<TokioRwLock<dyn Storage>>, config: DocConfig) -> Result<Self> {
         let mut graph = Self::new(storage, config);
         // Load docs list + metadata (theo doc, không theo node).
@@ -150,6 +154,10 @@ impl DocumentGraph {
     }
 
     /// Load interner đã persist. Trả `false` nếu chưa có blob (graph cũ).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn restore_interner(&mut self) -> Result<bool> {
         let bytes = {
             let guard = self.storage.read().await;
@@ -187,6 +195,10 @@ impl DocumentGraph {
 
     /// Persist interner — gọi sau mỗi upsert để lần `open()` sau vẫn khớp
     /// token payload đã ghi vào tries.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn persist_interner(&self) -> Result<()> {
         let blob =
             serde_json::to_vec(&self.intern.strings()).map_err(|e| anyhow::anyhow!("{e}"))?;
@@ -268,6 +280,10 @@ impl DocumentGraph {
     }
 
     /// Ingest a document, replacing any previous version with the same id.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn upsert_document(&mut self, mut doc: Document) -> Result<u64> {
         if let Some(old) = self.docs.get(&doc.id) {
             self.remove_document_nodes(old).await?;
@@ -321,6 +337,10 @@ impl DocumentGraph {
     }
 
     /// Remove a document and its subtree from the graph and tries.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn remove_document(&mut self, doc_id: u64) -> Result<()> {
         if let Some(doc) = self.docs.remove(&doc_id) {
             self.remove_document_nodes(&doc).await?;
@@ -336,6 +356,10 @@ impl DocumentGraph {
 
     /// Đọc một node theo nhu cầu: cache in-memory trước, thiếu thì xuống
     /// storage (`CachedStorage` LRU ở giữa). Trả `None` nếu id không tồn tại.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn node(&self, node_id: u64) -> Option<Node> {
         if let Some(n) = self.nodes.lock().unwrap().get(&node_id) {
             return Some(n.clone());
@@ -853,6 +877,10 @@ impl DocumentGraph {
 
     // ── Pattern registry persist ─────────────────────────────────────
 
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn persist_patterns(&self) -> Result<()> {
         // Guard phải đóng trước .await (non-Send) — scope block.
         let blob = {
@@ -868,6 +896,10 @@ impl DocumentGraph {
     }
 
     /// Restore registry từ storage. Trả `false` nếu chưa có (graph mới).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn restore_patterns(&mut self) -> Result<bool> {
         let bytes = {
             let guard = self.storage.read().await;
@@ -893,6 +925,10 @@ impl DocumentGraph {
 
     // ── Stats ─────────────────────────────────────────────────────────
 
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn stats(&self) -> Result<DocStats> {
         // nodes đếm từ chain node id (1 lần đọc chain, không đọc từng meta).
         let nodes = {
@@ -911,6 +947,10 @@ impl DocumentGraph {
 
     // ── Internal helpers ──────────────────────────────────────
 
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn add_doc_id(&self, doc_id: u64) -> Result<()> {
         let mut list = self.load_doc_list().await?;
         if !list.contains(&doc_id) {
@@ -923,6 +963,10 @@ impl DocumentGraph {
         }
         Ok(())
     }
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn load_doc_list(&self) -> Result<Vec<u64>> {
         let chain = {
             let guard = self.storage.read().await;
@@ -936,6 +980,10 @@ impl DocumentGraph {
     }
     /// Ghi danh sách node id vào chain sentinel — `rebuild()` đọc từ đây để
     /// khôi phục `nodes` map khi mở lại graph từ storage.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn add_node_ids(&self, node_ids: &[u64]) -> Result<()> {
         let mut list = {
             let chain = {
@@ -993,6 +1041,10 @@ impl DocumentGraph {
         doc
     }
 
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn remove_document_nodes(&self, doc: &Document) -> Result<()> {
         let removed: Vec<u64> = doc.nodes.iter().map(|n| n.id).collect();
         for node in &doc.nodes {

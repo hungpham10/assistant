@@ -619,6 +619,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn cache_serves_repeated_get_node_without_inner() {
         let s = wrapped(64);
         let id = {
@@ -637,6 +641,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn update_invalidates_node_cache() {
         let s = wrapped(64);
         let id = {
@@ -659,6 +667,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn tx_commit_invalidates_radix_cache() {
         let s = wrapped(64);
         let parent = {
@@ -687,6 +699,10 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn cache_matches_inner_semantics() {
         let s = wrapped(128);
         {

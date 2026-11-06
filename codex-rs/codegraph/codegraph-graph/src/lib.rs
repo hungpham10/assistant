@@ -1159,6 +1159,10 @@ impl GraphIndex {
         allow(dead_code)
     )]
     // chỉ open() dùng — không backend thì không ai gọi.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn rebuild(&mut self) -> Result<()> {
         // Đo bằng sink `codegraph_core::prof` — stderr bị MCP host nuốt mất
         // khi `serve --mcp`, nên log chỉ ra được khi bật qua env (xem prof.rs).
@@ -1418,6 +1422,10 @@ impl GraphIndex {
     const NAME_STAMP_SLOT: usize = 0;
     /// Name trie trên đĩa còn đúng version + khớp số record đã ghi (chống dataset
     /// bị xoá giữa chừng → coi như stale).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn name_engine_is_current(&self) -> bool {
         let Some(store) = &self.name_store else {
             return false;
@@ -1438,6 +1446,10 @@ impl GraphIndex {
     }
 
     /// Ghi stamp sau khi trie dựng lại — `version` + số tên distinct.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn stamp_name_engine(&self) {
         let Some(store) = &self.name_store else {
             return;
@@ -1461,6 +1473,10 @@ impl GraphIndex {
     /// Chain trie trên đĩa còn đúng version + khớp số func + còn node mẫu (chống
     /// `rt_*` bị xoá dở → coi như stale). Giống `name_engine_is_current` nhưng
     /// đọc trên storage chính, và probe bằng `sample_func` (func id thật).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn chain_engine_is_current(&self) -> bool {
         let guard = self.storage.read().await;
         let Ok(Some(bytes)) = guard.get_meta(Self::CHAIN_STAMP_SLOT).await else {
@@ -1485,6 +1501,10 @@ impl GraphIndex {
 
     /// Ghi stamp sau khi chain trie dựng lại — `version` + số func + func id nhỏ
     /// nhất làm mẫu probe.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn stamp_chain_engine(&self) {
         let mut bytes = [0u8; 24];
         bytes[0..8].copy_from_slice(&self.version.to_le_bytes());
@@ -1539,6 +1559,10 @@ impl GraphIndex {
     ///   KNN/k-means, không re-embed). Chỉ những symbol thiếu vector mới được
     ///   embed + `save_embedding` (incremental). Chạy sau khi registry + name
     ///   engine đã sẵn sàng.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn rebuild_vector_index(&mut self, progress: Option<&dyn IngestProgress>) -> Result<()> {
         if !self.embedding_enabled {
             // Embedding tắt → không build vector index.
@@ -1608,6 +1632,10 @@ impl GraphIndex {
     /// Như [`ingest`](Self::ingest), nhưng báo tiến độ qua `IngestProgress`
     /// (phase + số đơn vị). Graph crate không phụ thuộc indicatif — caller nối
     /// các event này vào ProgressBar của nó.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn ingest_with_progress(
         &mut self,
         results: &[ParseResult],
@@ -1794,6 +1822,10 @@ impl GraphIndex {
     /// Gán id global cho symbol, lưu storage + index tên. Không đụng scope index
     /// — scope id còn local, `rebuild_scope_index` chạy sau khi remap.
     /// `next_id` không save per-symbol (chậm) — `ingest` persist 1 lần ở cuối.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn register(&mut self, mut sym: Symbol) -> Result<u64> {
         let id = self.next_id;
         self.next_id += 1;
@@ -1817,6 +1849,10 @@ impl GraphIndex {
     /// Remap scope_id/type_ref của symbol (đã lưu) sang id global, rồi **ghi lại
     /// storage** — nếu không, reopen đọc phải scope_id local cũ (sai khi multi-file,
     /// vì id local trùng nhau giữa các file).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn remap_scope_type(&mut self, new_id: u64, id_map: &HashMap<u64, u64>) -> Result<()> {
         let to_save = {
             let Some(sym) = self.symbols.get_mut(&new_id) else {
@@ -2582,6 +2618,10 @@ impl GraphIndex {
     /// chỉ bổ sung metadata theo position. Chain dựng thẳng (không qua
     /// placeholder) vẫn sinh edge đủ. Metadata KHÔNG materialize thành map
     /// (xem `edge_count`): `flow()` đọc thẳng từ call records persist.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn build_call_indexes(
         &mut self,
         calls: &[CallRef<'_>],
@@ -3022,6 +3062,10 @@ impl GraphIndex {
 
     /// Flow của một hàm — chain render (marker name / symbol name / call thô
     /// cho unresolved) + call edges kèm line/condition/effect/args.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn flow(&self, id: u64) -> Result<FlowResult> {
         let sym = self
             .symbols
@@ -4618,6 +4662,10 @@ impl GraphIndex {
     /// KNN: ưu tiên backend-native (SQLite + sqlite-vss `vss0` HNSW ANN) nếu
     /// khả dụng, ngược lại brute-force in-memory `VectorIndex` (đúng cho mọi
     /// backend). Trả `Vec<(symbol_id, sim)>` với `sim` cao = gần hơn.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn knn_hits(&self, qvec: &[f32], k: usize) -> Vec<(u64, f32)> {
         if let Ok(guard) = self.storage.try_read()
             && let Ok(Some(hits)) = guard.knn(qvec, k).await

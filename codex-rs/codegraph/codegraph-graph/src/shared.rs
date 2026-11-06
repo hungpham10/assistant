@@ -174,6 +174,10 @@ impl SharedGraphIndex {
     /// **Chặn** tới khi rebuild xong (với repo lớn có thể hàng chục giây) — dùng
     /// cho CLI/one-shot. Server (`codegraph serve`) không nên gọi trực tiếp:
     /// xem [`Self::fresh_snapshot`] (non-blocking) + warm task lúc khởi động.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn ensure_fresh(self: &Arc<Self>) -> Arc<GraphIndex> {
         // Fast path: snapshot mới nhất sẵn sàng.
         {
@@ -201,6 +205,10 @@ impl SharedGraphIndex {
     /// Snapshot hiện tại **nếu đã build và khớp version trên đĩa**, `None` khi
     /// stale / chưa build. Không bao giờ rebuild và không chặn — dùng cho server
     /// để báo "đang refresh" thay vì treo request.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn fresh_snapshot(&self) -> Option<Arc<GraphIndex>> {
         let state = self.state.read().await;
         if state.ready && self.is_fresh(state.version).await {

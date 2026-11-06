@@ -95,6 +95,10 @@ impl SharedDocGraph {
 
     /// Handle dùng được: fast path trả handle cached; lazy thì open+rebuild
     /// đúng một lần dưới rebuild_lock rồi cache.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "rebuild lock serializes one-time lazy initialization across awaits"
+    )]
     pub async fn graph(&self) -> Arc<TokioRwLock<DocumentGraph>> {
         if let SharedDocGraphState::Ready(g) = &*self.state.read().unwrap() {
             return g.clone();
@@ -177,6 +181,10 @@ mod shared_tests {
     /// Lazy instance trên root có docs.sqlite đã seed: lần `graph()` đầu
     /// rebuild từ storage và thấy đúng dữ liệu.
     #[tokio::test]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "test holds read guard across awaited stats call"
+    )]
     async fn lazy_graph_rebuilds_from_persisted_docs() {
         let dir = tempfile::tempdir().unwrap();
         let root = camino::Utf8PathBuf::from_path_buf(dir.path().to_path_buf()).unwrap();

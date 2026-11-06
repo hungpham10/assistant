@@ -699,6 +699,10 @@ impl<T: Element> Search<T> {
 
     /// Đọc metadata của một element (node stream) — `None` nếu chưa có.
     #[allow(dead_code)] // API giữ nguyên (protected) — GraphIndex dùng metas=None.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn get_node_meta(&self, elem: usize) -> Result<Option<Vec<u8>>> {
         Ok(self.storage.read().await.get_node_meta(elem).await?)
     }
