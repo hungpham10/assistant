@@ -15,14 +15,24 @@
 
 use crate::config::ExtractConfig;
 use camino::Utf8Path;
-use codegraph_core::{
-    is_marker, marker_name, CallRecord, Error, FlowCall, FlowResult, Result, Symbol, SymbolKind,
-    SYMBOL_BASE,
-};
-use codegraph_graph::{
-    open_keyspace_storage, ParseResult, Search, SearchError, Storage, StorageError,
-};
-use serde::{Deserialize, Serialize};
+use codegraph_core::CallRecord;
+use codegraph_core::Error;
+use codegraph_core::FlowCall;
+use codegraph_core::FlowResult;
+use codegraph_core::Result;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_core::is_marker;
+use codegraph_core::marker_name;
+use codegraph_graph::ParseResult;
+use codegraph_graph::Search;
+use codegraph_graph::SearchError;
+use codegraph_graph::Storage;
+use codegraph_graph::StorageError;
+use codegraph_graph::open_keyspace_storage;
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -892,7 +902,8 @@ fn db_err(e: StorageError) -> Error {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codegraph_core::{Annotation, EffectType};
+    use codegraph_core::Annotation;
+    use codegraph_core::EffectType;
     use std::collections::HashMap;
 
     fn sym(

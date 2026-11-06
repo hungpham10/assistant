@@ -1,4 +1,5 @@
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
 use codegraph_source::DiskSource;
 use serde::Deserialize;
 use std::fs;
@@ -6,10 +7,14 @@ use std::fs;
 use crate::languages::flows::FlowClassifier;
 #[cfg(feature = "binary")]
 use codegraph_binary::BinaryConfig;
-use codegraph_core::{EffectCallPattern, EffectRule, EffectType, StorageRoute};
+use codegraph_core::EffectCallPattern;
+use codegraph_core::EffectRule;
+use codegraph_core::EffectType;
+use codegraph_core::StorageRoute;
 
 use crate::languages::effects::EffectClassifier;
-use crate::project::{project_db_path, project_dir};
+use crate::project::project_db_path;
+use crate::project::project_dir;
 
 /// How `.h` header files should be parsed when both C and C++ extractors are available.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -1121,18 +1126,20 @@ fn effect_rule_crud_roundtrip() {
     assert_eq!(classifier.classify("CHECK_OK").0, EffectType::Panic);
     assert_eq!(classifier.classify("db.Query").0, EffectType::SqlQuery);
     // invalidate: effect sai bị chặn, file không đổi
-    assert!(add_effect_rule(
-        &root,
-        NewEffectRule {
-            matcher: "contains",
-            text: "x",
-            effect: Some("nonsense"),
-            marker: None,
-            label: None,
-            keep_call: None,
-        },
-    )
-    .is_err());
+    assert!(
+        add_effect_rule(
+            &root,
+            NewEffectRule {
+                matcher: "contains",
+                text: "x",
+                effect: Some("nonsense"),
+                marker: None,
+                label: None,
+                keep_call: None,
+            },
+        )
+        .is_err()
+    );
     assert_eq!(list_effect_rules(&root).len(), 2);
     // remove theo index
     assert!(remove_effect_rule(&root, 0).unwrap());

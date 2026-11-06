@@ -14,18 +14,42 @@
 //! Kết quả là `codegraph_graph::ParseResult` — input của pipeline 2 phase.
 
 use crate::languages::effects::classify_effect;
-use crate::languages::flows::{classify_flow, FlowHit};
+use crate::languages::flows::FlowHit;
+use crate::languages::flows::classify_flow;
+use codegraph_core::Annotation;
+use codegraph_core::CallRecord;
 use codegraph_core::FlowMarker;
-use codegraph_core::{
-    Annotation, CallRecord, Result, ScopeLevel, Symbol, SymbolKind, MARKER_BRANCH_END,
-    MARKER_BREAK, MARKER_CALL_ENTER, MARKER_CALL_EXIT, MARKER_CATCH_START, MARKER_CONTINUE,
-    MARKER_IF_FALSE, MARKER_IF_TRUE, MARKER_LOOP, MARKER_LOOP_BACK, MARKER_RETURN, MARKER_STMT_END,
-    MARKER_SWITCH_CASE, MARKER_SWITCH_CLOSE, MARKER_SWITCH_END, MARKER_SWITCH_START, MARKER_THROW,
-    MARKER_TRY_END, MARKER_TRY_START, SYMBOL_BASE,
-};
-use codegraph_graph::{FileDeps, FnPtrAssign, ParseResult};
+use codegraph_core::MARKER_BRANCH_END;
+use codegraph_core::MARKER_BREAK;
+use codegraph_core::MARKER_CALL_ENTER;
+use codegraph_core::MARKER_CALL_EXIT;
+use codegraph_core::MARKER_CATCH_START;
+use codegraph_core::MARKER_CONTINUE;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::MARKER_LOOP;
+use codegraph_core::MARKER_LOOP_BACK;
+use codegraph_core::MARKER_RETURN;
+use codegraph_core::MARKER_STMT_END;
+use codegraph_core::MARKER_SWITCH_CASE;
+use codegraph_core::MARKER_SWITCH_CLOSE;
+use codegraph_core::MARKER_SWITCH_END;
+use codegraph_core::MARKER_SWITCH_START;
+use codegraph_core::MARKER_THROW;
+use codegraph_core::MARKER_TRY_END;
+use codegraph_core::MARKER_TRY_START;
+use codegraph_core::Result;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_graph::FileDeps;
+use codegraph_graph::FnPtrAssign;
+use codegraph_graph::ParseResult;
 use std::collections::HashMap;
-use tree_sitter::{Node, Parser, Tree};
+use tree_sitter::Node;
+use tree_sitter::Parser;
+use tree_sitter::Tree;
 
 /// Custom call-name extractor: `(call node, src) -> tên callee đầy đủ`.
 pub type CallNameFn = fn(&Node, &[u8]) -> Option<String>;
@@ -2039,9 +2063,5 @@ fn extract_signature(node: &Node, src: &[u8], body_field: &str) -> Option<String
     }
     let text = std::str::from_utf8(&src[start..end]).ok()?;
     let sig = text.split_whitespace().collect::<Vec<_>>().join(" ");
-    if sig.is_empty() {
-        None
-    } else {
-        Some(sig)
-    }
+    if sig.is_empty() { None } else { Some(sig) }
 }

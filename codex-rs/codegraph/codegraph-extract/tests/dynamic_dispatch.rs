@@ -2,7 +2,12 @@
 //! (Java implements / C++ base class) và `ParseResult.fn_ptr_assigns` (C/C++
 //! function pointer assign-site).
 
-use codegraph_core::{SymbolKind, MARKER_DEFER, MARKER_GO, MARKER_LOOP, MARKER_SWITCH_START};
+use codegraph_core::MARKER_DEFER;
+use codegraph_core::MARKER_GO;
+use codegraph_core::MARKER_LOOP;
+use codegraph_core::MARKER_SWITCH_START;
+use codegraph_core::SymbolKind;
+use codegraph_extract::LangParser;
 use codegraph_extract::languages::c::CParser;
 use codegraph_extract::languages::cpp::CppParser;
 use codegraph_extract::languages::go::GoParser;
@@ -12,7 +17,6 @@ use codegraph_extract::languages::php::PhpParser;
 use codegraph_extract::languages::python::PythonParser;
 use codegraph_extract::languages::ruby::RubyParser;
 use codegraph_extract::languages::scala::ScalaParser;
-use codegraph_extract::LangParser;
 
 #[test]
 fn java_interfaces_extracted() {
@@ -367,10 +371,12 @@ fn run(db: Database, config: Config) -> u32 {
         "let cache missing"
     );
     // Không sinh symbol giả mang tên kiểu
-    assert!(!parsed
-        .symbols
-        .iter()
-        .any(|s| s.name == "Database" && s.kind == SymbolKind::Parameter));
+    assert!(
+        !parsed
+            .symbols
+            .iter()
+            .any(|s| s.name == "Database" && s.kind == SymbolKind::Parameter)
+    );
 }
 
 #[test]
@@ -562,7 +568,8 @@ impl Srv {
 
 #[tokio::test]
 async fn rust_trait_fanout_end_to_end_real_extraction() {
-    use codegraph_graph::{GraphIndex, ParseResult};
+    use codegraph_graph::GraphIndex;
+    use codegraph_graph::ParseResult;
 
     let src = r#"
 pub trait Repo {
@@ -683,14 +690,18 @@ function setup(db, ...rest) {
         .unwrap();
 
     // JS1: params — db + ...rest.
-    assert!(parsed
-        .symbols
-        .iter()
-        .any(|s| s.kind == SymbolKind::Parameter && s.name == "db"));
-    assert!(parsed
-        .symbols
-        .iter()
-        .any(|s| s.kind == SymbolKind::Parameter && s.name == "rest"));
+    assert!(
+        parsed
+            .symbols
+            .iter()
+            .any(|s| s.kind == SymbolKind::Parameter && s.name == "db")
+    );
+    assert!(
+        parsed
+            .symbols
+            .iter()
+            .any(|s| s.kind == SymbolKind::Parameter && s.name == "rest")
+    );
 
     // JS2: imports.
     let deps = parsed.file_deps.expect("file deps missing");
@@ -710,10 +721,12 @@ function setup(db, ...rest) {
     assert_eq!(page.impl_trait.as_deref(), Some("Base"));
 
     // JS4: fn-value assignment.
-    assert!(parsed
-        .fn_ptr_assigns
-        .iter()
-        .any(|a| a.var == "handler" && a.target == "process"));
+    assert!(
+        parsed
+            .fn_ptr_assigns
+            .iter()
+            .any(|a| a.var == "handler" && a.target == "process")
+    );
     // destructuring KHÔNG thành fn-value.
     assert!(!parsed.fn_ptr_assigns.iter().any(|a| a.var == "a"));
 }
@@ -746,10 +759,12 @@ function run(db: Database, limit?: number): void {
     assert_eq!(limit.type_name.as_deref(), Some("number"));
     // interface method (method_signature) scope vào interface.
     let iface = parsed.symbols.iter().find(|s| s.name == "Handler").unwrap();
-    assert!(parsed
-        .symbols
-        .iter()
-        .any(|s| s.name == "handle" && s.kind == SymbolKind::Method && s.scope_id == iface.id));
+    assert!(
+        parsed
+            .symbols
+            .iter()
+            .any(|s| s.name == "handle" && s.kind == SymbolKind::Method && s.scope_id == iface.id)
+    );
 }
 
 #[test]
@@ -885,10 +900,12 @@ return M
     assert_eq!(pairs, vec![("json", "dkjson"), ("utils", "utils")]);
 
     // Fn-value.
-    assert!(parsed
-        .fn_ptr_assigns
-        .iter()
-        .any(|a| a.var == "handler" && a.target == "process"));
+    assert!(
+        parsed
+            .fn_ptr_assigns
+            .iter()
+            .any(|a| a.var == "handler" && a.target == "process")
+    );
 }
 
 #[test]
@@ -1035,18 +1052,20 @@ fn await_markers_in_chain() {
     let py = PythonParser
         .parse_file("p.py", "async def f():\n    await g()\n")
         .unwrap();
-    assert!(py
-        .chains
-        .values()
-        .any(|c| c.contains(&codegraph_core::MARKER_AWAIT)));
+    assert!(
+        py.chains
+            .values()
+            .any(|c| c.contains(&codegraph_core::MARKER_AWAIT))
+    );
 
     let js = codegraph_extract::languages::javascript::JavaScriptParser
         .parse_file("j.js", "async function f() { await g(); }\n")
         .unwrap();
-    assert!(js
-        .chains
-        .values()
-        .any(|c| c.contains(&codegraph_core::MARKER_AWAIT)));
+    assert!(
+        js.chains
+            .values()
+            .any(|c| c.contains(&codegraph_core::MARKER_AWAIT))
+    );
 }
 
 #[test]
@@ -1169,10 +1188,12 @@ void setup() {
         "lambda chain phải có calls"
     );
     // Call work() bên trong lambda ghi vào chain của f (không phải setup).
-    assert!(parsed
-        .calls
-        .iter()
-        .any(|c| c.caller_id == f.id && c.call_name.ends_with("work")));
+    assert!(
+        parsed
+            .calls
+            .iter()
+            .any(|c| c.caller_id == f.id && c.call_name.ends_with("work"))
+    );
 
     // #9 (thiết kế mới): macro = Constant + signature là ĐỊNH NGHĨA nguyên
     // văn — KHÔNG resolve thành call edge; usage tra qua call-name index.
@@ -1196,7 +1217,9 @@ void setup() {
 
     // Hành vi semantic do config khai báo ("LLM tự định nghĩa"): rule
     // Contains "CALL" → Panic (exception-like) — classifier xét trước default.
-    use codegraph_core::{EffectCallPattern, EffectRule, EffectType};
+    use codegraph_core::EffectCallPattern;
+    use codegraph_core::EffectRule;
+    use codegraph_core::EffectType;
     let classifier =
         codegraph_extract::languages::effects::EffectClassifier::with_config(vec![EffectRule {
             call: EffectCallPattern::Contains {

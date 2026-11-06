@@ -3,7 +3,8 @@
 //! Chain của 1 hàm = `[owner_id, m1, callee, m2, ...]`; assertion dưới đây render
 //! phần walk (bỏ owner) thành tên marker (`[LOOP]`, `[IF_TRUE]`, ...) và tên callee.
 
-use codegraph_core::{marker_name, SymbolKind};
+use codegraph_core::SymbolKind;
+use codegraph_core::marker_name;
 use codegraph_extract::registry;
 
 fn walk(lang: &str, src: &str) -> Vec<String> {
@@ -1206,15 +1207,17 @@ a();
         a.kind
     );
     // Declarator không còn push Variable `a` trùng tên với Function.
-    assert!(res
-        .symbols
-        .iter()
-        .all(|s| s.name != "a" || s.kind == SymbolKind::Function));
+    assert!(
+        res.symbols
+            .iter()
+            .all(|s| s.name != "a" || s.kind == SymbolKind::Function)
+    );
     // Chain của `a` chứa call `b`.
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == a.id && c.call_name == "b"));
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == a.id && c.call_name == "b")
+    );
 }
 
 #[test]
@@ -1256,10 +1259,11 @@ fn js_regression_plain_variable_and_inline_arrow() {
     // `x` vẫn là Variable.
     assert!(matches!(find(&res, "x").kind, SymbolKind::Variable));
     // Lambda truyền thẳng không sinh symbol Function rác.
-    assert!(!res
-        .symbols
-        .iter()
-        .any(|s| matches!(s.kind, SymbolKind::Function)));
+    assert!(
+        !res.symbols
+            .iter()
+            .any(|s| matches!(s.kind, SymbolKind::Function))
+    );
 }
 
 #[tokio::test]
@@ -1291,10 +1295,11 @@ fn python_assigned_lambda() {
         "kind = {:?}",
         f.kind
     );
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == f.id && c.call_name == "g"));
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == f.id && c.call_name == "g")
+    );
 }
 
 #[test]
@@ -1326,15 +1331,17 @@ func main() {
         .collect();
     assert_eq!(funcs, ["h", "main", "f"]);
     // `var h` không còn Variable trùng tên.
-    assert!(!res
-        .symbols
-        .iter()
-        .any(|s| s.name == "h" && s.kind == SymbolKind::Variable));
+    assert!(
+        !res.symbols
+            .iter()
+            .any(|s| s.name == "h" && s.kind == SymbolKind::Variable)
+    );
     let f = find(&res, "f");
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == f.id && c.call_name == "g"));
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == f.id && c.call_name == "g")
+    );
 }
 
 #[test]
@@ -1349,14 +1356,16 @@ fn lua_assigned_anonymous_function() {
         );
     }
     let f = find(&res, "f");
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == f.id && c.call_name == "g"));
-    assert!(!res
-        .symbols
-        .iter()
-        .any(|s| s.name == "f" && s.kind == SymbolKind::Variable));
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == f.id && c.call_name == "g")
+    );
+    assert!(
+        !res.symbols
+            .iter()
+            .any(|s| s.name == "f" && s.kind == SymbolKind::Variable)
+    );
 }
 
 #[test]
@@ -1369,14 +1378,16 @@ fn php_assigned_anonymous_and_arrow() {
     let h = find(&res, "h");
     assert!(matches!(f.kind, SymbolKind::Function));
     assert!(matches!(h.kind, SymbolKind::Function));
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == f.id && c.call_name == "g"));
-    assert!(res
-        .calls
-        .iter()
-        .any(|c| c.caller_id == h.id && c.call_name == "h2"));
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == f.id && c.call_name == "g")
+    );
+    assert!(
+        res.calls
+            .iter()
+            .any(|c| c.caller_id == h.id && c.call_name == "h2")
+    );
 }
 
 #[test]

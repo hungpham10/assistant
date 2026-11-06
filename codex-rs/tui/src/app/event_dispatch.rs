@@ -785,6 +785,12 @@ impl App {
             } => {
                 self.handle_mcp_inventory_result(result, detail, thread_id);
             }
+            AppEvent::FetchThreadToolsInventory { thread_id } => {
+                self.fetch_thread_tools_inventory(app_server, thread_id);
+            }
+            AppEvent::ThreadToolsInventoryLoaded { thread_id, result } => {
+                self.handle_thread_tools_inventory_result(thread_id, result);
+            }
             AppEvent::SkillsListLoaded { result } => {
                 self.handle_skills_list_result(
                     result.map_err(|err| color_eyre::eyre::eyre!(err)),

@@ -12,7 +12,9 @@
 //! vào thread-local trước vòng parse song song; leaf `classify_flow` đọc từ
 //! thread-local, chưa install → `None` mọi call (test / đường đơn file).
 
-use codegraph_core::{EffectCallPattern, EffectRule, FlowMarker};
+use codegraph_core::EffectCallPattern;
+use codegraph_core::EffectRule;
+use codegraph_core::FlowMarker;
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -116,10 +118,9 @@ pub fn classify_flow(call_name: &str) -> Option<FlowHit> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codegraph_core::{
-        EffectCallPattern::{Contains, Exact},
-        EffectType,
-    };
+    use codegraph_core::EffectCallPattern::Contains;
+    use codegraph_core::EffectCallPattern::Exact;
+    use codegraph_core::EffectType;
 
     fn rule(call: EffectCallPattern, marker: FlowMarker) -> EffectRule {
         EffectRule {

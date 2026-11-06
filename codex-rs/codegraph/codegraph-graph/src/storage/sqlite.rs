@@ -34,19 +34,33 @@
 //! in-memory (như mọi backend khác).
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use codegraph_core::{FileInfo, Symbol};
+use codegraph_core::FileInfo;
+use codegraph_core::Symbol;
 use sqlx::Row;
-use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePool, SqlitePoolOptions};
+use sqlx::sqlite::SqliteConnectOptions;
+use sqlx::sqlite::SqliteJournalMode;
+use sqlx::sqlite::SqlitePool;
+use sqlx::sqlite::SqlitePoolOptions;
 
-use super::{
-    CategoryStorage, ChainStorage, EMPTY, EdgeDataStorage, EntityStorage, IndexCounts,
-    NodeMetaStorage, Result, ShortcutsStorage, StorageError, Tx, TxOp, decode_vector,
-    encode_vector,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EMPTY;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::IndexCounts;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::StorageError;
+use super::Tx;
+use super::TxOp;
+use super::decode_vector;
+use super::encode_vector;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;

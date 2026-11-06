@@ -18,15 +18,23 @@
 //! bất đồng bộ — đó là lý do trait vẫn là `#[async_trait]`.
 
 use async_trait::async_trait;
-use camino::{Utf8Path, Utf8PathBuf};
-use codegraph_core::{Error, Result};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
+use codegraph_core::Error;
+use codegraph_core::Result;
 use ignore::WalkBuilder;
 use std::io::Read as _;
 
-use crate::{
-    Source, SourceConfig, SourceEntry, SourceInfo, SourceKind, SourceListing, SourceMaterializer,
-    SourceReader, CONFIG_MAX_BYTES, CONFIG_REL_PATH,
-};
+use crate::CONFIG_MAX_BYTES;
+use crate::CONFIG_REL_PATH;
+use crate::Source;
+use crate::SourceConfig;
+use crate::SourceEntry;
+use crate::SourceInfo;
+use crate::SourceKind;
+use crate::SourceListing;
+use crate::SourceMaterializer;
+use crate::SourceReader;
 
 /// Traversal policy dùng chung — **một nguồn sự thật duy nhất** cho cả 3 dịch
 /// vụ. Xuất ra `pub` để caller blocking (binary scanner) dùng chung thay vì tự

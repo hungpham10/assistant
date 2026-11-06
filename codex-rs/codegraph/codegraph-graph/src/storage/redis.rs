@@ -31,11 +31,21 @@ use async_trait::async_trait;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;
-use super::{
-    CategoryStorage, ChainStorage, EdgeDataStorage, EntityStorage, FileInfo, NodeMetaStorage,
-    Result, ShortcutsStorage, Storage, StorageError, Symbol, Tx, TxOp, decode_vector,
-    encode_vector,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::FileInfo;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::Storage;
+use super::StorageError;
+use super::Symbol;
+use super::Tx;
+use super::TxOp;
+use super::decode_vector;
+use super::encode_vector;
 
 // ==================== KeyBuilder ====================
 
@@ -964,7 +974,8 @@ impl RedisTx {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::atomic::{AtomicU16, Ordering};
+    use std::sync::atomic::AtomicU16;
+    use std::sync::atomic::Ordering;
 
     use super::*;
     use crate::radix::EMPTY;

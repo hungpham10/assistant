@@ -37,13 +37,21 @@
 //! CallSite + var-type alias, gom SaveCallRecords) → files → rebuild engines →
 //! bump version.
 
-use crate::embeddings::{EmbeddingBackend, default_backend, embedding_enabled, make_backend};
+use crate::embeddings::EmbeddingBackend;
+use crate::embeddings::default_backend;
+use crate::embeddings::embedding_enabled;
+use crate::embeddings::make_backend;
 pub use crate::radix::Element;
 /// Error type của `Search::insert_chain` (ví dụ `Duplicated`) — re-export để
 /// caller xử lý lỗi key trùng mà không cần `mod search` public.
 pub use crate::search::Error as SearchError;
 pub use crate::search::Search;
 pub use crate::search::SearchResume;
+pub use crate::storage::InMemoryStorage;
+pub use crate::storage::IndexCounts;
+pub use crate::storage::Storage;
+pub use crate::storage::StorageError;
+pub use crate::storage::Tx;
 use crate::storage::cached::CachedStorage;
 #[cfg(feature = "lmdb")]
 pub use crate::storage::lmdb::LmdbStorage;
@@ -53,28 +61,68 @@ pub use crate::storage::mysql::MySqlStorage;
 pub use crate::storage::postgres::PostgresStorage;
 #[cfg(feature = "sqlite")]
 pub use crate::storage::sqlite::SqliteStorage;
-pub use crate::storage::{InMemoryStorage, IndexCounts, Storage, StorageError, Tx};
 // Sub-traits of `Storage` — callers that need only one facet (e.g. a chain-engine
 // read path) can name it directly instead of taking the full umbrella.
 #[cfg(feature = "bloom-search")]
 pub use crate::storage::BloomStorage;
-pub use crate::storage::{
-    CategoryStorage, ChainStorage, EdgeDataStorage, EntityStorage, NodeMetaStorage,
-    ShortcutsStorage,
-};
+pub use crate::storage::CategoryStorage;
+pub use crate::storage::ChainStorage;
+pub use crate::storage::EdgeDataStorage;
+pub use crate::storage::EntityStorage;
+pub use crate::storage::NodeMetaStorage;
+pub use crate::storage::ShortcutsStorage;
 use crate::vector_index::VectorIndex;
-use codegraph_core::{
-    BranchLabel, CallRecord, CallSite, CallSiteResult, ClassInfo, DependenciesReport, Dependency,
-    Error, FileInfo, FlowCall, FlowResult, FlowStep, FullFlowPath, FunctionScope,
-    MARKER_BRANCH_END, MARKER_BREAK, MARKER_CALL_ENTER, MARKER_CALL_EXIT, MARKER_CATCH_START,
-    MARKER_CONTINUE, MARKER_IF_FALSE, MARKER_IF_TRUE, MARKER_LOOP, MARKER_LOOP_BACK, MARKER_RETURN,
-    MARKER_SWITCH_CASE, MARKER_SWITCH_CLOSE, MARKER_SWITCH_END, MARKER_SWITCH_START, MARKER_THROW,
-    MARKER_TRY_END, MARKER_TRY_START, MemberInfo, PathEnding, ResolutionKind, ResolveResult,
-    SYMBOL_BASE, SearchFlowResult, SemgraphStats, StorageRoute, Symbol, SymbolKind, SymbolMatch,
-    TraceAction, is_marker, marker_name,
-};
-use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use codegraph_core::BranchLabel;
+use codegraph_core::CallRecord;
+use codegraph_core::CallSite;
+use codegraph_core::CallSiteResult;
+use codegraph_core::ClassInfo;
+use codegraph_core::DependenciesReport;
+use codegraph_core::Dependency;
+use codegraph_core::Error;
+use codegraph_core::FileInfo;
+use codegraph_core::FlowCall;
+use codegraph_core::FlowResult;
+use codegraph_core::FlowStep;
+use codegraph_core::FullFlowPath;
+use codegraph_core::FunctionScope;
+use codegraph_core::MARKER_BRANCH_END;
+use codegraph_core::MARKER_BREAK;
+use codegraph_core::MARKER_CALL_ENTER;
+use codegraph_core::MARKER_CALL_EXIT;
+use codegraph_core::MARKER_CATCH_START;
+use codegraph_core::MARKER_CONTINUE;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::MARKER_LOOP;
+use codegraph_core::MARKER_LOOP_BACK;
+use codegraph_core::MARKER_RETURN;
+use codegraph_core::MARKER_SWITCH_CASE;
+use codegraph_core::MARKER_SWITCH_CLOSE;
+use codegraph_core::MARKER_SWITCH_END;
+use codegraph_core::MARKER_SWITCH_START;
+use codegraph_core::MARKER_THROW;
+use codegraph_core::MARKER_TRY_END;
+use codegraph_core::MARKER_TRY_START;
+use codegraph_core::MemberInfo;
+use codegraph_core::PathEnding;
+use codegraph_core::ResolutionKind;
+use codegraph_core::ResolveResult;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::SearchFlowResult;
+use codegraph_core::SemgraphStats;
+use codegraph_core::StorageRoute;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_core::SymbolMatch;
+use codegraph_core::TraceAction;
+use codegraph_core::is_marker;
+use codegraph_core::marker_name;
+use serde::Deserialize;
+use serde::Serialize;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -98,11 +146,18 @@ mod vector_index;
 
 // Các module nội bộ trên chỉ mở đúng phần API mà crate khác dùng — thay cho
 // `pub mod`, để bề mặt public không phình theo từng file nội bộ.
-pub use crate::diff::{FileDiff, Hunk, ParsedDiff, parse_unified_diff};
+pub use crate::diff::FileDiff;
+pub use crate::diff::Hunk;
+pub use crate::diff::ParsedDiff;
+pub use crate::diff::parse_unified_diff;
+pub use crate::embeddings::EmbeddingConfig;
+pub use crate::embeddings::set_embedding_config;
 #[cfg(feature = "fastembed")]
 pub use crate::embeddings::warm_model_cache;
-pub use crate::embeddings::{EmbeddingConfig, set_embedding_config};
-pub use crate::meminfo::{MemTracker, fmt_bytes, peak_rss_bytes, rss_bytes};
+pub use crate::meminfo::MemTracker;
+pub use crate::meminfo::fmt_bytes;
+pub use crate::meminfo::peak_rss_bytes;
+pub use crate::meminfo::rss_bytes;
 pub use crate::memtrack::MemBreakdown;
 
 pub use shared::SharedGraphIndex;
@@ -785,7 +840,8 @@ struct SimState {
 
 /// Key dedup state: vị trí (func_id, pos) của mọi frame + số step.
 fn state_key(st: &SimState) -> u64 {
-    use std::hash::{Hash, Hasher};
+    use std::hash::Hash;
+    use std::hash::Hasher;
     let mut h = std::collections::hash_map::DefaultHasher::new();
     for f in &st.frames {
         f.func_id.hash(&mut h);
@@ -4935,10 +4991,13 @@ impl GraphIndex {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codegraph_core::{
-        Annotation, EffectType, MARKER_BRANCH_END, MARKER_IF_TRUE, MARKER_LOOP, MARKER_LOOP_BACK,
-        ScopeLevel,
-    };
+    use codegraph_core::Annotation;
+    use codegraph_core::EffectType;
+    use codegraph_core::MARKER_BRANCH_END;
+    use codegraph_core::MARKER_IF_TRUE;
+    use codegraph_core::MARKER_LOOP;
+    use codegraph_core::MARKER_LOOP_BACK;
+    use codegraph_core::ScopeLevel;
 
     #[test]
     #[cfg(any(feature = "sqlite", feature = "lmdb", feature = "redis"))]

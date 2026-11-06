@@ -38,7 +38,8 @@
 //! product) để `VectorIndex` hoạt động nhất quán.
 
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -322,7 +323,9 @@ impl EmbeddingBackend for HashingEmbeddings {
 #[cfg(feature = "fastembed")]
 mod fastembed_backend {
     use super::*;
-    use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
+    use fastembed::EmbeddingModel;
+    use fastembed::TextEmbedding;
+    use fastembed::TextInitOptions;
     use parking_lot::Mutex;
     use std::sync::Arc;
 

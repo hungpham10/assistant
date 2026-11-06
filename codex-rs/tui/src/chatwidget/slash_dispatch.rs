@@ -89,6 +89,7 @@ impl ChatWidget {
             .current_cwd
             .clone()
             .unwrap_or_else(|| self.config.cwd.to_path_buf());
+        let kind = kind.to_string();
         self.add_info_message(
             format!("Indexing codegraph ({kind}) for {} …", cwd.display()),
             Some("The agent session is not re-bound — it must call begin again.".to_string()),
@@ -100,7 +101,7 @@ impl ChatWidget {
             let output = std::process::Command::new(&exe)
                 .args(["codegraph", "index", "--path"])
                 .arg(&cwd)
-                .args(["--kind", kind])
+                .args(["--kind", kind.as_str()])
                 .output();
             let (ok, text) = match output {
                 Ok(out) => (
@@ -111,24 +112,20 @@ impl ChatWidget {
                         String::from_utf8_lossy(&out.stderr)
                     ),
                 ),
-                Err(err) => (
-                    false,
-                    format!("failed to spawn `{}`: {err}", exe.display()),
-                ),
+                Err(err) => (false, format!("failed to spawn `{}`: {err}", exe.display())),
             };
-            tx.send(AppEvent::CodegraphIndexFinished {
-                ok,
-                output: text,
-            });
+            tx.send(AppEvent::CodegraphIndexFinished { ok, output: text });
         });
     }
 
-    pub(super) fn on_codegraph_index_finished(&mut self, ok: bool, output: String) {
+    pub(crate) fn on_codegraph_index_finished(&mut self, ok: bool, output: String) {
         let text = output.trim().to_string();
         if ok {
             self.add_info_message(
                 format!("Codegraph index finished.\n{text}"),
-                Some("Call codegraph.call begin(path) again to search the fresh index.".to_string()),
+                Some(
+                    "Call codegraph.call begin(path) again to search the fresh index.".to_string(),
+                ),
             );
         } else {
             self.add_error_message(format!("Codegraph index failed.\n{text}"));
@@ -1138,6 +1135,7 @@ impl ChatWidget {
             | SlashCommand::Tools
             | SlashCommand::Apps
             | SlashCommand::Plugins
+            | SlashCommand::Index
             | SlashCommand::Rollout
             | SlashCommand::Copy
             | SlashCommand::Raw

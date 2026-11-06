@@ -21,11 +21,7 @@ fn temp_project_with_source() -> tempfile::TempDir {
 #[serial]
 async fn search_before_begin_returns_begin_guidance() {
     let _ = CodegraphService::end().await;
-    let out = CodegraphService::search(
-        "search_symbol",
-        &json!({"query": "hello_world"}),
-    )
-    .await;
+    let out = CodegraphService::search("search_symbol", &json!({"query": "hello_world"})).await;
     assert!(
         out.contains("no codegraph session bound") && out.contains("begin(path=...)"),
         "unexpected output: {out}"
@@ -59,11 +55,7 @@ async fn host_index_then_search_returns_symbols() {
     assert!(summary.symbols > 0, "expected symbols, got {summary:?}");
 
     let _ = CodegraphService::begin(path).await;
-    let out = CodegraphService::search(
-        "search_symbol",
-        &json!({"query": "hello_world"}),
-    )
-    .await;
+    let out = CodegraphService::search("search_symbol", &json!({"query": "hello_world"})).await;
     let v: serde_json::Value = serde_json::from_str(&out).expect("search json");
     assert_eq!(v["total"], 2);
     let names: Vec<&str> = v["symbols"]
@@ -76,7 +68,10 @@ async fn host_index_then_search_returns_symbols() {
 
     let status = CodegraphService::status().await;
     assert!(status.contains("bound="), "unexpected status: {status}");
-    assert!(!status.contains("bound=<none>"), "unexpected status: {status}");
+    assert!(
+        !status.contains("bound=<none>"),
+        "unexpected status: {status}"
+    );
 
     let _ = CodegraphService::end().await;
 
@@ -132,7 +127,10 @@ async fn docs_only_index_ingests_configured_documents() {
     let summary = CodegraphService::host_index(path, "docs")
         .await
         .expect("docs index");
-    assert!(summary.docs_configured, "expected configured docs: {summary:?}");
+    assert!(
+        summary.docs_configured,
+        "expected configured docs: {summary:?}"
+    );
     assert_eq!(summary.docs, 1);
     assert!(summary.doc_nodes > 0, "expected doc nodes: {summary:?}");
 
@@ -144,7 +142,10 @@ async fn docs_only_index_ingests_configured_documents() {
 
     let out = CodegraphService::search("doc_search", &json!({"query": "replicas"})).await;
     let v: serde_json::Value = serde_json::from_str(&out).expect("doc_search json");
-    assert!(v["total"].as_u64().expect("total") >= 1, "unexpected: {out}");
+    assert!(
+        v["total"].as_u64().expect("total") >= 1,
+        "unexpected: {out}"
+    );
 
     let out = CodegraphService::search("doc_stats", &json!({})).await;
     let v: serde_json::Value = serde_json::from_str(&out).expect("doc_stats json");
@@ -156,8 +157,7 @@ async fn docs_only_index_ingests_configured_documents() {
 #[serial]
 async fn source_only_index_skips_documents() {
     let dir = temp_project_with_source();
-    std::fs::write(dir.path().join("config.json"), r#"{"name": "app"}"#)
-        .expect("write doc");
+    std::fs::write(dir.path().join("config.json"), r#"{"name": "app"}"#).expect("write doc");
     std::fs::create_dir_all(dir.path().join(".codegraph")).expect("codegraph dir");
     std::fs::write(
         dir.path().join(".codegraph/config.toml"),
@@ -170,6 +170,9 @@ async fn source_only_index_skips_documents() {
         .await
         .expect("source index");
     assert!(summary.symbols > 0, "expected symbols: {summary:?}");
-    assert!(!summary.docs_configured, "docs must be skipped: {summary:?}");
+    assert!(
+        !summary.docs_configured,
+        "docs must be skipped: {summary:?}"
+    );
     assert_eq!(summary.docs, 0);
 }

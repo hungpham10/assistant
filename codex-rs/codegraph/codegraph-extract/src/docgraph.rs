@@ -2,11 +2,17 @@
 //! `.codegraph/config.toml` (dùng chung cho CLI `init`/`doc` và MCP server).
 
 use crate::config::ExtractConfig;
-use camino::{Utf8Path, Utf8PathBuf};
-use codegraph_core::{Error, Result};
-use codegraph_docs::{DocConfig, DocumentGraph, StorageConfig};
-use std::sync::{Arc, RwLock};
-use tokio::sync::{Mutex, RwLock as TokioRwLock};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
+use codegraph_core::Error;
+use codegraph_core::Result;
+use codegraph_docs::DocConfig;
+use codegraph_docs::DocumentGraph;
+use codegraph_docs::StorageConfig;
+use std::sync::Arc;
+use std::sync::RwLock;
+use tokio::sync::Mutex;
+use tokio::sync::RwLock as TokioRwLock;
 
 /// Mở document graph theo config: dataset riêng cho docs (mặc định
 /// `.codegraph/docs.sqlite` với sqlite — tries của docs đụng namespace với code

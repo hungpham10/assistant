@@ -99,6 +99,9 @@ use codex_app_server_protocol::ThreadSource;
 use codex_app_server_protocol::ThreadStartParams;
 use codex_app_server_protocol::ThreadStartResponse;
 use codex_app_server_protocol::ThreadStartSource;
+use codex_app_server_protocol::ThreadToolsListDetail;
+use codex_app_server_protocol::ThreadToolsListParams;
+use codex_app_server_protocol::ThreadToolsListResponse;
 use codex_app_server_protocol::ThreadUnarchiveParams;
 use codex_app_server_protocol::ThreadUnarchiveResponse;
 use codex_app_server_protocol::ThreadUnsubscribeParams;
@@ -921,6 +924,28 @@ impl AppServerSession {
             .await
             .wrap_err("thread/tools/set failed in TUI")?;
         Ok(())
+    }
+
+    pub(crate) async fn thread_tools_list(
+        &mut self,
+        thread_id: ThreadId,
+        cursor: Option<String>,
+        limit: Option<u32>,
+        detail: Option<ThreadToolsListDetail>,
+    ) -> Result<ThreadToolsListResponse> {
+        let request_id = self.next_request_id();
+        self.client
+            .request_typed(ClientRequest::ThreadToolsList {
+                request_id,
+                params: ThreadToolsListParams {
+                    thread_id: thread_id.to_string(),
+                    cursor,
+                    limit,
+                    detail,
+                },
+            })
+            .await
+            .wrap_err("thread/tools/list failed in TUI")
     }
 
     pub(crate) async fn thread_memory_mode_set(

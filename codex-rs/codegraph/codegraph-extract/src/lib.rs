@@ -18,13 +18,32 @@ mod walker;
 pub mod bingraph;
 
 #[cfg(feature = "binary")]
-pub use bingraph::{BinFlag, BinPage, BinSymbolRow, BinaryGraph, ListOrder, NameMatch};
-pub use config::{DocGraphSection, ExtractConfig, HeaderLanguage, DEFAULT_CONFIG_TOML};
-pub use docgraph::{open_doc_graph, SharedDocGraph};
-pub use orchestrator::{ExtractStats, Orchestrator};
-pub use project::{init_project, project_db_path, project_dir, CODEGRAPH_DIR};
+pub use bingraph::BinFlag;
+#[cfg(feature = "binary")]
+pub use bingraph::BinPage;
+#[cfg(feature = "binary")]
+pub use bingraph::BinSymbolRow;
+#[cfg(feature = "binary")]
+pub use bingraph::BinaryGraph;
+#[cfg(feature = "binary")]
+pub use bingraph::ListOrder;
+#[cfg(feature = "binary")]
+pub use bingraph::NameMatch;
+pub use config::DEFAULT_CONFIG_TOML;
+pub use config::DocGraphSection;
+pub use config::ExtractConfig;
+pub use config::HeaderLanguage;
+pub use docgraph::SharedDocGraph;
+pub use docgraph::open_doc_graph;
+pub use orchestrator::ExtractStats;
+pub use orchestrator::Orchestrator;
+pub use project::CODEGRAPH_DIR;
+pub use project::init_project;
+pub use project::project_db_path;
+pub use project::project_dir;
 
-use codegraph_core::{Error, Result};
+use codegraph_core::Error;
+use codegraph_core::Result;
 use codegraph_graph::ParseResult;
 use std::sync::Arc;
 

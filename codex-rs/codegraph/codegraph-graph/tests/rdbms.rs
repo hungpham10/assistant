@@ -16,9 +16,15 @@
 
 #![cfg(any(feature = "postgres", feature = "mysql"))]
 
+use codegraph_core::CallRecord;
+use codegraph_core::EffectType;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::ScopeLevel;
 use codegraph_core::StorageRoute;
-use codegraph_core::{CallRecord, EffectType, SYMBOL_BASE, ScopeLevel, Symbol, SymbolKind};
-use codegraph_graph::{GraphIndex, ParseResult};
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_graph::GraphIndex;
+use codegraph_graph::ParseResult;
 use std::collections::HashMap;
 
 fn sym(file: &str, name: &str, id: u64) -> Symbol {

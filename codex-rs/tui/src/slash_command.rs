@@ -99,9 +99,7 @@ impl SlashCommand {
                 }
             },
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
-            SlashCommand::Index => {
-                "build the codegraph index: /index [all|source|docs]"
-            }
+            SlashCommand::Index => "build the codegraph index: /index [all|source|docs]",
             SlashCommand::Review => "review my current changes and find issues",
             SlashCommand::Rename => "rename the current thread",
             SlashCommand::Resume => "resume a saved chat",

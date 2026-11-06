@@ -4,7 +4,8 @@
 //! và MCP server (`codegraph_init` tool) dùng chung.
 
 use crate::config::DEFAULT_CONFIG_TOML;
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
 use codegraph_core::Result;
 
 /// Thư mục `.codegraph/` trong workspace root.

@@ -1,5 +1,6 @@
 use codegraph_graph::Element;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Tag bits (top 8 bits of a `u64`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]

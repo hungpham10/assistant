@@ -3,14 +3,19 @@
 //! Full re-index (đã chốt — bỏ incremental): mọi lần `index_all` reset toàn bộ
 //! index rồi ingest lại (register + remap + resolve + persist + bump version).
 
+use crate::LangParser;
 use crate::config::ExtractConfig;
-use crate::languages::effects::{self, EffectClassifier};
+use crate::languages::effects::EffectClassifier;
+use crate::languages::effects::{self};
 use crate::languages::flows;
-use crate::{walker, LangParser};
+use crate::walker;
 use camino::Utf8Path;
 use codegraph_core::Result;
-use codegraph_graph::{GraphIndex, IngestProgress, ParseResult};
-use indicatif::{ProgressBar, ProgressStyle};
+use codegraph_graph::GraphIndex;
+use codegraph_graph::IngestProgress;
+use codegraph_graph::ParseResult;
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 use rayon::prelude::*;
 use std::sync::Arc;
 

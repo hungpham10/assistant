@@ -28,6 +28,7 @@ use codex_app_server_protocol::PluginReadResponse;
 use codex_app_server_protocol::PluginUninstallResponse;
 use codex_app_server_protocol::SkillsListResponse;
 use codex_app_server_protocol::ThreadGoalStatus;
+use codex_app_server_protocol::ThreadToolInventoryItem;
 use codex_connectors::AppInfo;
 use codex_file_search::FileMatch;
 use codex_path::absolute_path::AbsolutePathBuf;
@@ -663,6 +664,17 @@ pub(crate) enum AppEvent {
         result: Result<Vec<McpServerStatus>, String>,
         detail: McpServerStatusDetail,
         thread_id: Option<ThreadId>,
+    },
+
+    /// Fetch thread tool inventory for the `/tools` picker via `thread/tools/list`.
+    FetchThreadToolsInventory {
+        thread_id: ThreadId,
+    },
+
+    /// Result of fetching thread tool inventory for the `/tools` picker.
+    ThreadToolsInventoryLoaded {
+        thread_id: ThreadId,
+        result: Result<Vec<ThreadToolInventoryItem>, String>,
     },
 
     /// Result of the startup skills refresh that runs after the first frame is scheduled.

@@ -1,4 +1,8 @@
-use crate::ir::{ByteSpan, Document, Kind, Node, Scalar};
+use crate::ir::ByteSpan;
+use crate::ir::Document;
+use crate::ir::Kind;
+use crate::ir::Node;
+use crate::ir::Scalar;
 use anyhow::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -906,7 +910,9 @@ pub fn parser_for(format: &str) -> Result<Box<dyn DocParser>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{DocConfig, DocToken, DocumentGraph};
+    use crate::DocConfig;
+    use crate::DocToken;
+    use crate::DocumentGraph;
     use codegraph_graph::InMemoryStorage;
     use std::sync::Arc;
     use tokio::sync::RwLock as TokioRwLock;

@@ -1,6 +1,8 @@
-use codegraph_core::{SymbolKind, MARKER_IF_FALSE, MARKER_IF_TRUE};
-use codegraph_extract::languages::go::GoParser;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::SymbolKind;
 use codegraph_extract::LangParser;
+use codegraph_extract::languages::go::GoParser;
 use std::path::Path;
 
 #[test]

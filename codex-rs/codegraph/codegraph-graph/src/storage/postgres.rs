@@ -2,15 +2,31 @@ use std::collections::HashMap;
 
 #[cfg(feature = "bloom-search")]
 use super::BloomStorage;
-use super::{
-    CategoryStorage, ChainStorage, EdgeDataStorage, EntityStorage, IndexCounts, NodeMetaStorage,
-    Result, ShortcutsStorage, Storage, StorageError, Tx, decode_chain, decode_vector, encode_chain,
-    encode_vector,
-};
+use super::CategoryStorage;
+use super::ChainStorage;
+use super::EdgeDataStorage;
+use super::EntityStorage;
+use super::IndexCounts;
+use super::NodeMetaStorage;
+use super::Result;
+use super::ShortcutsStorage;
+use super::Storage;
+use super::StorageError;
+use super::Tx;
+use super::decode_chain;
+use super::decode_vector;
+use super::encode_chain;
+use super::encode_vector;
 use async_trait::async_trait;
-use codegraph_core::{Annotation, FileInfo, ScopeLevel, Symbol, SymbolKind};
-use sqlx::postgres::{PgPoolOptions, PgRow};
-use sqlx::{PgPool, Row};
+use codegraph_core::Annotation;
+use codegraph_core::FileInfo;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use sqlx::PgPool;
+use sqlx::Row;
+use sqlx::postgres::PgPoolOptions;
+use sqlx::postgres::PgRow;
 
 /// PostgreSQL implementation của `Storage` trait — multi-tenant theo thiết kế
 /// `sql/README.md`: mọi bảng dẫn đầu bằng `repo_id`, 1 repository = 1 partition.

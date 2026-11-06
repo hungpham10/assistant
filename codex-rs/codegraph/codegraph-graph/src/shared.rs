@@ -16,9 +16,12 @@
 
 use crate::GraphIndex;
 use crate::storage::Storage;
-use codegraph_core::{Result, SemgraphStats, StorageRoute};
+use codegraph_core::Result;
+use codegraph_core::SemgraphStats;
+use codegraph_core::StorageRoute;
 use std::sync::Arc;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 
 /// Snapshot hiện tại của index + version mà nó được build từ đó.
 struct IndexState {
@@ -321,7 +324,10 @@ fn trim_scheme(dsn: &str) -> &str {
 mod tests {
     use super::*;
     use crate::ParseResult;
-    use codegraph_core::{CallRecord, SYMBOL_BASE, Symbol, SymbolKind};
+    use codegraph_core::CallRecord;
+    use codegraph_core::SYMBOL_BASE;
+    use codegraph_core::Symbol;
+    use codegraph_core::SymbolKind;
 
     // Chỉ test sqlite dùng — build không feature này vẫn compile.
     #[cfg_attr(not(feature = "sqlite"), allow(dead_code))]

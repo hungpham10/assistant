@@ -110,6 +110,7 @@ use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadSettings;
 use codex_app_server_protocol::ThreadSettingsUpdatedNotification;
 use codex_app_server_protocol::ThreadTokenUsage;
+use codex_app_server_protocol::ThreadToolInventoryItem;
 use codex_app_server_protocol::ToolRequestUserInputParams;
 use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnCompletedNotification;
@@ -285,7 +286,6 @@ use crate::bottom_pane::QUIT_SHORTCUT_TIMEOUT;
 use crate::bottom_pane::QueuedInputAction;
 use crate::bottom_pane::SelectionAction;
 use crate::bottom_pane::SelectionItem;
-use crate::bottom_pane::SelectionToggle;
 use crate::bottom_pane::SelectionViewParams;
 use crate::bottom_pane::custom_prompt_view::CustomPromptView;
 use crate::bottom_pane::popup_consts::standard_popup_hint_line;
@@ -363,6 +363,7 @@ mod hooks;
 mod interaction;
 mod skills;
 mod slash_dispatch;
+mod tools_picker;
 use self::skills::collect_tool_mentions;
 use self::skills::find_app_mentions;
 use self::skills::find_skill_mentions_with_tool_mentions;
@@ -498,10 +499,6 @@ const BUILTIN_TOOL_CATALOG: &[&str] = &[
     "spawn_agent",
 ];
 
-fn builtin_tool_catalog() -> impl Iterator<Item = &'static str> {
-    BUILTIN_TOOL_CATALOG.iter().copied()
-}
-
 pub(crate) struct ChatWidgetInit {
     pub(crate) config: Config,
     pub(crate) frame_requester: FrameRequester,
@@ -608,6 +605,10 @@ pub(crate) struct ChatWidget {
     suppressed_exec_calls: HashSet<String>,
     /// Session-scoped disabled tool keys mirrored from `/tools` toggles.
     tools_session_disabled: HashSet<String>,
+    /// Cached thread tool inventory for the `/tools` picker (thread-scoped).
+    thread_tools_inventory: Option<(ThreadId, Vec<ThreadToolInventoryItem>)>,
+    /// Thread whose tool inventory is being fetched for the `/tools` picker.
+    tools_picker_loading_thread: Option<ThreadId>,
     skills_all: Vec<ProtocolSkillMetadata>,
     skills_initial_state: Option<HashMap<AbsolutePathBuf, bool>>,
     last_unified_wait: Option<UnifiedExecWaitState>,
@@ -1099,43 +1100,6 @@ impl ChatWidget {
         });
     }
 
-    pub(crate) fn open_tools_picker(&mut self) {
-        let items = builtin_tool_catalog()
-            .map(|name| {
-                let enabled = !self.tools_session_disabled.contains(name);
-                let key = name.to_string();
-                let enter_key = key.clone();
-                SelectionItem {
-                    name: name.to_string(),
-                    toggle: Some(SelectionToggle {
-                        is_on: enabled,
-                        action: Box::new(move |_enabled, tx| {
-                            tx.send(AppEvent::ToggleToolEnabled { name: key.clone() });
-                        }),
-                    }),
-                    description: Some("builtin".to_string()),
-                    actions: vec![Box::new(move |tx| {
-                        tx.send(AppEvent::ToggleToolEnabled {
-                            name: enter_key.clone(),
-                        });
-                    })],
-                    dismiss_on_select: false,
-                    ..Default::default()
-                }
-            })
-            .collect();
-        self.bottom_pane.show_selection_view(SelectionViewParams {
-            title: Some("Tools — enable/disable for this session".to_string()),
-            subtitle: Some(
-                "Disabled tools stay callable via tool_search. Space or Enter toggles; Esc closes."
-                    .to_string(),
-            ),
-            items,
-            ..Default::default()
-        });
-        self.request_redraw();
-    }
-
     pub(crate) fn handle_tools_toggle(&mut self, name: String) {
         let enabled = if self.tools_session_disabled.remove(&name) {
             true
@@ -1143,6 +1107,7 @@ impl ChatWidget {
             self.tools_session_disabled.insert(name.clone());
             false
         };
+        self.sync_thread_tools_inventory_hidden(&name, !enabled);
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
             name, enabled,
         ));
@@ -1154,6 +1119,7 @@ impl ChatWidget {
         } else {
             self.tools_session_disabled.insert(name.clone());
         }
+        self.sync_thread_tools_inventory_hidden(&name, !enabled);
         self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
             name, enabled,
         ));
@@ -1162,6 +1128,7 @@ impl ChatWidget {
     pub(crate) fn reset_tools_override(&mut self) {
         let keys: Vec<String> = self.tools_session_disabled.drain().collect();
         for name in &keys {
+            self.sync_thread_tools_inventory_hidden(name, /*hidden*/ false);
             self.submit_op(crate::app_command::AppCommand::set_tool_enabled(
                 name.clone(),
                 /*enabled*/ true,
@@ -1171,6 +1138,21 @@ impl ChatWidget {
             "Tool overrides cleared for this session.".to_string(),
             /*hint*/ None,
         );
+    }
+
+    fn sync_thread_tools_inventory_hidden(&mut self, key: &str, hidden: bool) {
+        let Some(thread_id) = self.thread_id() else {
+            return;
+        };
+        let Some((cached_thread_id, items)) = self.thread_tools_inventory.as_mut() else {
+            return;
+        };
+        if *cached_thread_id != thread_id {
+            return;
+        }
+        if let Some(item) = items.iter_mut().find(|item| item.key == key) {
+            item.hidden = hidden;
+        }
     }
 
     pub(crate) fn open_memories_popup(&mut self) {

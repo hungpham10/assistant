@@ -14,15 +14,24 @@
 //!   to the agent.
 
 use anyhow::Result;
-use camino::{Utf8Path, Utf8PathBuf};
-use serde_json::{Value as JsonValue, json};
-use std::sync::{Arc, Mutex, OnceLock};
+use camino::Utf8Path;
+use camino::Utf8PathBuf;
+use serde_json::Value as JsonValue;
+use serde_json::json;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::OnceLock;
 
 use codegraph_api::GraphApi;
-use codegraph_api::session::{DetailLevel, Session};
-use codegraph_core::{Symbol, SymbolKind, SymbolMatch};
+use codegraph_api::session::DetailLevel;
+use codegraph_api::session::Session;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_core::SymbolMatch;
 use codegraph_docs::DocToken;
-use codegraph_extract::{ExtractConfig, SharedDocGraph, open_doc_graph};
+use codegraph_extract::ExtractConfig;
+use codegraph_extract::SharedDocGraph;
+use codegraph_extract::open_doc_graph;
 
 /// Process-global session slot — one conversation at a time. `Arc` so the
 /// guard can be dropped before any `.await` (handler futures must be `Send`).
@@ -298,8 +307,9 @@ async fn ingest_docs(root: &Utf8Path) -> Result<DocsSummary> {
 
 /// Build a `GraphApi` over the bound session's shared index.
 async fn graph_api() -> Result<GraphApi> {
-    let session = bound_session()
-        .ok_or_else(|| anyhow::anyhow!("no codegraph session bound — call begin(path=...) first"))?;
+    let session = bound_session().ok_or_else(|| {
+        anyhow::anyhow!("no codegraph session bound — call begin(path=...) first")
+    })?;
     let shared = session.ensure_ready().await?;
     Ok(GraphApi::new_with_index(shared))
 }
@@ -312,8 +322,9 @@ async fn index_stats() -> Option<codegraph_core::SemgraphStats> {
 
 /// Document graph for the bound root (lazy-opened once, cached per root).
 async fn doc_graph() -> Result<Arc<SharedDocGraph>> {
-    let session = bound_session()
-        .ok_or_else(|| anyhow::anyhow!("no codegraph session bound — call begin(path=...) first"))?;
+    let session = bound_session().ok_or_else(|| {
+        anyhow::anyhow!("no codegraph session bound — call begin(path=...) first")
+    })?;
     let root = session
         .root()
         .await
@@ -365,8 +376,7 @@ fn kind_arg(args: &JsonValue) -> Result<Option<SymbolKind>> {
 
 fn mode_arg(args: &JsonValue) -> Result<SymbolMatch> {
     match arg_str(args, "mode") {
-        Some(s) => SymbolMatch::parse(s)
-            .ok_or_else(|| anyhow::anyhow!("unknown match mode: {s}")),
+        Some(s) => SymbolMatch::parse(s).ok_or_else(|| anyhow::anyhow!("unknown match mode: {s}")),
         None => Ok(SymbolMatch::Contains),
     }
 }
@@ -490,8 +500,9 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
             let mut results = Vec::new();
             for id in ids.iter().take(limit) {
                 if let Some(payload) = graph.hydrate_depth(*id, Some(1)).await {
-                    results.push(serde_json::to_value(&payload)
-                        .expect("node payload is serializable"));
+                    results.push(
+                        serde_json::to_value(&payload).expect("node payload is serializable"),
+                    );
                 }
             }
             Ok(serde_json::to_string(&json!({
@@ -527,8 +538,10 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
         "symbol" => {
             let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
             match api.symbol_by_id(id).await {
-                Some(s) => Ok(serde_json::to_string(&symbol_json(&s))
-                    .expect("symbol json is serializable")),
+                Some(s) => {
+                    Ok(serde_json::to_string(&symbol_json(&s))
+                        .expect("symbol json is serializable"))
+                }
                 None => Ok(format!("no symbol with id {id}")),
             }
         }
@@ -576,15 +589,13 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
                 .expect("flow results are serializable"))
         }
         "references" => {
-            let query =
-                arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
+            let query = arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
             let refs = api.references(query, limit_arg(args)).await?;
             Ok(serde_json::to_string(&serde_json::to_value(&refs)?)
                 .expect("references are serializable"))
         }
         "list_by_kind" => {
-            let kind = kind_arg(args)?
-                .ok_or_else(|| anyhow::anyhow!("missing `kind`"))?;
+            let kind = kind_arg(args)?.ok_or_else(|| anyhow::anyhow!("missing `kind`"))?;
             let (page, total) = api
                 .list_by_kind(kind, limit_arg(args), arg_u32(args, "offset").unwrap_or(0))
                 .await;

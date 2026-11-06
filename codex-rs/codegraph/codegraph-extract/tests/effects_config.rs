@@ -2,12 +2,20 @@
 //! parse thật — chứng minh config override được bảng default và đến được
 //! `CallRecord.effect` (đầu vào của graph ingest), cùng control-flow marker
 //! (`try_start`, `catch_start`, `try_end`, `throw`, …) được emit vào chain.
-use codegraph_core::{
-    EffectCallPattern, EffectRule, EffectType, FlowMarker, MARKER_BRANCH_END, MARKER_CATCH_START,
-    MARKER_IF_FALSE, MARKER_IF_TRUE, MARKER_LOOP_BACK, MARKER_THROW, MARKER_TRY_END,
-    MARKER_TRY_START,
-};
-use codegraph_extract::languages::effects::{install_current, EffectClassifier};
+use codegraph_core::EffectCallPattern;
+use codegraph_core::EffectRule;
+use codegraph_core::EffectType;
+use codegraph_core::FlowMarker;
+use codegraph_core::MARKER_BRANCH_END;
+use codegraph_core::MARKER_CATCH_START;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::MARKER_LOOP_BACK;
+use codegraph_core::MARKER_THROW;
+use codegraph_core::MARKER_TRY_END;
+use codegraph_core::MARKER_TRY_START;
+use codegraph_extract::languages::effects::EffectClassifier;
+use codegraph_extract::languages::effects::install_current;
 use codegraph_extract::languages::flows;
 use codegraph_extract::registry;
 use std::sync::Arc;

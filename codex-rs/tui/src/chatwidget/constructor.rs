@@ -152,6 +152,8 @@ impl ChatWidget {
             pending_collab_spawn_requests: HashMap::new(),
             suppressed_exec_calls: HashSet::new(),
             tools_session_disabled: HashSet::new(),
+            thread_tools_inventory: None,
+            tools_picker_loading_thread: None,
             last_unified_wait: None,
             unified_exec_wait_streak: None,
             turn_lifecycle: TurnLifecycleState::new(prevent_idle_sleep),

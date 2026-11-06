@@ -1,9 +1,17 @@
-use codegraph_api::{GraphApi, Pagination};
-use codegraph_core::{
-    CallRecord, EffectType, ScopeLevel, Symbol, SymbolKind, SymbolMatch, SYMBOL_BASE,
-};
-use codegraph_graph::{GraphIndex, ParseResult, SharedGraphIndex};
-use std::collections::{HashMap, HashSet};
+use codegraph_api::GraphApi;
+use codegraph_api::Pagination;
+use codegraph_core::CallRecord;
+use codegraph_core::EffectType;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_core::SymbolMatch;
+use codegraph_graph::GraphIndex;
+use codegraph_graph::ParseResult;
+use codegraph_graph::SharedGraphIndex;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::sync::Arc;
 
 fn sym(id: u64, name: &str) -> Symbol {
@@ -120,17 +128,19 @@ async fn callers_resume_roundtrip_and_validation() {
     assert!(first.timed_out && first.page.is_empty());
     let token = first.resume.unwrap();
     for (id, depth) in [(callee, 2), (helper, 1)] {
-        assert!(api
-            .callers_resumable(id, depth, Some(token.clone()), 0)
-            .await
-            .is_err());
+        assert!(
+            api.callers_resumable(id, depth, Some(token.clone()), 0)
+                .await
+                .is_err()
+        );
     }
-    assert!(api
-        .callers_resumable(helper, 2, Some("unknown".into()), 0)
-        .await
-        .is_err());
-    assert!(api
-        .search_symbol_paged_resumable(
+    assert!(
+        api.callers_resumable(helper, 2, Some("unknown".into()), 0)
+            .await
+            .is_err()
+    );
+    assert!(
+        api.search_symbol_paged_resumable(
             "helper",
             None,
             SymbolMatch::Contains,
@@ -142,16 +152,18 @@ async fn callers_resume_roundtrip_and_validation() {
             0
         )
         .await
-        .is_err());
+        .is_err()
+    );
     let again = api
         .callers_resumable(helper, 2, Some(token.clone()), EXPIRED)
         .await
         .unwrap();
     assert!(again.timed_out);
-    assert!(api
-        .callers_resumable(helper, 2, Some(token), 0)
-        .await
-        .is_err());
+    assert!(
+        api.callers_resumable(helper, 2, Some(token), 0)
+            .await
+            .is_err()
+    );
     let token = again.resume.unwrap();
     let done = api
         .callers_resumable(helper, 2, Some(token.clone()), 0)
@@ -162,10 +174,11 @@ async fn callers_resume_roundtrip_and_validation() {
         done.page.iter().map(|s| s.id).collect::<Vec<_>>(),
         vec![callee, caller]
     );
-    assert!(api
-        .callers_resumable(helper, 2, Some(token), 0)
-        .await
-        .is_err());
+    assert!(
+        api.callers_resumable(helper, 2, Some(token), 0)
+            .await
+            .is_err()
+    );
     let name = api
         .search_symbol_paged_resumable(
             "helper",
@@ -180,10 +193,11 @@ async fn callers_resume_roundtrip_and_validation() {
         )
         .await
         .unwrap();
-    assert!(api
-        .callers_resumable(helper, 2, name.resume, 0)
-        .await
-        .is_err());
+    assert!(
+        api.callers_resumable(helper, 2, name.resume, 0)
+            .await
+            .is_err()
+    );
     let stale = api
         .callers_resumable(helper, 2, None, EXPIRED)
         .await
@@ -765,8 +779,8 @@ async fn search_symbol_paged_resume_paging() {
     assert!(last.resume.is_none(), "last page: no more resume");
 
     // Resume id này thuộc query "order" — dùng cho query khác → lỗi.
-    assert!(api
-        .search_symbol_paged_resumable(
+    assert!(
+        api.search_symbol_paged_resumable(
             "zzz",
             None,
             SymbolMatch::Contains,
@@ -778,7 +792,8 @@ async fn search_symbol_paged_resume_paging() {
             0
         )
         .await
-        .is_err());
+        .is_err()
+    );
 }
 
 /// Judge giả: đảo ngược thứ tự candidate để kiểm tra rerank có thật sự

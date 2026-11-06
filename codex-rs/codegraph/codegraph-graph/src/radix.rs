@@ -14,7 +14,8 @@ use std::sync::Arc;
 
 use tokio::sync::RwLock;
 
-use crate::storage::{self, Storage};
+use crate::storage::Storage;
+use crate::storage::{self};
 
 /// Re-export `EMPTY` (node id sentinel) từ storage — `search` / `Search` cần
 /// truy cập nhanh mà không phải dùng `storage::EMPTY` mỗi nơi.
@@ -1110,7 +1111,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_on_split_callback_after_commit() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::atomic::Ordering;
 
         let mut tree = Radix::in_memory(4);
         let calls = Arc::new(AtomicUsize::new(0));

@@ -1,4 +1,5 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
 /// Configuration for the document graph layer (`.codegraph/config.toml [docgraph]`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

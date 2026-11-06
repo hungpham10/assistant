@@ -9,7 +9,8 @@
 //! đã chốt). Query surface (search/callers/callees/flow/...) nằm ở
 //! `codegraph-graph`; ở đây chỉ là các kiểu dữ liệu + id-space.
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 
 // ==================== Marker Enum ====================

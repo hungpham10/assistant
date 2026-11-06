@@ -10,8 +10,12 @@
 //! - `batch_read_{1,16,64}`  — gọi `get_nodes` 1 lần cho cả id.
 //! - `search_dfs`            — DFS thật trên trie đã dựng (đo end-to-end).
 
-use codegraph_graph::{CategoryStorage, LmdbStorage};
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use codegraph_graph::CategoryStorage;
+use codegraph_graph::LmdbStorage;
+use criterion::Criterion;
+use criterion::black_box;
+use criterion::criterion_group;
+use criterion::criterion_main;
 
 const N_NODES: usize = 4096;
 

@@ -3,7 +3,8 @@
 use camino::Utf8PathBuf;
 use codegraph_core::Symbol;
 use codegraph_extract::Orchestrator;
-use codegraph_graph::{GraphIndex, Pagination};
+use codegraph_graph::GraphIndex;
+use codegraph_graph::Pagination;
 
 /// Tiện ích: search substring (resumable) trả `Vec<Symbol>` — thay thế
 /// `GraphIndex::search_symbol` đã xoá (mọi search đều qua resumable path).

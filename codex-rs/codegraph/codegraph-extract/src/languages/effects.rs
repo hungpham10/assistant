@@ -13,9 +13,12 @@
 //! vào thread-local trước vòng parse song song; leaf `classify_effect` đọc từ
 //! thread-local (chưa install → dùng bảng default — test/đường dẫn đơn file).
 
-use codegraph_core::{EffectCallPattern, EffectRule, EffectType};
+use codegraph_core::EffectCallPattern;
+use codegraph_core::EffectRule;
+use codegraph_core::EffectType;
 use std::cell::RefCell;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+use std::sync::OnceLock;
 
 /// Cách match một rule lên call name.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

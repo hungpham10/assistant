@@ -2,9 +2,11 @@ use dashmap::DashMap;
 use parking_lot::Mutex;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 const NULL: usize = usize::MAX;
 
@@ -325,7 +327,8 @@ mod tests {
     #[test]
     fn test_extreme_data_integrity() {
         use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
+        use std::hash::Hash;
+        use std::hash::Hasher;
 
         let capacity_per_shard = 50;
         let total_capacity = capacity_per_shard * SHARD_COUNT;
@@ -600,7 +603,8 @@ mod tests {
 
     #[test]
     fn test_no_data_loss_and_leak() {
-        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::atomic::AtomicUsize;
+        use std::sync::atomic::Ordering;
 
         let capacity_per_shard = 100;
         let total_capacity = capacity_per_shard * SHARD_COUNT;

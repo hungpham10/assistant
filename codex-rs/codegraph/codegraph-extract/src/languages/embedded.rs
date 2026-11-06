@@ -15,10 +15,17 @@
 //!
 //! Ngoài ra mỗi file được thay bằng 1 symbol `Module` tên file-stem (component).
 
-use crate::languages::common::{run_spec, LangSpec};
-use codegraph_core::{Result, ScopeLevel, Symbol, SymbolKind, SYMBOL_BASE};
-use codegraph_graph::{FileDeps, ParseResult};
-use tree_sitter::{Node, Parser};
+use crate::languages::common::LangSpec;
+use crate::languages::common::run_spec;
+use codegraph_core::Result;
+use codegraph_core::SYMBOL_BASE;
+use codegraph_core::ScopeLevel;
+use codegraph_core::Symbol;
+use codegraph_core::SymbolKind;
+use codegraph_graph::FileDeps;
+use codegraph_graph::ParseResult;
+use tree_sitter::Node;
+use tree_sitter::Parser;
 
 /// Node là script chunk (`raw_text` trong `script_element`, frontmatter...).
 pub type ChunkMatcher = fn(&Node) -> bool;

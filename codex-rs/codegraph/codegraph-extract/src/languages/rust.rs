@@ -1,6 +1,12 @@
-use crate::languages::common::{named_children, text, CallRule, HookSpec, LangSpec, MarkerSpec};
+use crate::languages::common::CallRule;
+use crate::languages::common::HookSpec;
+use crate::languages::common::LangSpec;
+use crate::languages::common::MarkerSpec;
+use crate::languages::common::named_children;
+use crate::languages::common::text;
 use codegraph_core::SymbolKind;
-use codegraph_graph::{FileDeps, ImportAlias};
+use codegraph_graph::FileDeps;
+use codegraph_graph::ImportAlias;
 use tree_sitter::Node;
 
 fn ts_language() -> tree_sitter::Language {
@@ -193,7 +199,8 @@ fn rust_impl_trait_name(node: &tree_sitter::Node, src: &[u8]) -> Option<String> 
 #[cfg(test)]
 mod tests {
     use crate::LangParser;
-    use codegraph_core::{Symbol, SymbolKind};
+    use codegraph_core::Symbol;
+    use codegraph_core::SymbolKind;
 
     fn parse(src: &str) -> Vec<Symbol> {
         super::RustParser::new()
@@ -307,11 +314,13 @@ impl A { fn inherent(&self) {} }
             .iter()
             .find(|s| s.impl_trait.is_some() && s.name == "B")
             .expect("impl Display symbol not found");
-        assert!(display_impl
-            .impl_trait
-            .as_deref()
-            .unwrap()
-            .contains("Display"));
+        assert!(
+            display_impl
+                .impl_trait
+                .as_deref()
+                .unwrap()
+                .contains("Display")
+        );
 
         // Inherent impl không có trait.
         let inherent = syms

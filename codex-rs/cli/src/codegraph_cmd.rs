@@ -67,7 +67,11 @@ async fn run_index(args: CodegraphIndexArgs) -> anyhow::Result<()> {
     let path_str = path.to_string_lossy().into_owned();
     let summary = CodegraphService::host_index(&path_str, args.kind.as_str()).await?;
     let kind = IndexKind::parse(args.kind.as_str());
-    println!("codegraph index ({}) done for {}", kind.as_str(), summary.root);
+    println!(
+        "codegraph index ({}) done for {}",
+        kind.as_str(),
+        summary.root
+    );
     if kind.indexes_source() {
         println!(
             "  source: {} files, {} symbols, {} chains, {} calls (skipped {})",

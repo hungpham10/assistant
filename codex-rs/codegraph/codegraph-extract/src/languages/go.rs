@@ -1,8 +1,13 @@
-use crate::languages::common::{
-    first_identifier, named_children, text, CallRule, HookSpec, LangSpec, MarkerSpec,
-};
+use crate::languages::common::CallRule;
+use crate::languages::common::HookSpec;
+use crate::languages::common::LangSpec;
+use crate::languages::common::MarkerSpec;
+use crate::languages::common::first_identifier;
+use crate::languages::common::named_children;
+use crate::languages::common::text;
 use codegraph_core::SymbolKind;
-use codegraph_graph::{FileDeps, ImportAlias};
+use codegraph_graph::FileDeps;
+use codegraph_graph::ImportAlias;
 use tree_sitter::Node;
 
 fn ts_language() -> tree_sitter::Language {

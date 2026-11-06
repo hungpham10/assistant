@@ -99,10 +99,11 @@ int entry_fn(int x) { return helper(x) * 2; }
     let flow = g.flow(entry_id).await.unwrap();
     assert_eq!(flow.symbol.name, page.rows[0].name);
     assert!(!flow.calls.is_empty(), "flow.calls không được rỗng");
-    assert!(flow
-        .chain_desc
-        .iter()
-        .any(|d| d.contains("helper") || d.contains("entry_fn")));
+    assert!(
+        flow.chain_desc
+            .iter()
+            .any(|d| d.contains("helper") || d.contains("entry_fn"))
+    );
 }
 
 fn which_failed(bin: &str) -> bool {

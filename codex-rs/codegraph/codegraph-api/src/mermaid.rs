@@ -4,13 +4,30 @@
 //! code flow trên Dashboard on-prem, không lộ raw source.
 
 use crate::GraphApi;
-use codegraph_core::{
-    is_marker, marker_name, EffectType, FlowCall, FlowResult, SymbolId, MARKER_BRANCH_END,
-    MARKER_BREAK, MARKER_CALL_ENTER, MARKER_CALL_EXIT, MARKER_CONTINUE, MARKER_IF_FALSE,
-    MARKER_IF_TRUE, MARKER_LOOP, MARKER_LOOP_BACK, MARKER_RETURN, MARKER_STMT_END,
-    MARKER_SWITCH_CASE, MARKER_SWITCH_CLOSE, MARKER_SWITCH_END, MARKER_SWITCH_START, MARKER_THROW,
-};
-use std::collections::{HashMap, HashSet};
+use codegraph_core::EffectType;
+use codegraph_core::FlowCall;
+use codegraph_core::FlowResult;
+use codegraph_core::MARKER_BRANCH_END;
+use codegraph_core::MARKER_BREAK;
+use codegraph_core::MARKER_CALL_ENTER;
+use codegraph_core::MARKER_CALL_EXIT;
+use codegraph_core::MARKER_CONTINUE;
+use codegraph_core::MARKER_IF_FALSE;
+use codegraph_core::MARKER_IF_TRUE;
+use codegraph_core::MARKER_LOOP;
+use codegraph_core::MARKER_LOOP_BACK;
+use codegraph_core::MARKER_RETURN;
+use codegraph_core::MARKER_STMT_END;
+use codegraph_core::MARKER_SWITCH_CASE;
+use codegraph_core::MARKER_SWITCH_CLOSE;
+use codegraph_core::MARKER_SWITCH_END;
+use codegraph_core::MARKER_SWITCH_START;
+use codegraph_core::MARKER_THROW;
+use codegraph_core::SymbolId;
+use codegraph_core::is_marker;
+use codegraph_core::marker_name;
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 /// Control-flow của một hàm (từ [`FlowResult`]): `flowchart TD` thể hiện **logic
 /// hàm làm gì** và **call đi đâu** — không còn là một chuỗi node nối tiếp.
@@ -734,7 +751,11 @@ fn sanitize(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use codegraph_core::{BranchLabel, ScopeLevel, Symbol, SymbolKind, MARKER_SWITCH_CLOSE};
+    use codegraph_core::BranchLabel;
+    use codegraph_core::MARKER_SWITCH_CLOSE;
+    use codegraph_core::ScopeLevel;
+    use codegraph_core::Symbol;
+    use codegraph_core::SymbolKind;
 
     fn flow(chain: Vec<u64>, desc: Vec<&str>, calls: Vec<FlowCall>) -> FlowResult {
         FlowResult {
