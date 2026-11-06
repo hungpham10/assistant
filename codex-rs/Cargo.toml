@@ -480,7 +480,7 @@ rayon = "1"
 redis = { version = "1.0", features = ["tokio-comp"] }
 lmdb-rkv = "0.14"
 rusqlite = { version = "0.39", features = ["bundled", "backup"] }
-ts-rs = "11"
+ts-rs = "12"
 tungstenite = { version = "0.27.0", features = ["deflate", "proxy"] }
 uds_windows = "1.1.0"
 unicode-segmentation = "1.12.0"
