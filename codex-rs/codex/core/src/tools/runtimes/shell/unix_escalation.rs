@@ -907,6 +907,7 @@ impl CoreShellCommandExecutor {
             },
             /*stdout_stream*/ None,
             after_spawn,
+            /*shell_backend*/ &codex_shell_backend::StdSystemProcessBackend,
         )
         .await?;
 

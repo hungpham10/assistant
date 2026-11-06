@@ -136,6 +136,7 @@ pub(super) async fn spawn_review_thread(
         approval_policy: parent_turn_context.approval_policy.clone(),
         permission_profile: parent_turn_context.permission_profile(),
         network: parent_turn_context.network.clone(),
+        shell_backend: parent_turn_context.shell_backend.clone(),
         windows_sandbox_level: parent_turn_context.windows_sandbox_level,
         #[allow(deprecated)]
         cwd: parent_turn_context.cwd.clone(),

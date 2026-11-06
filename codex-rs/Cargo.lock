@@ -3143,6 +3143,7 @@ dependencies = [
  "codex-rollout",
  "codex-rollout-trace",
  "codex-sandboxing",
+ "codex-shell-backend",
  "codex-shell-command",
  "codex-shell-escalation",
  "codex-state",
