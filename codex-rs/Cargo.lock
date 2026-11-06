@@ -3317,6 +3317,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "codex-artifacts",
+ "pretty_assertions",
  "serde",
  "serde_json",
  "tempfile",
