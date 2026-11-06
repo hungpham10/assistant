@@ -5,18 +5,8 @@ use clap::CommandFactory;
 use clap::Parser;
 use clap_complete::Shell;
 use clap_complete::generate;
-#[cfg(feature = "app-server")]
-use codex_app_server_daemon::BootstrapOptions as AppServerBootstrapOptions;
-#[cfg(feature = "app-server")]
-use codex_app_server_daemon::LifecycleCommand as AppServerLifecycleCommand;
-#[cfg(feature = "app-server")]
-use codex_app_server_daemon::RemoteControlMode as AppServerRemoteControlMode;
 use codex_arg0::Arg0DispatchPaths;
 use codex_arg0::arg0_dispatch_or_else;
-#[cfg(feature = "apply")]
-use codex_chatgpt::apply_command::ApplyCommand;
-#[cfg(feature = "apply")]
-use codex_chatgpt::apply_command::run_apply_command;
 use codex_cli::read_access_token_from_stdin;
 use codex_cli::read_api_key_from_stdin;
 use codex_cli::run_login_status;
@@ -25,19 +15,11 @@ use codex_cli::run_login_with_api_key;
 use codex_cli::run_login_with_chatgpt;
 use codex_cli::run_login_with_device_code;
 use codex_cli::run_logout;
-#[cfg(feature = "cloud")]
-use codex_cloud_tasks::Cli as CloudTasksCli;
 use codex_exec::Cli as ExecCli;
 use codex_exec::Command as ExecCommand;
 use codex_exec::ReviewArgs;
 use codex_execpolicy::ExecPolicyCheckCommand;
 use codex_path::absolute_path::AbsolutePathBuf;
-#[cfg(feature = "internal-tools")]
-use codex_responses_api_proxy::Args as ResponsesApiProxyArgs;
-#[cfg(feature = "internal-tools")]
-use codex_rollout_trace::REDUCED_STATE_FILE_NAME;
-#[cfg(feature = "internal-tools")]
-use codex_rollout_trace::replay_bundle;
 use codex_state::StateRuntime;
 use codex_state::memories_db_path;
 use codex_tui::AppExitInfo;
@@ -109,13 +91,32 @@ use codex_home::CodexHomeUserInstructionsProvider;
 use codex_login::AuthManager;
 use codex_login::CodexAuth;
 use codex_login::read_codex_access_token_from_env;
-#[cfg(feature = "internal-tools")]
-use codex_memories_write::clear_memory_roots_contents;
 use codex_models_manager::bundled_models_response;
 use codex_models_manager::manager::RefreshStrategy;
 use codex_protocol::protocol::AskForApproval;
 use codex_protocol::user_input::UserInput;
 use codex_terminal_detection::TerminalName;
+
+#[cfg(feature = "app-server")]
+use codex_app_server_daemon::BootstrapOptions as AppServerBootstrapOptions;
+#[cfg(feature = "app-server")]
+use codex_app_server_daemon::LifecycleCommand as AppServerLifecycleCommand;
+#[cfg(feature = "app-server")]
+use codex_app_server_daemon::RemoteControlMode as AppServerRemoteControlMode;
+#[cfg(feature = "apply")]
+use codex_chatgpt::apply_command::ApplyCommand;
+#[cfg(feature = "apply")]
+use codex_chatgpt::apply_command::run_apply_command;
+#[cfg(feature = "cloud")]
+use codex_cloud_tasks::Cli as CloudTasksCli;
+#[cfg(feature = "internal-tools")]
+use codex_memories_write::clear_memory_roots_contents;
+#[cfg(feature = "internal-tools")]
+use codex_responses_api_proxy::Args as ResponsesApiProxyArgs;
+#[cfg(feature = "internal-tools")]
+use codex_rollout_trace::REDUCED_STATE_FILE_NAME;
+#[cfg(feature = "internal-tools")]
+use codex_rollout_trace::replay_bundle;
 
 #[derive(Debug, Parser)]
 #[clap(

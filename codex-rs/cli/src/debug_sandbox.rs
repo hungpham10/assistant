@@ -6,6 +6,13 @@ mod seatbelt;
 use std::path::PathBuf;
 use std::process::Stdio;
 
+#[cfg(target_os = "macos")]
+use codex_core::spawn::CODEX_SANDBOX_ENV_VAR;
+#[cfg(target_os = "macos")]
+use codex_sandboxing::seatbelt::CreateSeatbeltCommandArgsParams;
+#[cfg(target_os = "macos")]
+use codex_sandboxing::seatbelt::create_seatbelt_command_args;
+
 use anyhow::Context as _;
 use codex_config::LoaderOverrides;
 use codex_core::config::Config;
@@ -13,8 +20,6 @@ use codex_core::config::ConfigBuilder;
 use codex_core::config::ConfigOverrides;
 use codex_core::config::NetworkProxyAuditMetadata;
 use codex_core::exec_env::create_env;
-#[cfg(target_os = "macos")]
-use codex_core::spawn::CODEX_SANDBOX_ENV_VAR;
 use codex_core::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::config_types::SandboxMode;
@@ -23,10 +28,6 @@ use codex_protocol::models::SandboxEnforcement;
 use codex_protocol::permissions::NetworkSandboxPolicy;
 use codex_sandboxing::landlock::allow_network_for_proxy;
 use codex_sandboxing::landlock::create_linux_sandbox_command_args_for_permission_profile;
-#[cfg(target_os = "macos")]
-use codex_sandboxing::seatbelt::CreateSeatbeltCommandArgsParams;
-#[cfg(target_os = "macos")]
-use codex_sandboxing::seatbelt::create_seatbelt_command_args;
 use codex_sandboxing::with_managed_mitm_ca_readable_root;
 use codex_utils_cli::CliConfigOverrides;
 use tokio::process::Child;
