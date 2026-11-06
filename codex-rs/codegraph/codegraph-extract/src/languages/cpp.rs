@@ -155,12 +155,11 @@ fn cpp_signature_key(node: &Node, src: &[u8]) -> Option<String> {
     if let Some(params) = declarator.child_by_field_name("parameters") {
         let mut cursor = params.walk();
         for ch in params.children(&mut cursor) {
-            if ch.kind() == "parameter" {
-                if let Some(t) = ch.child_by_field_name("type") {
-                    if let Some(txt) = text(&t, src) {
-                        pt.push(txt.replace(' ', ""));
-                    }
-                }
+            if ch.kind() == "parameter"
+                && let Some(t) = ch.child_by_field_name("type")
+                && let Some(txt) = text(&t, src)
+            {
+                pt.push(txt.replace(' ', ""));
             }
         }
     }

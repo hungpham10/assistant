@@ -41,25 +41,23 @@ impl CommandParser for AtCommandParser {
                 let part = part.trim();
                 if let Some(cmd) = parse_single(part) {
                     commands.push(cmd);
-                    if let Some(_paren_start) = part.find('(') {
-                        if let Some(paren_end) = part.find(')') {
-                            if let Some(start) = part.find('@') {
-                                let to_remove = &part[start..=paren_end];
-                                remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
-                            }
-                        }
+                    if let Some(_paren_start) = part.find('(')
+                        && let Some(paren_end) = part.find(')')
+                        && let Some(start) = part.find('@')
+                    {
+                        let to_remove = &part[start..=paren_end];
+                        remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
                     }
                 }
             }
         } else if let Some(cmd) = parse_single(input) {
             commands.push(cmd);
-            if let Some(_paren_start) = input.find('(') {
-                if let Some(paren_end) = input.find(')') {
-                    if let Some(start) = input.find('@') {
-                        let to_remove = &input[start..=paren_end];
-                        remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
-                    }
-                }
+            if let Some(_paren_start) = input.find('(')
+                && let Some(paren_end) = input.find(')')
+                && let Some(start) = input.find('@')
+            {
+                let to_remove = &input[start..=paren_end];
+                remaining_prompt = remaining_prompt.replacen(to_remove, "", 1);
             }
         }
 
@@ -89,26 +87,26 @@ fn parse_single(s: &str) -> Option<VerbCall> {
     }
     if let Some(at_pos) = s.find('@') {
         let sub = &s[at_pos..];
-        if let Some(paren_start) = sub.find('(') {
-            if let Some(paren_end) = sub.find(')') {
-                let prefix = &sub[1..paren_start];
-                if let Some(dot_pos) = prefix.find('.') {
-                    let namespace = prefix[..dot_pos].to_string();
-                    let verb = prefix[dot_pos + 1..].to_string();
-                    let args_str = &sub[paren_start + 1..paren_end];
-                    let args: JsonValue = if args_str.trim().is_empty() {
-                        serde_json::json!({})
-                    } else {
-                        serde_json::from_str(&format!("{{{args_str}}}"))
-                            .or_else(|_| serde_json::from_str(args_str))
-                            .unwrap_or_else(|_| serde_json::json!({}))
-                    };
-                    return Some(VerbCall {
-                        namespace,
-                        verb,
-                        args,
-                    });
-                }
+        if let Some(paren_start) = sub.find('(')
+            && let Some(paren_end) = sub.find(')')
+        {
+            let prefix = &sub[1..paren_start];
+            if let Some(dot_pos) = prefix.find('.') {
+                let namespace = prefix[..dot_pos].to_string();
+                let verb = prefix[dot_pos + 1..].to_string();
+                let args_str = &sub[paren_start + 1..paren_end];
+                let args: JsonValue = if args_str.trim().is_empty() {
+                    serde_json::json!({})
+                } else {
+                    serde_json::from_str(&format!("{{{args_str}}}"))
+                        .or_else(|_| serde_json::from_str(args_str))
+                        .unwrap_or_else(|_| serde_json::json!({}))
+                };
+                return Some(VerbCall {
+                    namespace,
+                    verb,
+                    args,
+                });
             }
         }
     }

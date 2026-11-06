@@ -330,10 +330,10 @@ async fn doc_graph() -> Result<Arc<SharedDocGraph>> {
         .await
         .ok_or_else(|| anyhow::anyhow!("no codegraph session bound"))?;
     let mut slot = global_doc_graph().lock().expect("codegraph doc graph lock");
-    if let Some((cached_root, graph)) = slot.as_ref() {
-        if *cached_root == root {
-            return Ok(Arc::clone(graph));
-        }
+    if let Some((cached_root, graph)) = slot.as_ref()
+        && *cached_root == root
+    {
+        return Ok(Arc::clone(graph));
     }
     let graph = Arc::new(SharedDocGraph::lazy(root.clone()));
     *slot = Some((root, Arc::clone(&graph)));
@@ -352,7 +352,7 @@ fn arg_str<'a>(args: &'a JsonValue, key: &str) -> Option<&'a str> {
 }
 
 fn arg_u64(args: &JsonValue, key: &str) -> Option<u64> {
-    args.get(key).and_then(|v| v.as_u64())
+    args.get(key).and_then(serde_json::Value::as_u64)
 }
 
 fn arg_u32(args: &JsonValue, key: &str) -> Option<u32> {

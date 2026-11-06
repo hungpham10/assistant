@@ -609,6 +609,8 @@ pub(crate) struct ChatWidget {
     thread_tools_inventory: Option<(ThreadId, Vec<ThreadToolInventoryItem>)>,
     /// Thread whose tool inventory is being fetched for the `/tools` picker.
     tools_picker_loading_thread: Option<ThreadId>,
+    /// Refresh the open `/tools` picker when the in-flight inventory load completes.
+    tools_picker_refresh_on_load: bool,
     skills_all: Vec<ProtocolSkillMetadata>,
     skills_initial_state: Option<HashMap<AbsolutePathBuf, bool>>,
     last_unified_wait: Option<UnifiedExecWaitState>,

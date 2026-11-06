@@ -82,10 +82,10 @@ fn scala_supers(node: &Node, src: &[u8]) -> Option<String> {
         if matches!(n.kind(), "type_identifier" | "generic_type" | "call_site") {
             // call_site: `extends App(...)` — tên ở con đầu.
             let t = text(&n, src).map(|s| s.split('(').next().unwrap_or("").trim().to_string());
-            if let Some(t) = t {
-                if !t.is_empty() {
-                    names.push(t);
-                }
+            if let Some(t) = t
+                && !t.is_empty()
+            {
+                names.push(t);
             }
             if n.kind() != "generic_type" {
                 continue; // generic_type cần đi tiếp con để lấy base
@@ -108,10 +108,10 @@ fn scala_signature_key(node: &Node, src: &[u8]) -> Option<String> {
     let mut pt: Vec<String> = Vec::new();
     if let Some(params) = node.child_by_field_name("parameters") {
         for ch in named_children(&params) {
-            if let Some(t) = ch.child_by_field_name("type") {
-                if let Some(txt) = text(&t, src) {
-                    pt.push(txt.replace(' ', ""));
-                }
+            if let Some(t) = ch.child_by_field_name("type")
+                && let Some(txt) = text(&t, src)
+            {
+                pt.push(txt.replace(' ', ""));
             }
         }
     }

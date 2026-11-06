@@ -236,6 +236,10 @@ impl<T: Element> Radix<T> {
     /// đó (điểm flow đi tới) → lưu metadata vào node stream. Fire ngay từ đầu
     /// insert, **độc lập với kết quả structural** (duplicate/split/extend đều
     /// fire) — callback access có thể gọi lại nhiều lần nhưng phải trả cùng id.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn insert(
         &mut self,
         prefix: &[T],
@@ -364,6 +368,10 @@ impl<T: Element> Radix<T> {
     ///
     /// Bỏ qua khi: không có callback, `elem == EMPTY`, hoặc callback trả `EMPTY`.
     #[inline]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn fire_node(&self, elem: T, meta: &[u8]) -> Result<()> {
         let Some(cb) = &self.on_node else {
             return Ok(());
@@ -386,6 +394,10 @@ impl<T: Element> Radix<T> {
     /// một lần, độc lập với chain insert. Không có callback thì dùng chính
     /// `elem.to_usize()` làm id. Trả về id đã lưu (hoặc `EMPTY` nếu bỏ qua).
     #[allow(dead_code)]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn register_node(&self, elem: T, meta: &[u8]) -> Result<usize> {
         if elem.to_usize() == storage::EMPTY {
             return Ok(storage::EMPTY);
@@ -403,6 +415,10 @@ impl<T: Element> Radix<T> {
 
     /// Match chính xác key → record index.
     #[cfg(test)]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn r#match(&self, begin: usize, prefix: &[T]) -> Result<usize> {
         if prefix.is_empty() {
             return Err(Error::NotFound);
@@ -467,6 +483,10 @@ impl<T: Element> Radix<T> {
 
     /// Follow key từ root → leaf, trả về toàn bộ node ids trên đường đi.
     #[allow(dead_code)]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn follow_path(&self, key: &[T]) -> Result<Vec<usize>> {
         if key.is_empty() {
             return Ok(Vec::new());
@@ -519,6 +539,10 @@ impl<T: Element> Radix<T> {
     }
 
     /// Tìm tất cả `(full_key, record)` có key bắt đầu bằng `prefix`.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn search_prefix(&self, begin: usize, prefix: &[T]) -> Result<Vec<(Vec<T>, usize)>> {
         if prefix.is_empty() {
             return Ok(Vec::new());
@@ -587,6 +611,10 @@ impl<T: Element> Radix<T> {
     }
 
     /// Thu thập toàn bộ `(full_key, record)` trong subtree của `root`.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn collect_all(
         &self,
         root: usize,
@@ -619,6 +647,10 @@ impl<T: Element> Radix<T> {
 
     // ── DFS SEARCH (LIKE / substring) ──
 
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn search_dfs(
         &self,
         begin: usize,
@@ -812,6 +844,10 @@ impl<T: Element> Radix<T> {
     /// Toàn bộ thao tác nằm trong 1 transaction → commit atomic.
     /// `on_split` callback chạy TRƯỚC commit (trả Err → hủy transaction).
     #[inline]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn split(
         &mut self,
         parent: usize,
@@ -868,6 +904,10 @@ impl<T: Element> Radix<T> {
 
     /// Thêm child mới (suffix) vào `parent` — transaction 2 ops (new_node + add_child).
     #[inline]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn extend(&self, parent: usize, suffix: &[T], value: usize) -> Result<usize> {
         let mut tx = self.storage.read().await.new_tx();
         let id = tx.new_node(Self::from_vec(suffix), value).await?;

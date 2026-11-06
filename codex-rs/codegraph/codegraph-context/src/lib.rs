@@ -507,12 +507,11 @@ async fn load_source_lines(source: Option<&dyn Source>, file: &str) -> Result<Ve
 
 /// Strip `root/` prefix khỏi path (boundary-aware) — `None` giữ nguyên.
 pub(crate) fn rel_path<'a>(p: &'a str, strip: Option<&str>) -> &'a str {
-    if let Some(root) = strip {
-        if let Some(rest) = p.strip_prefix(root) {
-            if let Some(rest) = rest.strip_prefix('/') {
-                return rest;
-            }
-        }
+    if let Some(root) = strip
+        && let Some(rest) = p.strip_prefix(root)
+        && let Some(rest) = rest.strip_prefix('/')
+    {
+        return rest;
     }
     p
 }

@@ -33,17 +33,29 @@ impl ChatWidget {
         thread_id: ThreadId,
         items: Vec<ThreadToolInventoryItem>,
     ) {
-        if self.tools_picker_loading_thread == Some(thread_id) {
+        let was_loading = self.tools_picker_loading_thread == Some(thread_id);
+        if was_loading {
             self.tools_picker_loading_thread = None;
         }
         if self.thread_id() == Some(thread_id) {
             self.thread_tools_inventory = Some((thread_id, items));
+            if was_loading && self.tools_picker_refresh_on_load {
+                self.tools_picker_refresh_on_load = false;
+                if self.bottom_pane.has_active_view() {
+                    self.open_tools_picker();
+                }
+            } else if was_loading {
+                self.tools_picker_refresh_on_load = false;
+            }
+        } else if was_loading {
+            self.tools_picker_refresh_on_load = false;
         }
     }
 
     pub(crate) fn on_thread_tools_inventory_load_failed(&mut self, thread_id: ThreadId) {
         if self.tools_picker_loading_thread == Some(thread_id) {
             self.tools_picker_loading_thread = None;
+            self.tools_picker_refresh_on_load = false;
         }
     }
 
@@ -65,13 +77,22 @@ impl ChatWidget {
         } else {
             if let Some(tid) = thread_id {
                 self.request_thread_tools_inventory_fetch(tid);
+                self.tools_picker_refresh_on_load = true;
             }
-            let items = BUILTIN_TOOL_CATALOG
+            let mut items: Vec<SelectionItem> = BUILTIN_TOOL_CATALOG
                 .iter()
                 .map(|name| builtin_selection_item(self, (*name).to_string(), (*name).to_string()))
                 .collect();
+            if thread_id.is_some() {
+                items.push(SelectionItem {
+                    name: "Loading MCP tools…".to_string(),
+                    description: Some("Reopen /tools if this does not update.".to_string()),
+                    dismiss_on_select: false,
+                    ..Default::default()
+                });
+            }
             let subtitle = if thread_id.is_some() {
-                "Showing built-in tools. Reopen /tools to see MCP tools after they load. Space or Enter toggles; Esc closes."
+                "Loading MCP tools for this thread. Space or Enter toggles built-ins; Esc closes."
                     .to_string()
             } else {
                 "Disabled tools stay callable via tool_search. Space or Enter toggles; Esc closes."
@@ -109,7 +130,7 @@ fn build_tools_picker_items(
 
     mcp.sort_by(|a, b| {
         display_server_name(a.server_name.as_deref())
-            .cmp(&display_server_name(b.server_name.as_deref()))
+            .cmp(display_server_name(b.server_name.as_deref()))
             .then_with(|| a.name.cmp(&b.name))
             .then_with(|| a.key.cmp(&b.key))
     });

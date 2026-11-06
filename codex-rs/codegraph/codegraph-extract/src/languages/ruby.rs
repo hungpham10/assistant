@@ -17,12 +17,11 @@ fn call_name(node: &Node, src: &[u8]) -> Option<String> {
     let method = node
         .child_by_field_name("method")
         .and_then(|m| text(&m, src))?;
-    if let Some(receiver) = node.child_by_field_name("receiver") {
-        if let Some(r) = text(&receiver, src) {
-            if !r.is_empty() {
-                return Some(format!("{r}.{method}"));
-            }
-        }
+    if let Some(receiver) = node.child_by_field_name("receiver")
+        && let Some(r) = text(&receiver, src)
+        && !r.is_empty()
+    {
+        return Some(format!("{r}.{method}"));
     }
     Some(method)
 }
@@ -163,19 +162,16 @@ fn ruby_require_deps(root: &Node, src: &[u8]) -> Option<FileDeps> {
                 .is_some_and(|mtxt| mtxt == "require" || mtxt == "require_relative");
         if is_require {
             // argument đầu là string literal.
-            if n.kind() == "call" {
-                if let Some(args) = n.child_by_field_name("arguments") {
-                    if let Some(path) = ruby_require_path(&args, src) {
-                        if let Some(seg) = path.rsplit('/').next() {
-                            if !seg.is_empty() {
-                                imports.push(ImportAlias {
-                                    alias: seg.to_string(),
-                                    path,
-                                });
-                            }
-                        }
-                    }
-                }
+            if n.kind() == "call"
+                && let Some(args) = n.child_by_field_name("arguments")
+                && let Some(path) = ruby_require_path(&args, src)
+                && let Some(seg) = path.rsplit('/').next()
+                && !seg.is_empty()
+            {
+                imports.push(ImportAlias {
+                    alias: seg.to_string(),
+                    path,
+                });
             }
         }
         let mut cursor = n.walk();

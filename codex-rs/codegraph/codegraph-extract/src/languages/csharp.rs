@@ -131,10 +131,10 @@ fn csharp_signature_key(node: &Node, src: &[u8]) -> Option<String> {
     let mut pt: Vec<String> = Vec::new();
     if let Some(params) = node.child_by_field_name("parameters") {
         for ch in named_children(&params) {
-            if let Some(t) = ch.child_by_field_name("type") {
-                if let Some(txt) = text(&t, src) {
-                    pt.push(txt.replace(' ', ""));
-                }
+            if let Some(t) = ch.child_by_field_name("type")
+                && let Some(txt) = text(&t, src)
+            {
+                pt.push(txt.replace(' ', ""));
             }
         }
     }

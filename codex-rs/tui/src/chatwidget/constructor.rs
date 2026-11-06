@@ -154,6 +154,7 @@ impl ChatWidget {
             tools_session_disabled: HashSet::new(),
             thread_tools_inventory: None,
             tools_picker_loading_thread: None,
+            tools_picker_refresh_on_load: false,
             last_unified_wait: None,
             unified_exec_wait_streak: None,
             turn_lifecycle: TurnLifecycleState::new(prevent_idle_sleep),

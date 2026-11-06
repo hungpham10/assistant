@@ -148,12 +148,12 @@ pub fn js_extends(node: &Node, src: &[u8]) -> Option<String> {
         .find(|c| c.kind() == "class_heritage")?;
     let named = named_children(&heritage);
     // TS: heritage chứa extends_clause/implements_clause — dùng field name.
-    if let Some(first) = named.first() {
-        if matches!(first.kind(), "extends_clause" | "implements_clause") {
-            return first
-                .child_by_field_name("name")
-                .and_then(|n| text(&n, src));
-        }
+    if let Some(first) = named.first()
+        && matches!(first.kind(), "extends_clause" | "implements_clause")
+    {
+        return first
+            .child_by_field_name("name")
+            .and_then(|n| text(&n, src));
     }
     // JS: extends token là unnamed → named đầu tiên là base.
     named.first().and_then(|n| text(n, src))

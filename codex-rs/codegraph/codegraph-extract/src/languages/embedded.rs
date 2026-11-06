@@ -176,10 +176,10 @@ fn merge(acc: &mut ParseResult, add: ParseResult) {
         acc.symbols.push(s);
     }
     for (k, mut chain) in add.chains {
-        if let Some(head) = chain.first_mut() {
-            if *head != 0 {
-                *head += off;
-            }
+        if let Some(head) = chain.first_mut()
+            && *head != 0
+        {
+            *head += off;
         }
         acc.chains.insert(k + off, chain);
     }

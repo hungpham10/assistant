@@ -113,20 +113,20 @@ fn go_signature_key(node: &Node, src: &[u8]) -> Option<String> {
     let params = node.child_by_field_name("parameters")?;
     let mut pt: Vec<String> = Vec::new();
     for ch in named_children(&params) {
-        if let Some(t) = ch.child_by_field_name("type") {
-            if let Some(txt) = text(&t, src) {
-                pt.push(compact(&txt));
-            }
+        if let Some(t) = ch.child_by_field_name("type")
+            && let Some(txt) = text(&t, src)
+        {
+            pt.push(compact(&txt));
         }
     }
     let mut rt: Vec<String> = Vec::new();
     if let Some(res) = node.child_by_field_name("result") {
         if res.kind() == "parameter_list" {
             for ch in named_children(&res) {
-                if let Some(t) = ch.child_by_field_name("type") {
-                    if let Some(txt) = text(&t, src) {
-                        rt.push(compact(&txt));
-                    }
+                if let Some(t) = ch.child_by_field_name("type")
+                    && let Some(txt) = text(&t, src)
+                {
+                    rt.push(compact(&txt));
                 }
             }
         } else if let Some(txt) = text(&res, src) {
@@ -194,10 +194,10 @@ fn go_file_deps(root: &Node, src: &[u8]) -> Option<FileDeps> {
                 // package_identifier là unnamed child (không có field "name").
                 let mut cursor = n.walk();
                 for ch in n.children(&mut cursor) {
-                    if ch.kind() == "package_identifier" {
-                        if let Some(t) = text(&ch, src) {
-                            deps.package = Some(t);
-                        }
+                    if ch.kind() == "package_identifier"
+                        && let Some(t) = text(&ch, src)
+                    {
+                        deps.package = Some(t);
                     }
                 }
             }

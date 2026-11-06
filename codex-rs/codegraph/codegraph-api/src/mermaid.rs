@@ -180,10 +180,8 @@ fn execution_order(chain: &[u64], n: usize) -> Vec<usize> {
     fn emit(id: usize, frames: &[Frame], is_root: bool, out: &mut Vec<usize>) {
         let f = &frames[id];
         // Frame gốc (root) giữ owner (symbol hàm) đứng đầu.
-        if is_root {
-            if let Some(owner) = f.owner {
-                out.push(owner);
-            }
+        if is_root && let Some(owner) = f.owner {
+            out.push(owner);
         }
         for item in &f.rest {
             match item {
@@ -192,10 +190,8 @@ fn execution_order(chain: &[u64], n: usize) -> Vec<usize> {
             }
         }
         // Frame call: owner (call ngoài cùng) phát SAU cùng.
-        if !is_root {
-            if let Some(owner) = f.owner {
-                out.push(owner);
-            }
+        if !is_root && let Some(owner) = f.owner {
+            out.push(owner);
         }
     }
 
@@ -293,20 +289,21 @@ fn node_style(
                 chain[i - 1],
                 MARKER_IF_TRUE | MARKER_IF_FALSE | MARKER_LOOP | MARKER_SWITCH_CASE
             );
-        if let Some(cond) = &c.condition {
-            if !cond.is_empty() && (cond_is_immediate || !has_branch_marker_before) {
-                label.push_str(&format!(" · if {cond}"));
-            }
+        if let Some(cond) = &c.condition
+            && !cond.is_empty()
+            && (cond_is_immediate || !has_branch_marker_before)
+        {
+            label.push_str(&format!(" · if {cond}"));
         }
         if c.effect != EffectType::None {
             label.push_str(" · ");
             label.push_str(c.effect.as_str());
         }
         // Thêm biến gán nếu có.
-        if let Some(var) = &c.into_var {
-            if !var.is_empty() {
-                label.push_str(&format!(" → {var}"));
-            }
+        if let Some(var) = &c.into_var
+            && !var.is_empty()
+        {
+            label.push_str(&format!(" → {var}"));
         }
         if c.to_id.is_none() {
             label.push_str(" · ext");
@@ -323,17 +320,17 @@ fn node_style(
 /// Guard text của một marker: ưu tiên call record cùng vị trí, rồi call đầu tiên
 /// trong nhánh (trước marker kế tiếp) có `condition`.
 fn guard_for(chain: &[u64], marker_at: usize, calls: &HashMap<usize, &FlowCall>) -> Option<String> {
-    if let Some(cond) = calls.get(&marker_at).and_then(|c| c.condition.as_ref()) {
-        if !cond.is_empty() {
-            return Some(cond.clone());
-        }
+    if let Some(cond) = calls.get(&marker_at).and_then(|c| c.condition.as_ref())
+        && !cond.is_empty()
+    {
+        return Some(cond.clone());
     }
     let mut j = marker_at + 1;
     while j < chain.len() && !is_marker(chain[j]) {
-        if let Some(cond) = calls.get(&j).and_then(|c| c.condition.as_ref()) {
-            if !cond.is_empty() {
-                return Some(cond.clone());
-            }
+        if let Some(cond) = calls.get(&j).and_then(|c| c.condition.as_ref())
+            && !cond.is_empty()
+        {
+            return Some(cond.clone());
         }
         j += 1;
     }
@@ -578,10 +575,11 @@ pub fn control_flow_diff(head: &FlowResult, base: &FlowResult) -> String {
         let desc = head.chain_desc.get(i).map(String::as_str).unwrap_or("");
         let (open, close, label) = node_style(&head.chain, i, raw, desc, &calls, &labels);
         out.push_str(&format!("  c{i}{open}\"{}\"{close}\n", sanitize(&label)));
-        if let Some(c) = calls.get(&i) {
-            if !c.to_name.is_empty() && !base_names.contains(c.to_name.as_str()) {
-                added_idx.push(i);
-            }
+        if let Some(c) = calls.get(&i)
+            && !c.to_name.is_empty()
+            && !base_names.contains(c.to_name.as_str())
+        {
+            added_idx.push(i);
         }
     }
 

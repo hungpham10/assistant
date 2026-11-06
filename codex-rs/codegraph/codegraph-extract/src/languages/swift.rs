@@ -143,10 +143,10 @@ fn swift_last_name_field<'a>(node: &Node<'a>, src: &'a [u8]) -> Option<String> {
     let mut cursor = node.walk();
     let mut found: Option<String> = None;
     for (i, ch) in node.children(&mut cursor).enumerate() {
-        if node.field_name_for_child(i as u32) == Some("name") {
-            if let Some(t) = text(&ch, src) {
-                found = Some(t);
-            }
+        if node.field_name_for_child(i as u32) == Some("name")
+            && let Some(t) = text(&ch, src)
+        {
+            found = Some(t);
         }
     }
     found
@@ -163,10 +163,10 @@ fn swift_import_deps(root: &Node, src: &[u8]) -> Option<FileDeps> {
             let mut cursor = n.walk();
             let mut last: Option<String> = None;
             for ch in n.children(&mut cursor) {
-                if ch.kind() == "identifier" {
-                    if let Some(t) = text(&ch, src) {
-                        last = Some(t);
-                    }
+                if ch.kind() == "identifier"
+                    && let Some(t) = text(&ch, src)
+                {
+                    last = Some(t);
                 }
             }
             if let Some(path) = last {

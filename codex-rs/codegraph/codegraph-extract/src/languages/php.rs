@@ -17,12 +17,11 @@ fn scoped_call_name(node: &Node, src: &[u8]) -> Option<String> {
     let name = node
         .child_by_field_name("name")
         .and_then(|n| text(&n, src))?;
-    if let Some(scope) = node.child_by_field_name("scope") {
-        if let Some(s) = text(&scope, src) {
-            if !s.is_empty() {
-                return Some(format!("{s}.{name}"));
-            }
-        }
+    if let Some(scope) = node.child_by_field_name("scope")
+        && let Some(s) = text(&scope, src)
+        && !s.is_empty()
+    {
+        return Some(format!("{s}.{name}"));
     }
     Some(name)
 }
@@ -32,12 +31,12 @@ fn member_call_name(node: &Node, src: &[u8]) -> Option<String> {
     let name = node
         .child_by_field_name("name")
         .and_then(|n| text(&n, src))?;
-    if let Some(obj) = node.child_by_field_name("object") {
-        if let Some(o) = text(&obj, src) {
-            let o = o.trim_start_matches('$');
-            if !o.is_empty() {
-                return Some(format!("{o}.{name}"));
-            }
+    if let Some(obj) = node.child_by_field_name("object")
+        && let Some(o) = text(&obj, src)
+    {
+        let o = o.trim_start_matches('$');
+        if !o.is_empty() {
+            return Some(format!("{o}.{name}"));
         }
     }
     Some(name)
@@ -179,31 +178,31 @@ fn php_supers(node: &Node, src: &[u8]) -> Option<String> {
     let clause = node
         .children(&mut node.walk())
         .find(|c| c.kind() == "base_clause");
-    if let Some(clause) = clause {
-        if let Some(raw) = text(&clause, src) {
-            let items: Vec<String> = raw
-                .replacen("extends", "", 1)
-                .split(',')
-                .map(|n| n.trim().to_string())
-                .filter(|n| !n.is_empty() && n != "implements")
-                .collect();
-            names.extend(items);
-        }
+    if let Some(clause) = clause
+        && let Some(raw) = text(&clause, src)
+    {
+        let items: Vec<String> = raw
+            .replacen("extends", "", 1)
+            .split(',')
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty() && n != "implements")
+            .collect();
+        names.extend(items);
     }
     // implements: field class_interface_clause — text "implements I, J".
     let iface_clause = node
         .children(&mut node.walk())
         .find(|c| c.kind() == "class_interface_clause");
-    if let Some(clause) = iface_clause {
-        if let Some(raw) = text(&clause, src) {
-            let items: Vec<String> = raw
-                .replacen("implements", "", 1)
-                .split(',')
-                .map(|n| n.trim().to_string())
-                .filter(|n| !n.is_empty() && n != "implements")
-                .collect();
-            names.extend(items);
-        }
+    if let Some(clause) = iface_clause
+        && let Some(raw) = text(&clause, src)
+    {
+        let items: Vec<String> = raw
+            .replacen("implements", "", 1)
+            .split(',')
+            .map(|n| n.trim().to_string())
+            .filter(|n| !n.is_empty() && n != "implements")
+            .collect();
+        names.extend(items);
     }
     names.dedup();
     (!names.is_empty()).then(|| names.join(","))
@@ -218,12 +217,11 @@ fn php_signature_key(node: &Node, src: &[u8]) -> Option<String> {
     if let Some(params) = node.child_by_field_name("parameters") {
         let mut cursor = params.walk();
         for ch in params.children(&mut cursor) {
-            if ch.kind() == "simple_parameter" {
-                if let Some(t) = ch.child_by_field_name("type") {
-                    if let Some(txt) = text(&t, src) {
-                        pt.push(txt.replace(' ', ""));
-                    }
-                }
+            if ch.kind() == "simple_parameter"
+                && let Some(t) = ch.child_by_field_name("type")
+                && let Some(txt) = text(&t, src)
+            {
+                pt.push(txt.replace(' ', ""));
             }
         }
     }

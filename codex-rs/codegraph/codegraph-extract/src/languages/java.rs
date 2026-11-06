@@ -19,22 +19,21 @@ fn method_invocation_name(node: &Node, src: &[u8]) -> Option<String> {
     let name = node
         .child_by_field_name("name")
         .and_then(|n| text(&n, src))?;
-    if let Some(obj) = node.child_by_field_name("object") {
-        if let Some(obj_text) = text(&obj, src) {
-            if !obj_text.is_empty() {
-                return Some(format!("{obj_text}.{name}"));
-            }
-        }
+    if let Some(obj) = node.child_by_field_name("object")
+        && let Some(obj_text) = text(&obj, src)
+        && !obj_text.is_empty()
+    {
+        return Some(format!("{obj_text}.{name}"));
     }
     Some(name)
 }
 
 /// `new Foo(...)` → tên class (field `type`).
 fn new_call_name(node: &Node, src: &[u8]) -> Option<String> {
-    if let Some(t) = node.child_by_field_name("type") {
-        if let Some(s) = text(&t, src) {
-            return Some(s);
-        }
+    if let Some(t) = node.child_by_field_name("type")
+        && let Some(s) = text(&t, src)
+    {
+        return Some(s);
     }
     named_children(node)
         .into_iter()
@@ -157,13 +156,13 @@ fn java_supers(node: &Node, src: &[u8]) -> Option<String> {
         }
     }
     // implements: field `interfaces` — text mang cả keyword "implements A, B".
-    if let Some(tl) = node.child_by_field_name("interfaces") {
-        if let Some(raw) = text(&tl, src) {
-            for n in raw.replacen("implements", "", 1).split(',') {
-                let n = n.trim();
-                if !n.is_empty() {
-                    names.push(n.to_string());
-                }
+    if let Some(tl) = node.child_by_field_name("interfaces")
+        && let Some(raw) = text(&tl, src)
+    {
+        for n in raw.replacen("implements", "", 1).split(',') {
+            let n = n.trim();
+            if !n.is_empty() {
+                names.push(n.to_string());
             }
         }
     }
@@ -183,10 +182,10 @@ fn java_signature_key(node: &TsNode, src: &[u8]) -> Option<String> {
     let mut pt: Vec<String> = Vec::new();
     if let Some(params) = node.child_by_field_name("parameters") {
         for ch in named_children(&params) {
-            if let Some(t) = ch.child_by_field_name("type") {
-                if let Some(txt) = text(&t, src) {
-                    pt.push(txt.replace(' ', ""));
-                }
+            if let Some(t) = ch.child_by_field_name("type")
+                && let Some(txt) = text(&t, src)
+            {
+                pt.push(txt.replace(' ', ""));
             }
         }
     }

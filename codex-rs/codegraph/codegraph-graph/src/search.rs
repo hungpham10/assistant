@@ -357,6 +357,10 @@ impl<T: Element> Search<T> {
     /// shard về EMPTY — cây trở thành rỗng với reader. Node/metadata cũ thành
     /// garbage vô hại (không reachable từ root); shortcut phải xoá kẻo candidate
     /// stale dò vào subtree cũ.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn clear(&mut self) -> Result<()> {
         let mut storage = self.storage.write().await;
         storage.clear_shortcuts().await?;
@@ -384,6 +388,10 @@ impl<T: Element> Search<T> {
     /// Key trùng (đã tồn tại) → `Err(Duplicated)`, không ghi đè record/meta cũ.
     /// Chain được lưu vào chain stream (keyed theo record) — callees đọc trực
     /// tiếp từ đây.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn insert_chain(
         &mut self,
         index: usize,
@@ -449,6 +457,10 @@ impl<T: Element> Search<T> {
     }
 
     /// Thêm node mới vào shortcut sets (từ `breakpoint`) — ghi thẳng xuống storage.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     async fn update_shortcuts(&self, key: &[T], breakpoint: usize, node_id: usize) -> Result<()> {
         let mut storage = self.storage.write().await;
 
@@ -474,6 +486,10 @@ impl<T: Element> Search<T> {
     ///   không kèm meta. Dedup theo record.
     ///
     /// Không tìm thấy → `Err(NotFound)` (giống `search_like` của `search_index`).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn search(
         &self,
         pattern: &[T],
@@ -514,6 +530,10 @@ impl<T: Element> Search<T> {
     /// hiện tại (name engine, chain engine) không dùng meta; `search` giữ API cũ.
     ///
     /// `resume: None` = search mới. `deadline: None` = chạy tới cùng.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn search_resumable(
         &self,
         pattern: &[T],
@@ -660,6 +680,10 @@ impl<T: Element> Search<T> {
     /// Quản lý metadata nằm ở tầng `Search` (Radix không biết tới meta) — dùng
     /// cho roundtrip test / quản lý index.
     #[allow(dead_code)]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn get_meta(&self, index: usize) -> Result<Option<Vec<u8>>> {
         Ok(self.storage.read().await.get_meta(index).await?)
     }
@@ -684,6 +708,10 @@ impl<T: Element> Search<T> {
     /// Chain model: callees = đọc chain từ stream này. Không dùng trong lib build
     /// mặc định (chỉ test/sqlite builds) — giữ làm API chain đầy đủ (Phase B).
     #[allow(dead_code)]
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn get_chain(&self, record: usize) -> Result<Option<Vec<T>>> {
         let stored = self.storage.read().await.get_chain(record).await?;
         // Chain lưu theo encoding (BE) của element — decode ngược chính xác
@@ -694,12 +722,20 @@ impl<T: Element> Search<T> {
 
     /// Lưu dữ liệu edge (opaque bytes, VD CallEdgeMeta JSON) keyed theo edge id.
     #[allow(dead_code)] // API giữ nguyên (protected) — edges suy từ chain trong GraphIndex.
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn set_edge_data(&self, edge: usize, data: &[u8]) -> Result<()> {
         Ok(self.storage.write().await.set_edge_data(edge, data).await?)
     }
 
     /// Đọc dữ liệu edge — `None` nếu edge chưa có.
     #[allow(dead_code)] // API giữ nguyên (protected).
+    #[expect(
+        clippy::await_holding_invalid_type,
+        reason = "storage lock guard must be held across async trait-object Storage calls"
+    )]
     pub async fn get_edge_data(&self, edge: usize) -> Result<Option<Vec<u8>>> {
         Ok(self.storage.read().await.get_edge_data(edge).await?)
     }

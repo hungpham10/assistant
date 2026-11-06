@@ -178,7 +178,7 @@ fn pg_macro_emits_try_catch_layout() {
         chain
             .iter()
             .enumerate()
-            .filter(|(_, &e)| e == m)
+            .filter(|(_, e)| **e == m)
             .map(|(i, _)| i)
             .collect()
     };

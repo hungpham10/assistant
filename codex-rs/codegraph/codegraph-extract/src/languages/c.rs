@@ -45,23 +45,23 @@ pub(crate) fn c_include_deps(root: &Node, src: &[u8]) -> Option<FileDeps> {
     let mut imports: Vec<ImportAlias> = Vec::new();
     let mut stack = vec![*root];
     while let Some(n) = stack.pop() {
-        if n.kind() == "preproc_include" {
-            if let Some(path_node) = n.child_by_field_name("path") {
-                let raw = text(&path_node, src).unwrap_or_default();
-                let path = raw
-                    .trim_matches(|c| c == '"' || c == '<' || c == '>')
-                    .to_string();
-                let alias = path
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("")
-                    .split('.')
-                    .next()
-                    .unwrap_or("")
-                    .to_string();
-                if !path.is_empty() && !alias.is_empty() {
-                    imports.push(ImportAlias { alias, path });
-                }
+        if n.kind() == "preproc_include"
+            && let Some(path_node) = n.child_by_field_name("path")
+        {
+            let raw = text(&path_node, src).unwrap_or_default();
+            let path = raw
+                .trim_matches(|c| c == '"' || c == '<' || c == '>')
+                .to_string();
+            let alias = path
+                .rsplit('/')
+                .next()
+                .unwrap_or("")
+                .split('.')
+                .next()
+                .unwrap_or("")
+                .to_string();
+            if !path.is_empty() && !alias.is_empty() {
+                imports.push(ImportAlias { alias, path });
             }
         }
         let mut cursor = n.walk();

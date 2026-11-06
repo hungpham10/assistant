@@ -118,19 +118,19 @@ fn rust_file_deps(root: &Node, src: &[u8]) -> Option<FileDeps> {
     let mut imports: Vec<ImportAlias> = Vec::new();
     let mut stack = vec![*root];
     while let Some(n) = stack.pop() {
-        if n.kind() == "use_declaration" {
-            if let Some(arg) = n.child_by_field_name("argument") {
-                let raw = text(&arg, src).unwrap_or_default();
-                let (path, alias) = match raw.split_once(" as ") {
-                    Some((p, a)) => (p.trim().to_string(), a.trim().to_string()),
-                    None => {
-                        let seg = raw.rsplit("::").next().unwrap_or("").trim_end_matches('*');
-                        (raw.clone(), seg.to_string())
-                    }
-                };
-                if !alias.is_empty() && !path.is_empty() {
-                    imports.push(ImportAlias { alias, path });
+        if n.kind() == "use_declaration"
+            && let Some(arg) = n.child_by_field_name("argument")
+        {
+            let raw = text(&arg, src).unwrap_or_default();
+            let (path, alias) = match raw.split_once(" as ") {
+                Some((p, a)) => (p.trim().to_string(), a.trim().to_string()),
+                None => {
+                    let seg = raw.rsplit("::").next().unwrap_or("").trim_end_matches('*');
+                    (raw.clone(), seg.to_string())
                 }
+            };
+            if !alias.is_empty() && !path.is_empty() {
+                imports.push(ImportAlias { alias, path });
             }
         }
         let mut cursor = n.walk();
@@ -174,10 +174,10 @@ fn rust_signature_key(node: &Node, src: &[u8]) -> Option<String> {
         }
     }
     let mut rt: Vec<String> = Vec::new();
-    if let Some(ret) = node.child_by_field_name("return_type") {
-        if let Some(t) = text(&ret, src) {
-            rt.push(t.replace(' ', ""));
-        }
+    if let Some(ret) = node.child_by_field_name("return_type")
+        && let Some(t) = text(&ret, src)
+    {
+        rt.push(t.replace(' ', ""));
     }
     Some(format!("({})({})", pt.join(","), rt.join(",")))
 }

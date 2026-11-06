@@ -39,10 +39,10 @@ fn walk(lang: &str, src: &str) -> Vec<String> {
         if let Some(m) = marker_name(id) {
             return format!("[{m}]");
         }
-        if id != 0 {
-            if let Some(s) = res.symbols.iter().find(|s| s.id == id) {
-                return s.name.clone();
-            }
+        if id != 0
+            && let Some(s) = res.symbols.iter().find(|s| s.id == id)
+        {
+            return s.name.clone();
         }
         let call_name = res
             .calls
@@ -51,12 +51,11 @@ fn walk(lang: &str, src: &str) -> Vec<String> {
             .map(|c| c.call_name.clone())
             .unwrap_or_else(|| format!("?{id}"));
         // Append variable assignment if present
-        if let Some(c) = res.calls.iter().find(|c| c.position == i) {
-            if let Some(var) = &c.into_var {
-                if !var.is_empty() {
-                    return format!("{call_name} → {var}");
-                }
-            }
+        if let Some(c) = res.calls.iter().find(|c| c.position == i)
+            && let Some(var) = &c.into_var
+            && !var.is_empty()
+        {
+            return format!("{call_name} → {var}");
         }
         call_name
     };

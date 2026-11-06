@@ -396,87 +396,87 @@ fn collect_symbols(node: &Node, ctx: &mut SymbolCtx, spec: &'static LangSpec) {
     let k = node.kind();
     // Parameter container (Python `parameters`): identifier / typed_parameter /
     // default_parameter con → Parameter symbol với type (nếu có type hint).
-    if spec.param_container_kinds.contains(&k) {
-        if let Some(&(fid, _)) = ctx.scope_stack.last() {
-            for ch in named_children(node) {
-                let (name_node, type_node) = match ch.kind() {
-                    "identifier" => (Some(ch), None),
-                    // Python: typed/default param; TS: required/optional param
-                    // (name ở field `pattern`, type ở field `type`); Ruby:
-                    // optional/keyword param (identifier con đầu); Scala:
-                    // parameter (field name + type).
-                    "typed_parameter" | "default_parameter" | "required_parameter"
-                    | "optional_parameter" | "keyword_parameter" | "parameter" => {
-                        let name = ch
-                            .child_by_field_name("name")
-                            .or_else(|| ch.child_by_field_name("pattern"))
-                            .or_else(|| {
-                                // typed_parameter (Python): identifier con
-                                // TRỰC TIẾP đầu tiên (first_identifier duyệt
-                                // DFS từ cuối → dính type).
-                                let mut cursor = ch.walk();
-                                let mut found = None;
-                                for g in ch.children(&mut cursor) {
-                                    if g.kind() == "identifier" {
-                                        found = Some(g);
-                                        break;
-                                    }
+    if spec.param_container_kinds.contains(&k)
+        && let Some(&(fid, _)) = ctx.scope_stack.last()
+    {
+        for ch in named_children(node) {
+            let (name_node, type_node) = match ch.kind() {
+                "identifier" => (Some(ch), None),
+                // Python: typed/default param; TS: required/optional param
+                // (name ở field `pattern`, type ở field `type`); Ruby:
+                // optional/keyword param (identifier con đầu); Scala:
+                // parameter (field name + type).
+                "typed_parameter" | "default_parameter" | "required_parameter"
+                | "optional_parameter" | "keyword_parameter" | "parameter" => {
+                    let name = ch
+                        .child_by_field_name("name")
+                        .or_else(|| ch.child_by_field_name("pattern"))
+                        .or_else(|| {
+                            // typed_parameter (Python): identifier con
+                            // TRỰC TIẾP đầu tiên (first_identifier duyệt
+                            // DFS từ cuối → dính type).
+                            let mut cursor = ch.walk();
+                            let mut found = None;
+                            for g in ch.children(&mut cursor) {
+                                if g.kind() == "identifier" {
+                                    found = Some(g);
+                                    break;
                                 }
-                                found
-                            });
-                        (name, ch.child_by_field_name("type"))
-                    }
-                    "rest_pattern" | "splat_parameter" => {
-                        // JS `...args` / Ruby `*args` — identifier con duy nhất.
-                        let mut cursor = ch.walk();
-                        let found = ch.children(&mut cursor).find(|g| g.kind() == "identifier");
-                        (found, None)
-                    }
-                    // Destructuring (`{a, b}`, `[x, y]`) — không tên đơn, bỏ.
-                    _ => (None, None),
-                };
-                let Some(name_node) = name_node else {
-                    continue;
-                };
-                let Some(pname) = text(&name_node, ctx.src) else {
-                    continue;
-                };
-                if pname.is_empty() {
-                    continue;
+                            }
+                            found
+                        });
+                    (name, ch.child_by_field_name("type"))
                 }
-                let id = ctx.next_id;
-                ctx.next_id += 1;
-                ctx.symbols.push(Symbol {
-                    id,
-                    name: pname,
-                    kind: SymbolKind::Parameter,
-                    scope: ScopeLevel::Parameter,
-                    scope_id: fid,
-                    type_ref: 0,
-                    // TS type_annotation text = ": Database" — bỏ ':' + trim.
-                    type_name: type_node
-                        .and_then(|t| text(&t, ctx.src))
-                        .map(|t| {
-                            t.trim_start_matches(':')
-                                .trim()
-                                .trim_end_matches('?')
-                                .to_string()
-                        })
-                        .filter(|t| !t.is_empty()),
-                    file: ctx.file.to_string(),
-                    line: name_node.start_position().row as u32 + 1,
-                    end_line: name_node.end_position().row as u32 + 1,
-                    signature: None,
-                    doc: None,
-                    annotations: Vec::new(),
-                    language: ctx.language.to_string(),
-                    impl_trait: None,
-                    sig_key: None,
-                });
+                "rest_pattern" | "splat_parameter" => {
+                    // JS `...args` / Ruby `*args` — identifier con duy nhất.
+                    let mut cursor = ch.walk();
+                    let found = ch.children(&mut cursor).find(|g| g.kind() == "identifier");
+                    (found, None)
+                }
+                // Destructuring (`{a, b}`, `[x, y]`) — không tên đơn, bỏ.
+                _ => (None, None),
+            };
+            let Some(name_node) = name_node else {
+                continue;
+            };
+            let Some(pname) = text(&name_node, ctx.src) else {
+                continue;
+            };
+            if pname.is_empty() {
+                continue;
             }
+            let id = ctx.next_id;
+            ctx.next_id += 1;
+            ctx.symbols.push(Symbol {
+                id,
+                name: pname,
+                kind: SymbolKind::Parameter,
+                scope: ScopeLevel::Parameter,
+                scope_id: fid,
+                type_ref: 0,
+                // TS type_annotation text = ": Database" — bỏ ':' + trim.
+                type_name: type_node
+                    .and_then(|t| text(&t, ctx.src))
+                    .map(|t| {
+                        t.trim_start_matches(':')
+                            .trim()
+                            .trim_end_matches('?')
+                            .to_string()
+                    })
+                    .filter(|t| !t.is_empty()),
+                file: ctx.file.to_string(),
+                line: name_node.start_position().row as u32 + 1,
+                end_line: name_node.end_position().row as u32 + 1,
+                signature: None,
+                doc: None,
+                annotations: Vec::new(),
+                language: ctx.language.to_string(),
+                impl_trait: None,
+                sig_key: None,
+            });
         }
-        // KHÔNG return — default_value có thể chứa call (`x=f()`).
     }
+    // KHÔNG return — default_value có thể chứa call (`x=f()`).
 
     // `self.attr = <expr>` trong method → Field (type từ RHS: `Database()`
     // → "Database", identifier → text) — nguyên liệu instance-attr typing.
@@ -785,20 +785,21 @@ fn link_impl_methods_to_def(symbols: &mut [Symbol]) {
         }
     }
     for s in symbols.iter_mut() {
-        if s.kind == SymbolKind::Class && s.type_name.is_some() {
-            if let Some(&def_id) = def_by_name.get(&s.name) {
-                s.type_ref = def_id;
-            }
+        if s.kind == SymbolKind::Class
+            && s.type_name.is_some()
+            && let Some(&def_id) = def_by_name.get(&s.name)
+        {
+            s.type_ref = def_id;
         }
     }
     let type_refs: HashMap<u64, u64> = symbols.iter().map(|s| (s.id, s.type_ref)).collect();
     for s in symbols.iter_mut() {
-        if s.kind == SymbolKind::Method {
-            if let Some(&parent_ref) = type_refs.get(&s.scope_id) {
-                if parent_ref != 0 && parent_ref != s.scope_id {
-                    s.scope_id = parent_ref;
-                }
-            }
+        if s.kind == SymbolKind::Method
+            && let Some(&parent_ref) = type_refs.get(&s.scope_id)
+            && parent_ref != 0
+            && parent_ref != s.scope_id
+        {
+            s.scope_id = parent_ref;
         }
     }
 }
@@ -1059,15 +1060,15 @@ fn walk_chain(
         //   THROW marker TRẦN sau CALL_EXIT — nếu đặt trong wrapper thì
         //   CALL_ENTER nuốt marker làm callee, THROW không bao giờ processing.
         let flow_hit = macro_flow_hit(ctx, node, rule);
-        if let Some(hit) = &flow_hit {
-            if !hit.keep_call {
-                // Tham số của macro (nếu có) vẫn vào graph trước marker.
-                for ch in named_children(node) {
-                    walk_chain(ctx, &ch, depth + 1, in_loop, None);
-                }
-                emit_flow_macro(ctx, hit);
-                return;
+        if let Some(hit) = &flow_hit
+            && !hit.keep_call
+        {
+            // Tham số của macro (nếu có) vẫn vào graph trước marker.
+            for ch in named_children(node) {
+                walk_chain(ctx, &ch, depth + 1, in_loop, None);
             }
+            emit_flow_macro(ctx, hit);
+            return;
         }
         chain_push(ctx, MARKER_CALL_ENTER);
         emit_call(ctx, node, rule, in_loop, condition);
@@ -1152,20 +1153,16 @@ fn walk_chain(
         // do-while/repeat: condition chạy SAU body → emit sau.
         let is_do_while =
             k.contains("do") || k == "repeat_statement" || k == "repeat_while_statement";
-        if !is_do_while {
-            if let Some(cn) = cond_node {
-                walk_chain(ctx, &cn, depth + 1, in_loop + 1, loop_cond.clone());
-            }
+        if !is_do_while && let Some(cn) = cond_node {
+            walk_chain(ctx, &cn, depth + 1, in_loop + 1, loop_cond.clone());
         }
         if let Some(body) = node.child_by_field_name(ctx.spec.markers.body_field) {
             walk_chain(ctx, &body, depth + 1, in_loop + 1, loop_cond.clone());
         } else {
             walk_block(ctx, node, depth + 1, in_loop + 1, loop_cond.clone());
         }
-        if is_do_while {
-            if let Some(cn) = cond_node {
-                walk_chain(ctx, &cn, depth + 1, in_loop + 1, loop_cond.clone());
-            }
+        if is_do_while && let Some(cn) = cond_node {
+            walk_chain(ctx, &cn, depth + 1, in_loop + 1, loop_cond.clone());
         }
         chain_push(ctx, MARKER_LOOP_BACK);
         return;
@@ -1184,12 +1181,11 @@ fn walk_chain(
             walk_chain(ctx, &cn, depth + 1, in_loop, condition.clone());
         }
         // Emit discriminant text as branch label on SWITCH_START.
-        if let Some(cn) = discriminant_node {
-            if let Some(dt) = text(&cn, ctx.src) {
-                if !dt.is_empty() {
-                    emit_branch_label(ctx, &dt);
-                }
-            }
+        if let Some(cn) = discriminant_node
+            && let Some(dt) = text(&cn, ctx.src)
+            && !dt.is_empty()
+        {
+            emit_branch_label(ctx, &dt);
         }
         for case in switch_cases(node, ctx.spec) {
             chain_push(ctx, MARKER_SWITCH_CASE);

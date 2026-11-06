@@ -191,20 +191,20 @@ fn lua_fn_value_assign(node: &Node, src: &[u8]) -> Option<(String, String)> {
                     }
                     if t.contains('.') {
                         names.push(t);
-                    } else if let Some(nn) = first_name(&g) {
-                        if let Some(t2) = text(&nn, src) {
-                            names.push(t2);
-                        }
+                    } else if let Some(nn) = first_name(&g)
+                        && let Some(t2) = text(&nn, src)
+                    {
+                        names.push(t2);
                     }
                 }
             }
             "expression_list" => {
                 let mut c2 = ch.walk();
                 for g in ch.children(&mut c2) {
-                    if g.kind() == "identifier" {
-                        if let Some(t) = text(&g, src) {
-                            values.push(t);
-                        }
+                    if g.kind() == "identifier"
+                        && let Some(t) = text(&g, src)
+                    {
+                        values.push(t);
                     }
                 }
             }

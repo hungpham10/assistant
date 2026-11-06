@@ -356,21 +356,21 @@ pub fn add_effect_rule(root: &Utf8Path, rule: NewEffectRule<'_>) -> Result<(), S
             rule.matcher
         ));
     }
-    if let Some(eff) = rule.effect {
-        if codegraph_core::EffectType::parse(eff).is_none() {
-            return Err(format!(
-                "effect không hợp lệ {:?} — dùng snake_case: panic, sql_query, http_call, …",
-                eff
-            ));
-        }
+    if let Some(eff) = rule.effect
+        && codegraph_core::EffectType::parse(eff).is_none()
+    {
+        return Err(format!(
+            "effect không hợp lệ {:?} — dùng snake_case: panic, sql_query, http_call, …",
+            eff
+        ));
     }
-    if let Some(mk) = rule.marker {
-        if codegraph_core::FlowMarker::parse(mk).is_none() {
-            return Err(format!(
-                "marker không hợp lệ {:?} — dùng snake_case: try_start, try_end, catch_start, throw, if_true, if_false, branch_end, break, continue, loop, loop_back, return",
-                mk
-            ));
-        }
+    if let Some(mk) = rule.marker
+        && codegraph_core::FlowMarker::parse(mk).is_none()
+    {
+        return Err(format!(
+            "marker không hợp lệ {:?} — dùng snake_case: try_start, try_end, catch_start, throw, if_true, if_false, branch_end, break, continue, loop, loop_back, return",
+            mk
+        ));
     }
     if rule.effect.is_none() && rule.marker.is_none() {
         return Err("phải khai báo ít nhất một trong `effect` hoặc `marker`".into());
@@ -815,10 +815,10 @@ impl ExtractConfig {
 /// đã biết để không nhầm với ký tự `:` khác trong pattern).
 fn split_format_override(entry: &str) -> (&str, Option<&str>) {
     const FORMATS: [&str; 8] = ["hcl", "tf", "yaml", "yml", "json", "toml", "nginx", "conf"];
-    if let Some((pattern, format)) = entry.rsplit_once(':') {
-        if FORMATS.contains(&format.to_ascii_lowercase().as_str()) {
-            return (pattern, Some(format));
-        }
+    if let Some((pattern, format)) = entry.rsplit_once(':')
+        && FORMATS.contains(&format.to_ascii_lowercase().as_str())
+    {
+        return (pattern, Some(format));
     }
     (entry, None)
 }
