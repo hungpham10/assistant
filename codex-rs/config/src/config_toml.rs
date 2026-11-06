@@ -192,6 +192,10 @@ pub struct ConfigToml {
     #[serde(default)]
     pub pipeline: Option<PipelineConfigToml>,
 
+    /// Codegraph tool settings.
+    #[serde(default)]
+    pub codegraph: Option<CodegraphToml>,
+
     #[serde(default)]
     pub shell_environment_policy: ShellEnvironmentPolicyToml,
 
@@ -584,6 +588,27 @@ pub struct PipelineConfigToml {
     pub token_budget: Option<usize>,
     /// Percentage of the model context window enrichment may occupy.
     pub max_total_context_ratio: Option<u8>,
+}
+
+/// `[codegraph]` settings for the codegraph tool surface.
+///
+/// `mode = "cloud"` is a forward-looking marker only: today every query
+/// routes through the local `codegraph_api::Session` (dsn-based, `sqlite://`).
+/// Cloud endpoints / auth are accepted here so configs stay valid once the
+/// cloud backend lands; they are not used yet.
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct CodegraphToml {
+    /// Register the `codegraph.call` agent tool (default: `true`).
+    pub enabled: Option<bool>,
+    /// Symbol-match modes permitted for search (default: `["lexical"]`).
+    pub permit_modes: Option<Vec<String>>,
+    /// Backend mode: `"local"` (default) or `"cloud"` (marker only, unused).
+    pub mode: Option<String>,
+    /// Cloud endpoint URL (marker only, unused while `mode = "local"`).
+    pub cloud_url: Option<String>,
+    /// Cloud auth token (marker only, unused while `mode = "local"`).
+    pub auth: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]

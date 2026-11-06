@@ -1,0 +1,1694 @@
+//! LMDB-backed radix / entity storage (`lmdb-rkv`).
+//!
+//! Ánh xạ toàn bộ schema của sqlite (`rt_*` / `sg_*`) thành các named-database
+//! trong một LMDB environment: mỗi bảng = một DBI, key/value pack LE 8-byte
+//! giống sqlite (id/record/shard = `u64` LE).
+//!
+//! CHÚ Ý — mô hình concurrency:
+//! - LMDB là sync/memory-mapped; các thao tác hoàn thành trong µs và KHÔNG
+//!   chờ `.await` giữa begin/commit, nên blocking executor không đáng kể so với
+//!   sqlx pool.
+//! - `LmdbStorage` được `GraphIndex` bọc trong `Arc<RwLock<dyn Storage>>` → mọi
+//!   mutation đã tuần tự hoá nên `read-modify-write` của children/shortcuts/
+//!   counter không bao giờ va chạm giữa 2 writer.
+//! - `tx.commit()` áp dụng buffer trong MỘT `RwTransaction` (atomic).
+
+use std::collections::HashMap;
+use std::path::Path;
+use std::sync::{Arc, Mutex};
+
+use async_trait::async_trait;
+use codegraph_core::{FileInfo, Symbol};
+#[cfg(feature = "lmdb")]
+use lmdb::EnvironmentFlags;
+use lmdb::{Cursor, Database, DatabaseFlags, Environment, Transaction, WriteFlags};
+
+#[cfg(feature = "bloom-search")]
+use super::BloomStorage;
+use super::{
+    CategoryStorage, ChainStorage, EMPTY, EdgeDataStorage, EntityStorage, IndexCounts,
+    NodeMetaStorage, Result, ShortcutsStorage, Storage, StorageError, Tx, TxOp, decode_chain,
+    decode_vector, encode_chain, encode_vector,
+};
+
+/// Map lỗi LMDB → `StorageError`.
+fn e(err: impl std::fmt::Display) -> StorageError {
+    StorageError::Internal(err.to_string())
+}
+
+// ── key/value packing (LE) ──
+
+#[inline]
+fn k8(v: usize) -> [u8; 8] {
+    (v as u64).to_le_bytes()
+}
+
+#[inline]
+fn ku64(v: u64) -> [u8; 8] {
+    v.to_le_bytes()
+}
+
+#[inline]
+fn de_u64(b: &[u8]) -> u64 {
+    u64::from_le_bytes(b.try_into().expect("8-byte value"))
+}
+
+/// Pack `IndexCounts` (5 × u64 LE) thành 40-byte value — lưu gọn trong 1 key.
+fn pack_counts(c: &IndexCounts) -> [u8; 40] {
+    let mut b = [0u8; 40];
+    b[0..8].copy_from_slice(&c.symbols.to_le_bytes());
+    b[8..16].copy_from_slice(&c.chains.to_le_bytes());
+    b[16..24].copy_from_slice(&c.edges.to_le_bytes());
+    b[24..32].copy_from_slice(&c.files.to_le_bytes());
+    b[32..40].copy_from_slice(&c.next_id.to_le_bytes());
+    b
+}
+
+fn unpack_counts(b: &[u8]) -> IndexCounts {
+    let at = |i: usize| u64::from_le_bytes(b[i..i + 8].try_into().expect("8-byte value"));
+    IndexCounts {
+        symbols: at(0),
+        chains: at(8),
+        edges: at(16),
+        files: at(24),
+        next_id: at(32),
+    }
+}
+
+// ── key chuỗi dài ──
+//
+// LMDB giới hạn key ≈ 511 byte (MDB_BAD_VALSIZE nếu vượt). Hai DBI dùng key là
+// chuỗi dài (call_names, files) gặp tên/path > giới hạn. Khi đó ta ánh xạ chuỗi
+// về key có độ dài cố định (marker 8B + FNV-1a 128-bit × 2 salt ~ổn định, va
+// chạm ~2^-128) và lưu chuỗi gốc trong value để phục hồi lại đúng khi scan.
+
+const MAX_STR_KEY: usize = 440;
+
+fn fnv1a(h: u64, s: &str) -> u64 {
+    let mut h = h;
+    for &b in s.as_bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
+/// Key ổn định cho chuỗi: chuỗi ngắn dùng nguyên byte; dài → marker + hash.
+fn str_key(s: &str) -> Vec<u8> {
+    if s.len() <= MAX_STR_KEY {
+        return s.as_bytes().to_vec();
+    }
+    let mut v = Vec::with_capacity(24);
+    v.extend_from_slice(&u64::MAX.to_le_bytes());
+    v.extend_from_slice(&fnv1a(0xcbf29ce484222325, s).to_le_bytes());
+    v.extend_from_slice(&fnv1a(0x84222325cbf29ce4, s).to_le_bytes());
+    v
+}
+
+/// Value = `[u32 name_len] ++ name ++ payload` — name giữ nguyên phần key bị hash.
+fn call_payload(name: &str, payload: &[u8]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(4 + name.len() + payload.len());
+    v.extend_from_slice(&(name.len() as u32).to_le_bytes());
+    v.extend_from_slice(name.as_bytes());
+    v.extend_from_slice(payload);
+    v
+}
+
+/// Tách value `call_payload` → `(name, payload)`.
+fn de_call_payload(v: &[u8]) -> (String, &[u8]) {
+    let n = u32::from_le_bytes(v[..4].try_into().expect("call payload len")) as usize;
+    let name = String::from_utf8_lossy(&v[4..4 + n]).into_owned();
+    (name, &v[4 + n..])
+}
+
+/// Giá trị node = `prefix ++ record(8 LE)`.
+fn node_val(prefix: &[u8], record: usize) -> Vec<u8> {
+    let mut v = Vec::with_capacity(prefix.len() + 8);
+    v.extend_from_slice(prefix);
+    v.extend_from_slice(&(record as u64).to_le_bytes());
+    v
+}
+
+fn de_node_val(v: &[u8]) -> (Vec<u8>, usize) {
+    let (p, r) = v.split_at(v.len() - 8);
+    (p.to_vec(), de_u64(r) as usize)
+}
+
+/// Danh sách node id → bytes (mỗi phần tử `u64` LE).
+fn list_val(list: &[usize]) -> Vec<u8> {
+    let mut v = Vec::with_capacity(list.len() * 8);
+    for &x in list {
+        v.extend_from_slice(&(x as u64).to_le_bytes());
+    }
+    v
+}
+
+fn de_list(v: &[u8]) -> Vec<usize> {
+    v.as_chunks::<8>()
+        .0
+        .iter()
+        .map(|c| u64::from_le_bytes(*c) as usize)
+        .collect()
+}
+
+/// Thêm `x` vào danh sách (bỏ `EMPTY`, dedup, giữ sort) — mirror sqlite
+/// `ORDER BY` + `ON CONFLICT DO NOTHING`.
+fn push_unique(list: &mut Vec<usize>, x: usize) {
+    if x != EMPTY && !list.contains(&x) {
+        list.push(x);
+        list.sort_unstable();
+    }
+}
+
+// ── Tên DBI (schema — khớp bảng sqlite) ──
+
+const D_NODES: &str = "rt_nodes";
+const D_CHILDREN: &str = "rt_children";
+const D_ROOTS: &str = "rt_roots";
+const D_META: &str = "rt_meta";
+const D_KEYLEN: &str = "rt_keylen";
+const D_SHORTCUTS: &str = "rt_shortcuts";
+const D_CHAINS: &str = "rt_chains";
+const D_EDGES: &str = "rt_edge";
+const D_NODE_META: &str = "rt_node_meta";
+#[cfg(feature = "bloom-search")]
+const D_BLOOMS: &str = "rt_node_blooms";
+const D_COUNTER: &str = "rt_counter";
+const D_SYMBOLS: &str = "sg_symbols";
+const D_NEXT_ID: &str = "sg_next_id";
+const D_CALL_RECORDS: &str = "sg_call_records";
+const D_FILE_DEPS: &str = "sg_file_deps";
+const D_FN_PTR_ASSIGNS: &str = "sg_fn_ptr_assigns";
+const D_CALL_NAMES: &str = "sg_call_names";
+const D_FILES: &str = "sg_files";
+const D_VERSION: &str = "sg_meta";
+const D_EMBEDDINGS: &str = "sg_embeddings";
+const D_STATS: &str = "sg_stats";
+
+/// Key duy nhất cho các "row đơn" (counter / next_id / version) — mỗi DBI chỉ có 1 row.
+const KEY_ONE: [u8; 8] = [0u8; 8];
+
+// ── Env ──
+
+/// Map size mặc định. LMDB chỉ **reserve address space**, không cấp phát đĩa:
+/// `data.mdb` là file sparse, chỉ tốn cho trang thực ghi. Trên 64-bit chọn 8 GiB
+/// để ingest repo lớn không chạm `MDB_MAP_FULL`; 32-bit giữ 1 GiB vì địa chỉ hạn chế.
+#[cfg(target_pointer_width = "64")]
+const DEFAULT_MAP_SIZE: usize = 8 << 30;
+#[cfg(not(target_pointer_width = "64"))]
+const DEFAULT_MAP_SIZE: usize = 1 << 30;
+
+/// Ngưỡng dùng/map khi bắt đầu grow: chỉ grow khi đã dùng ≥ 50% map.
+/// (25% grow quá dồn — sau khi gấp đôi, dùng lại 50% map mới → ngay kích hoạt
+/// grow lại, gây cascade của nhiều lần grow liên tiếp.)
+const GROW_THRESHOLD_DEN: usize = 2; // used * 2 >= map_size  <=> used >= 50%
+
+/// Map size tối đa cho phép grow. Tránh runaway nếu workload bất thường.
+/// 64 GiB trên 64-bit (rất già so với mọi repo thực tế — map chỉ là address
+/// space, data.mdb sparse chỉ tốn đĩa cho trang thực ghi). 32-bit giữ 4 GiB.
+#[cfg(target_pointer_width = "64")]
+const MAX_MAP_SIZE: usize = 64 << 30;
+#[cfg(not(target_pointer_width = "64"))]
+const MAX_MAP_SIZE: usize = 4 << 30;
+
+/// Map size khởi tạo: `CODEGRAPH_LMDB_MAP_SIZE_MB` (nếu hợp lệ) hoặc mặc định.
+///
+/// Đây chỉ là **điểm khởi đầu** — [`begin_rw`] tự grow map khi dữ liệu chạm
+/// ngưỡng, nên hiếm khi phải chỉnh tay.
+fn initial_map_size() -> usize {
+    std::env::var("CODEGRAPH_LMDB_MAP_SIZE_MB")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|mb| *mb > 0)
+        .map(|mb| mb.saturating_mul(1 << 20))
+        .unwrap_or(DEFAULT_MAP_SIZE)
+}
+
+fn open_env_with_map_size(path: &str, map_size: usize) -> Result<Arc<Environment>> {
+    let p = Path::new(path);
+    std::fs::create_dir_all(p).map_err(e)?;
+    let mut b = Environment::new();
+    b.set_max_dbs(32); // schema dùng ~17 named-db
+    b.set_max_readers(512); // locktable đủ chỗ cho runtime/mcp probe + request song song
+    b.set_map_size(map_size);
+    let env = b.open(p).map_err(e)?;
+    Ok(Arc::new(env))
+}
+
+fn open_env(path: &str) -> Result<Arc<Environment>> {
+    open_env_with_map_size(path, initial_map_size())
+}
+
+/// Tăng `map_size` trước khi ghi. Gấp đôi map, nhưng đảm bảo mới có ít nhất
+/// gấp 4 phần đã dùng — sau grow còn ≥ 75% trống, tránh grow liền lại.
+///
+/// LMDB không tự mở rộng map và trả `MDB_MAP_FULL` khi hết chỗ — giữa lúc
+/// ingest nghĩa là rollback cả transaction. Gọi hàm này **trước khi** mở write
+/// txn vì `mdb_env_set_mapsize` từ chối chạy khi đang có txn ghi.
+///
+/// Nếu đã đạt `MAX_MAP_SIZE` và vẫn đầy, trả `Error::MapFull` để caller xử lý
+/// (không grow vô hạn).
+fn grow_map(env: &Environment) -> lmdb::Result<usize> {
+    let info = env.info()?;
+    let page = env.stat()?.page_size() as usize;
+    let used = (info.last_pgno() + 1).saturating_mul(page);
+    let current = info.map_size();
+    // Tăng gấp đôi map, nhưng ít nhất gấp 4 phần đã dùng (để sau grow còn ≥
+    // 75% trống, tránh grow liền lại), và không vượt MAX_MAP_SIZE.
+    let mut next = current
+        .saturating_mul(2)
+        .max(used.saturating_mul(4))
+        .max(page);
+    if next > MAX_MAP_SIZE {
+        next = MAX_MAP_SIZE;
+    }
+    if next <= current {
+        return Err(lmdb::Error::MapFull);
+    }
+    env.set_map_size(next)?;
+    eprintln!(
+        "[codegraph] lmdb map size -> {} MiB (dùng {} trang/{} MiB map, chạm ngưỡng 50%)",
+        next >> 20,
+        info.last_pgno() + 1,
+        current >> 20
+    );
+    Ok(next)
+}
+
+/// Mở write transaction, đảm bảo map còn ≥ 50% chỗ trống trước khi ghi.
+///
+/// Nhờ kiểm tra **trước** khi mở txn nên `set_map_size` luôn hợp lệ (không có
+/// write txn đang mở), và map lớn dần theo nhu cầu thay vì chết ở một mức cố
+/// định.
+fn begin_rw(env: &Environment) -> Result<lmdb::RwTransaction<'_>> {
+    let info = env.info().map_err(e)?;
+    let page = env.stat().map_err(e)?.page_size() as usize;
+    let used = (info.last_pgno() + 1).saturating_mul(page);
+    // Chỉ grow khi đã dùng ≥ 50% map.
+    if used.saturating_mul(GROW_THRESHOLD_DEN) >= info.map_size() {
+        grow_map(env).map_err(e)?;
+    }
+    env.begin_rw_txn().map_err(e)
+}
+
+#[cfg(feature = "lmdb")]
+#[cfg_attr(feature = "sqlite", allow(dead_code))] // probe chỉ dùng khi lmdb là backend file
+fn open_env_read_only(path: &str) -> lmdb::Result<Environment> {
+    let mut b = Environment::new();
+    b.set_flags(EnvironmentFlags::READ_ONLY);
+    b.set_max_dbs(32);
+    // Phải set map_size khớp với env read-write — mở read-only không set
+    // map_size có thể trả EACCES/PERMISSION_DENIED trên một số platform.
+    b.set_map_size(initial_map_size());
+    b.open(Path::new(path))
+}
+
+/// Env + DBI handle dùng cho `probe_version`, cache theo path.
+///
+/// `Environment` là `Send + Sync` nên an toàn để dùng chung; `Database` là
+/// handle `Copy` chỉ trỏ vào env. Cả hai sống trọn process (không drop) để
+/// locktable không bị mở/đóng lặp.
+#[cfg(feature = "lmdb")]
+#[cfg_attr(feature = "sqlite", allow(dead_code))] // probe chỉ dùng khi lmdb là backend file
+struct ProbeHandle {
+    env: Arc<Environment>,
+    db: Database,
+}
+
+/// Cache read-only `(Environment, Database)` theo path — 1 cặp dùng chung cho
+/// mọi `probe_version`.
+#[cfg(feature = "lmdb")]
+#[cfg_attr(feature = "sqlite", allow(dead_code))] // probe chỉ dùng khi lmdb là backend file
+fn probe_env(path: &str) -> lmdb::Result<Arc<ProbeHandle>> {
+    let data = Path::new(path).join("data.mdb");
+    if !data.is_file() {
+        return Err(lmdb::Error::NotFound);
+    }
+    static CACHE: std::sync::LazyLock<Mutex<HashMap<String, Arc<ProbeHandle>>>> =
+        std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+    let mut cache = CACHE.lock().expect("probe env cache lock");
+    if let Some(handle) = cache.get(path) {
+        return Ok(handle.clone());
+    }
+    let env = Arc::new(open_env_read_only(path)?);
+    let db = env.open_db(Some(D_VERSION))?;
+    let handle = Arc::new(ProbeHandle { env, db });
+    cache.insert(path.to_string(), handle.clone());
+    Ok(handle)
+}
+
+/// Đọc `version` từ file mà KHÔNG tạo file (nếu chưa có) — dùng bởi
+/// `SharedGraphIndex::ensure_fresh` để dò stale. Mirror `SqliteStorage::probe_version`.
+///
+/// Reuse cache (`probe_env`) để không mở/đóng `Environment` **và không `open_db`**
+/// mỗi lần gọi — `MDB_BAD_RSLOT` xảy ra khi nhiều `Environment` cùng mở/đóng trên
+/// một locktable (lock.mdb) khi nhiều request probe song song (runtime/mcp: mỗi
+/// request gọi qua `ensure_fresh` → `current_version`). Cache theo path giữ 1 env
+/// read-only + DBI handle dùng chung (sống trọn process) nên mỗi request chỉ còn
+/// đúng 1 `begin_ro_txn` + 1 `get`.
+#[cfg(feature = "lmdb")]
+#[cfg_attr(feature = "sqlite", allow(dead_code))] // probe chỉ dùng khi lmdb là backend file
+pub async fn probe_version(path: &str) -> Result<u64> {
+    let handle = probe_env(path)
+        .map_err(|err| StorageError::Internal(format!("lmdb file not found: {path} ({err})")))?;
+    let version = match read_probe_version(&handle) {
+        // Env read-write trong process vừa grow map → map của handle read-only
+        // đã cũ. `set_map_size(0)` = "lấy map size hiện tại trên đĩa"; cần khoá
+        // vì `mdb_env_set_mapsize` không thread-safe.
+        Err(lmdb::Error::MapResized) => {
+            static RESIZE: Mutex<()> = Mutex::new(());
+            let _guard = RESIZE.lock().unwrap_or_else(|e| e.into_inner());
+            handle.env.set_map_size(0).map_err(e)?;
+            read_probe_version(&handle).map_err(e)?
+        }
+        other => other.map_err(e)?,
+    };
+    version.ok_or_else(|| StorageError::Internal("lmdb version row missing".into()))
+}
+
+#[cfg(feature = "lmdb")]
+fn read_probe_version(handle: &ProbeHandle) -> lmdb::Result<Option<u64>> {
+    let tx = handle.env.begin_ro_txn()?;
+    match tx.get(handle.db, &KEY_ONE) {
+        Ok(bytes) => Ok(Some(de_u64(bytes))),
+        Err(lmdb::Error::NotFound) => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+// ==================== LmdbStorage ====================
+
+/// LMDB backend: `Arc<Environment>` + handle (Copy) của từng DBI.
+pub struct LmdbStorage {
+    env: Arc<Environment>,
+    nodes: Database,
+    children: Database,
+    roots: Database,
+    meta: Database,
+    keylen: Database,
+    shortcuts: Database,
+    chains: Database,
+    edges: Database,
+    node_meta: Database,
+    #[cfg(feature = "bloom-search")]
+    blooms: Database,
+    counter: Database,
+    symbols: Database,
+    next_id: Database,
+    call_records: Database,
+    file_deps: Database,
+    fn_ptr_assigns: Database,
+    call_names: Database,
+    files: Database,
+    version: Database,
+    embeddings: Database,
+    stats: Database,
+}
+
+impl LmdbStorage {
+    /// Mở (hoặc tạo mới nếu chưa có) LMDB tại thư mục `path`. Idempotent —
+    /// sentinel/counter chỉ seed nếu chưa có nên reopen giữ nguyên dữ liệu.
+    pub async fn open(path: &str) -> Result<Self> {
+        let env = open_env(path)?;
+        let s = Self::from_env(env)?;
+        s.init().await?;
+        Ok(s)
+    }
+
+    fn from_env(env: Arc<Environment>) -> Result<Self> {
+        let nodes = env
+            .create_db(Some(D_NODES), DatabaseFlags::empty())
+            .map_err(e)?;
+        let children = env
+            .create_db(Some(D_CHILDREN), DatabaseFlags::empty())
+            .map_err(e)?;
+        let roots = env
+            .create_db(Some(D_ROOTS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let meta = env
+            .create_db(Some(D_META), DatabaseFlags::empty())
+            .map_err(e)?;
+        let keylen = env
+            .create_db(Some(D_KEYLEN), DatabaseFlags::empty())
+            .map_err(e)?;
+        let shortcuts = env
+            .create_db(Some(D_SHORTCUTS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let chains = env
+            .create_db(Some(D_CHAINS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let edges = env
+            .create_db(Some(D_EDGES), DatabaseFlags::empty())
+            .map_err(e)?;
+        let node_meta = env
+            .create_db(Some(D_NODE_META), DatabaseFlags::empty())
+            .map_err(e)?;
+        #[cfg(feature = "bloom-search")]
+        let blooms = env
+            .create_db(Some(D_BLOOMS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let counter = env
+            .create_db(Some(D_COUNTER), DatabaseFlags::empty())
+            .map_err(e)?;
+        let symbols = env
+            .create_db(Some(D_SYMBOLS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let next_id = env
+            .create_db(Some(D_NEXT_ID), DatabaseFlags::empty())
+            .map_err(e)?;
+        let call_records = env
+            .create_db(Some(D_CALL_RECORDS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let file_deps = env
+            .create_db(Some(D_FILE_DEPS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let fn_ptr_assigns = env
+            .create_db(Some(D_FN_PTR_ASSIGNS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let call_names = env
+            .create_db(Some(D_CALL_NAMES), DatabaseFlags::empty())
+            .map_err(e)?;
+        let files = env
+            .create_db(Some(D_FILES), DatabaseFlags::empty())
+            .map_err(e)?;
+        let version = env
+            .create_db(Some(D_VERSION), DatabaseFlags::empty())
+            .map_err(e)?;
+        let embeddings = env
+            .create_db(Some(D_EMBEDDINGS), DatabaseFlags::empty())
+            .map_err(e)?;
+        let stats = env
+            .create_db(Some(D_STATS), DatabaseFlags::empty())
+            .map_err(e)?;
+        Ok(Self {
+            env,
+            nodes,
+            children,
+            roots,
+            meta,
+            keylen,
+            shortcuts,
+            chains,
+            edges,
+            node_meta,
+            #[cfg(feature = "bloom-search")]
+            blooms,
+            counter,
+            symbols,
+            next_id,
+            call_records,
+            file_deps,
+            fn_ptr_assigns,
+            call_names,
+            files,
+            version,
+            embeddings,
+            stats,
+        })
+    }
+
+    /// Seed sentinel node 0 + counter/next_id/version nếu chưa tồn tại.
+    async fn init(&self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        let db = self.nodes;
+        if matches!(tx.get(db, &k8(EMPTY)), Err(lmdb::Error::NotFound)) {
+            tx.put(db, &k8(EMPTY), &node_val(b"", 0), WriteFlags::empty())
+                .map_err(e)?;
+        }
+        if matches!(tx.get(self.counter, &KEY_ONE), Err(lmdb::Error::NotFound)) {
+            tx.put(self.counter, &KEY_ONE, &ku64(1), WriteFlags::empty())
+                .map_err(e)?;
+        }
+        if matches!(tx.get(self.next_id, &KEY_ONE), Err(lmdb::Error::NotFound)) {
+            // next_id bắt đầu từ SYMBOL_BASE (marker reserved 1..=99) — mirror sqlite.
+            tx.put(self.next_id, &KEY_ONE, &ku64(100), WriteFlags::empty())
+                .map_err(e)?;
+        }
+        if matches!(tx.get(self.version, &KEY_ONE), Err(lmdb::Error::NotFound)) {
+            tx.put(self.version, &KEY_ONE, &ku64(0), WriteFlags::empty())
+                .map_err(e)?;
+        }
+        if matches!(tx.get(self.stats, &KEY_ONE), Err(lmdb::Error::NotFound)) {
+            tx.put(self.stats, &KEY_ONE, &[0u8; 40], WriteFlags::empty())
+                .map_err(e)?;
+        }
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    fn get_opt<'txn, K: AsRef<[u8]>>(
+        &self,
+        tx: &'txn impl Transaction,
+        db: Database,
+        key: &K,
+    ) -> Result<Option<&'txn [u8]>> {
+        match tx.get(db, key) {
+            Ok(v) => Ok(Some(v)),
+            Err(lmdb::Error::NotFound) => Ok(None),
+            Err(err) => Err(StorageError::Internal(err.to_string())),
+        }
+    }
+}
+
+// ==================== Storage impl (split into 7 sub-traits) ====================
+
+#[async_trait]
+impl CategoryStorage for LmdbStorage {
+    async fn new_node(&mut self, prefix: Vec<u8>, record: usize) -> Result<usize> {
+        let mut tx = begin_rw(&self.env)?;
+        // Không có RETURNING — đọc-rồi-ghi counter trong cùng write tx; an toàn
+        // vì GraphIndex tuần tự hoá mọi writer qua RwLock.
+        let next = match self.get_opt(&tx, self.counter, &KEY_ONE)? {
+            Some(v) => de_u64(v),
+            None => 1,
+        };
+        let id = next as usize;
+        tx.put(self.counter, &KEY_ONE, &ku64(next + 1), WriteFlags::empty())
+            .map_err(e)?;
+        tx.put(
+            self.nodes,
+            &k8(id),
+            &node_val(&prefix, record),
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(id)
+    }
+
+    async fn update_node(
+        &mut self,
+        id: usize,
+        prefix: Option<Vec<u8>>,
+        record: Option<usize>,
+    ) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        let key = k8(id);
+        let Some(cur) = self.get_opt(&tx, self.nodes, &key)?.map(de_node_val) else {
+            return Err(StorageError::BranchOutOfRange(id));
+        };
+        let (mut p, mut r) = cur;
+        if let Some(np) = prefix {
+            p = np;
+        }
+        if let Some(nr) = record {
+            r = nr;
+        }
+        tx.put(self.nodes, &key, &node_val(&p, r), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_node(&self, id: usize) -> Result<(Vec<u8>, usize)> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let Some(v) = self.get_opt(&tx, self.nodes, &k8(id))? else {
+            return Err(StorageError::BranchOutOfRange(id));
+        };
+        Ok(de_node_val(v))
+    }
+
+    async fn get_children(&self, id: usize) -> Result<Vec<usize>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut out = match self.get_opt(&tx, self.children, &k8(id))? {
+            Some(v) => de_list(v),
+            None => Vec::new(),
+        };
+        out.sort_unstable();
+        Ok(out)
+    }
+
+    /// Batch đọc node: MỘT `begin_ro_txn` cho cả `ids` — xem
+    /// [`CategoryStorage::get_nodes`] (giải thích `MDB_BAD_RSLOT`).
+    async fn get_nodes(&self, ids: &[usize]) -> Result<Vec<(Vec<u8>, usize)>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for &id in ids {
+            let Some(v) = self.get_opt(&tx, self.nodes, &k8(id))? else {
+                return Err(StorageError::BranchOutOfRange(id));
+            };
+            out.push(de_node_val(v));
+        }
+        Ok(out)
+    }
+
+    /// Batch đọc children: MỘT `begin_ro_txn` cho cả `ids`, mỗi list vẫn sort
+    /// như `get_children` để DFS không đổi thứ tự duyệt.
+    async fn get_childrens(&self, ids: &[usize]) -> Result<Vec<Vec<usize>>> {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut out = Vec::with_capacity(ids.len());
+        for &id in ids {
+            let mut list = match self.get_opt(&tx, self.children, &k8(id))? {
+                Some(v) => de_list(v),
+                None => Vec::new(),
+            };
+            list.sort_unstable();
+            out.push(list);
+        }
+        Ok(out)
+    }
+
+    async fn set_root(&mut self, shard: usize, root: usize) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.roots, &k8(shard), &k8(root), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_root(&self, shard: usize) -> Result<usize> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.roots, &k8(shard))?
+            .map(de_u64)
+            .unwrap_or(EMPTY as u64) as usize)
+    }
+
+    fn new_tx(&self) -> Box<dyn Tx> {
+        Box::new(LmdbTx {
+            env: self.env.clone(),
+            nodes: self.nodes,
+            children: self.children,
+            counter: self.counter,
+            nodes_pending: Vec::new(),
+            ops: Vec::new(),
+        })
+    }
+}
+
+// Blanket marker — `Storage` is `CategoryStorage + 5 sub-traits + EntityStorage + Send + Sync`,
+// so this empty impl makes the LMDB backend satisfy `Storage` automatically.
+#[async_trait]
+impl Storage for LmdbStorage {}
+
+#[cfg(feature = "bloom-search")]
+#[async_trait]
+impl BloomStorage for LmdbStorage {
+    async fn set_node_bloom(&mut self, id: usize, bloom: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.blooms, &k8(id), &bloom, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_node_bloom(&self, id: usize) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self.get_opt(&tx, self.blooms, &k8(id))?.map(|b| b.to_vec()))
+    }
+}
+
+// --- EdgeDataStorage ---
+
+#[async_trait]
+impl EdgeDataStorage for LmdbStorage {
+    async fn set_edge_data(&mut self, edge: usize, data: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.edges, &k8(edge), &data, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_edge_data(&self, edge: usize) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.edges, &k8(edge))?
+            .map(|v| v.to_vec()))
+    }
+
+    async fn clear_edges(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.clear_db(self.edges).map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+}
+
+// --- NodeMetaStorage ---
+
+#[async_trait]
+impl NodeMetaStorage for LmdbStorage {
+    async fn set_node_meta(&mut self, elem: usize, meta: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.node_meta, &k8(elem), &meta, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_node_meta(&self, elem: usize) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.node_meta, &k8(elem))?
+            .map(|v| v.to_vec()))
+    }
+
+    async fn clear_node_meta(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.clear_db(self.node_meta).map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn set_meta(&mut self, record: usize, meta: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.meta, &k8(record), &meta, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_meta(&self, record: usize) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.meta, &k8(record))?
+            .map(|v| v.to_vec()))
+    }
+
+    async fn set_key_len(&mut self, record: usize, len: usize) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.keylen, &k8(record), &k8(len), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_key_len(&self, record: usize) -> Result<Option<usize>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.keylen, &k8(record))?
+            .map(de_u64)
+            .map(|v| v as usize))
+    }
+}
+
+// --- ChainStorage ---
+
+#[async_trait]
+impl ChainStorage for LmdbStorage {
+    async fn set_chain(&mut self, record: usize, chain: &[u64]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(
+            self.chains,
+            &k8(record),
+            &encode_chain(chain),
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_chain(&self, record: usize) -> Result<Option<Vec<u64>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.chains, &k8(record))?
+            .map(decode_chain))
+    }
+
+    async fn clear_chains(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.clear_db(self.chains).map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+}
+
+// --- EntityStorage ---
+
+#[async_trait]
+impl EntityStorage for LmdbStorage {
+    async fn save_symbol(&mut self, sym: &Symbol) -> Result<()> {
+        let data =
+            serde_json::to_vec(sym).map_err(|err| StorageError::Internal(err.to_string()))?;
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.symbols, &ku64(sym.id), &data, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn load_symbol(&self, id: u64) -> Result<Option<Symbol>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let Some(data) = self.get_opt(&tx, self.symbols, &ku64(id))? else {
+            return Ok(None);
+        };
+        serde_json::from_slice(data)
+            .map(Some)
+            .map_err(|err| StorageError::Internal(err.to_string()))
+    }
+
+    async fn load_all_symbols(&self) -> Result<Vec<Symbol>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.symbols).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (_k, v) = item.map_err(e)?;
+            out.push(
+                serde_json::from_slice(v).map_err(|err| StorageError::Internal(err.to_string()))?,
+            );
+        }
+        Ok(out)
+    }
+
+    async fn save_embedding(&mut self, symbol_id: u64, vector: &[f32]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(
+            self.embeddings,
+            &ku64(symbol_id),
+            &encode_vector(vector),
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn load_embedding(&self, symbol_id: u64) -> Result<Option<Vec<f32>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.embeddings, &ku64(symbol_id))?
+            .and_then(decode_vector))
+    }
+
+    async fn load_all_embeddings(&self) -> Result<HashMap<u64, Vec<f32>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.embeddings).map_err(e)?;
+        let mut out = HashMap::new();
+        for item in cur.iter() {
+            let (k, v) = item.map_err(e)?;
+            if k.len() == 8 {
+                let id = de_u64(k);
+                if let Some(vec) = decode_vector(v) {
+                    out.insert(id, vec);
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    async fn clear_embeddings(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.clear_db(self.embeddings).map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn save_next_id(&mut self, next: u64) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.next_id, &KEY_ONE, &ku64(next), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn load_next_id(&self) -> Result<u64> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.next_id, &KEY_ONE)?
+            .map(de_u64)
+            .unwrap_or(100))
+    }
+
+    async fn all_chains(&self) -> Result<Vec<(u64, Vec<u8>)>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.chains).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (k, v) = item.map_err(e)?;
+            out.push((de_u64(k), v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    async fn set_call_records(&mut self, func: u64, records: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(
+            self.call_records,
+            &ku64(func),
+            &records,
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_call_records(&self, func: u64) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.call_records, &ku64(func))?
+            .map(|v| v.to_vec()))
+    }
+
+    async fn all_call_records(&self) -> Result<Vec<(u64, Vec<u8>)>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.call_records).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (k, v) = item.map_err(e)?;
+            out.push((de_u64(k), v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    async fn set_file_deps(&mut self, path: &str, deps: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.file_deps, &str_key(path), &deps, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn all_file_deps(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.file_deps).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (k, v) = item.map_err(e)?;
+            let path = std::str::from_utf8(k).map_err(|e| StorageError::Internal(e.to_string()))?;
+            out.push((path.to_string(), v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    async fn set_fn_ptr_assigns(&mut self, path: &str, assigns: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(
+            self.fn_ptr_assigns,
+            &str_key(path),
+            &assigns,
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn all_fn_ptr_assigns(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.fn_ptr_assigns).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (k, v) = item.map_err(e)?;
+            let path = std::str::from_utf8(k).map_err(|e| StorageError::Internal(e.to_string()))?;
+            out.push((path.to_string(), v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    async fn set_call_name_index(&mut self, name: &str, sites: &[u8]) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(
+            self.call_names,
+            &str_key(name),
+            &call_payload(name, sites),
+            WriteFlags::empty(),
+        )
+        .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn load_call_name_index(&self, name: &str) -> Result<Option<Vec<u8>>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.call_names, &str_key(name))?
+            .map(|v| de_call_payload(v).1.to_vec()))
+    }
+
+    async fn all_call_name_indexes(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.call_names).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (_k, v) = item.map_err(e)?;
+            let (name, sites) = de_call_payload(v);
+            out.push((name, sites.to_vec()));
+        }
+        Ok(out)
+    }
+
+    async fn upsert_file(&mut self, f: &FileInfo) -> Result<()> {
+        let data = serde_json::to_vec(f).map_err(|err| StorageError::Internal(err.to_string()))?;
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.files, &str_key(&f.path), &data, WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn load_all_files(&self) -> Result<Vec<FileInfo>> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut cur = tx.open_ro_cursor(self.files).map_err(e)?;
+        let mut out = Vec::new();
+        for item in cur.iter() {
+            let (_k, v) = item.map_err(e)?;
+            out.push(
+                serde_json::from_slice(v).map_err(|err| StorageError::Internal(err.to_string()))?,
+            );
+        }
+        Ok(out)
+    }
+
+    async fn version(&self) -> Result<u64> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        Ok(self
+            .get_opt(&tx, self.version, &KEY_ONE)?
+            .map(de_u64)
+            .unwrap_or(0))
+    }
+
+    async fn set_version(&mut self, v: u64) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.version, &KEY_ONE, &ku64(v), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn set_stats(&mut self, s: IndexCounts) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.put(self.stats, &KEY_ONE, &pack_counts(&s), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn stats(&self) -> Result<IndexCounts> {
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        match tx.get(self.stats, &KEY_ONE) {
+            Ok(b) => Ok(unpack_counts(b)),
+            Err(lmdb::Error::NotFound) => Ok(IndexCounts::default()),
+            Err(err) => Err(StorageError::Internal(err.to_string())),
+        }
+    }
+
+    async fn clear_entities(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        for db in [
+            self.symbols,
+            self.call_records,
+            self.file_deps,
+            self.fn_ptr_assigns,
+            self.call_names,
+            self.files,
+            self.embeddings,
+        ] {
+            tx.clear_db(db).map_err(e)?;
+        }
+        tx.put(self.next_id, &KEY_ONE, &ku64(100), WriteFlags::empty())
+            .map_err(e)?;
+        tx.put(self.version, &KEY_ONE, &ku64(0), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+}
+
+// --- ShortcutsStorage ---
+
+#[async_trait]
+impl ShortcutsStorage for LmdbStorage {
+    async fn add_shortcut_node(&mut self, shard: usize, elem: &[u8], node_id: usize) -> Result<()> {
+        let mut key = k8(shard).to_vec();
+        key.extend_from_slice(elem);
+        let mut tx = begin_rw(&self.env)?;
+        let mut list = match self.get_opt(&tx, self.shortcuts, &key)? {
+            Some(v) => de_list(v),
+            None => Vec::new(),
+        };
+        push_unique(&mut list, node_id);
+        tx.put(self.shortcuts, &key, &list_val(&list), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+
+    async fn get_shortcut_nodes(&self, shard: usize, elem: &[u8]) -> Result<Vec<usize>> {
+        let mut key = k8(shard).to_vec();
+        key.extend_from_slice(elem);
+        let tx = self.env.begin_ro_txn().map_err(e)?;
+        let mut out = match self.get_opt(&tx, self.shortcuts, &key)? {
+            Some(v) => de_list(v),
+            None => Vec::new(),
+        };
+        out.sort_unstable();
+        Ok(out)
+    }
+
+    async fn clear_shortcuts(&mut self) -> Result<()> {
+        let mut tx = begin_rw(&self.env)?;
+        tx.clear_db(self.shortcuts).map_err(e)?;
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+}
+
+// ==================== LmdbTx ====================
+
+/// Transaction cho `LmdbStorage`: buffer mutation, áp dụng atomic trong một
+/// `RwTransaction` tại `commit`. `new_node` cấp id ngay (bump counter như
+/// sqlite `RETURNING`) nhưng row chỉ lộ khi commit.
+pub struct LmdbTx {
+    env: Arc<Environment>,
+    nodes: Database,
+    children: Database,
+    counter: Database,
+    nodes_pending: Vec<(usize, Vec<u8>, usize)>,
+    ops: Vec<TxOp>,
+}
+
+#[async_trait]
+impl Tx for LmdbTx {
+    async fn new_node(&mut self, prefix: Vec<u8>, record: usize) -> Result<usize> {
+        let mut tx = begin_rw(&self.env)?;
+        let next = match tx.get(self.counter, &KEY_ONE).map(de_u64) {
+            Ok(v) => v,
+            Err(lmdb::Error::NotFound) => 1,
+            Err(err) => return Err(StorageError::Internal(err.to_string())),
+        };
+        tx.put(self.counter, &KEY_ONE, &ku64(next + 1), WriteFlags::empty())
+            .map_err(e)?;
+        tx.commit().map_err(e)?;
+        let id = next as usize;
+        self.nodes_pending.push((id, prefix, record));
+        Ok(id)
+    }
+
+    async fn update_node(
+        &mut self,
+        id: usize,
+        prefix: Option<Vec<u8>>,
+        record: Option<usize>,
+    ) -> Result<()> {
+        self.ops.push(TxOp::UpdateNode { id, prefix, record });
+        Ok(())
+    }
+
+    async fn add_child(&mut self, parent: usize, child: usize) -> Result<()> {
+        self.ops.push(TxOp::AddChild { parent, child });
+        Ok(())
+    }
+
+    async fn move_child(&mut self, from: usize, to: usize, child: usize) -> Result<()> {
+        self.ops.push(TxOp::MoveChild { from, to, child });
+        Ok(())
+    }
+
+    async fn commit(self: Box<Self>) -> Result<()> {
+        let LmdbTx {
+            env,
+            nodes,
+            children,
+            counter,
+            nodes_pending,
+            ops,
+        } = *self;
+        let mut tx = begin_rw(&env)?;
+
+        // 1. Materialize node mới — để ops add/move trỏ tới hợp lệ.
+        for (id, prefix, record) in &nodes_pending {
+            tx.put(
+                nodes,
+                &k8(*id),
+                &node_val(prefix, *record),
+                WriteFlags::empty(),
+            )
+            .map_err(e)?;
+        }
+
+        // 2. Counter đã được bump ở new_node; giữ MAX như sqlite phòng writer khác.
+        if let Some(max_id) = nodes_pending.iter().map(|(id, _, _)| *id).max() {
+            let cur = match tx.get(counter, &KEY_ONE).map(de_u64) {
+                Ok(v) => v,
+                Err(lmdb::Error::NotFound) => 1,
+                Err(err) => return Err(StorageError::Internal(err.to_string())),
+            };
+            let nxt = cur.max(max_id as u64 + 1);
+            tx.put(counter, &KEY_ONE, &ku64(nxt), WriteFlags::empty())
+                .map_err(e)?;
+        }
+
+        // 3. Áp dụng ops — children là read-modify-write trên KV; gộp theo parent
+        //    để tránh đọc/ghi lặp nhiều lần cho cùng một node.
+        let mut child_map: HashMap<usize, Vec<usize>> = HashMap::new();
+        for op in &ops {
+            match op {
+                TxOp::AddChild { parent, child } => {
+                    let list = child_map.entry(*parent).or_insert_with(|| {
+                        tx.get(children, &k8(*parent))
+                            .map(de_list)
+                            .unwrap_or_default()
+                    });
+                    push_unique(list, *child);
+                }
+                TxOp::MoveChild { from, to, child } => {
+                    if from != to {
+                        if let Some(list) = child_map.get_mut(from) {
+                            list.retain(|x| x != child);
+                        } else {
+                            let list = tx
+                                .get(children, &k8(*from))
+                                .map(de_list)
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter(|x| x != child)
+                                .collect::<Vec<_>>();
+                            child_map.insert(*from, list);
+                        }
+                        let list = child_map.entry(*to).or_insert_with(|| {
+                            tx.get(children, &k8(*to)).map(de_list).unwrap_or_default()
+                        });
+                        push_unique(list, *child);
+                    }
+                }
+                TxOp::UpdateNode { id, prefix, record } => {
+                    let key = k8(*id);
+                    let Some((mut p, mut r)) = tx.get(nodes, &key).map(de_node_val).ok() else {
+                        continue;
+                    };
+                    if let Some(np) = prefix {
+                        p = np.clone();
+                    }
+                    if let Some(nr) = record {
+                        r = *nr;
+                    }
+                    tx.put(nodes, &key, &node_val(&p, r), WriteFlags::empty())
+                        .map_err(e)?;
+                }
+            }
+        }
+        for (parent, list) in &child_map {
+            tx.put(children, &k8(*parent), &list_val(list), WriteFlags::empty())
+                .map_err(e)?;
+        }
+
+        tx.commit().map_err(e)?;
+        Ok(())
+    }
+}
+
+// ==================== Tests ====================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tmp_path() -> (tempfile::TempDir, String) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.lmdb");
+        let path = path.to_string_lossy().into_owned();
+        (dir, path)
+    }
+
+    /// Map tự nhân đôi khi dữ liệu chạm ngưỡng 25%. Trước đây map cứng 1 GiB
+    /// nên repo lớn chết `MDB_MAP_FULL` giữa lúc ingest (rollback cả txn).
+    #[tokio::test]
+    async fn map_size_tự_tăng_khi_gần_đầy() {
+        let (_dir, path) = tmp_path();
+        // 1 MiB → ngưỡng 25% chỉ ~256 KiB nên test nhanh.
+        let env = open_env_with_map_size(&path, 1 << 20).unwrap();
+        let db = env.create_db(Some("grow"), DatabaseFlags::empty()).unwrap();
+        {
+            let mut tx = env.begin_rw_txn().unwrap();
+            for i in 0..100u64 {
+                tx.put(db, &ku64(i), &vec![7u8; 4096], WriteFlags::empty())
+                    .unwrap();
+            }
+            tx.commit().unwrap();
+        }
+        assert_eq!(env.info().unwrap().map_size(), 1 << 20);
+
+        drop(begin_rw(&env).unwrap());
+        assert!(
+            env.info().unwrap().map_size() > (1 << 20),
+            "begin_rw phải grow map khi đã dùng > 25%"
+        );
+
+        // Dữ liệu cũ vẫn đọc được sau khi munmap/mmap lại.
+        let tx = env.begin_ro_txn().unwrap();
+        assert_eq!(tx.get(db, &ku64(99)).unwrap().len(), 4096);
+    }
+
+    /// Ghi nhiều hơn map ban đầu qua API thật → map tự tăng, không `MDB_MAP_FULL`.
+    #[tokio::test]
+    async fn ghi_vượt_map_ban_đầu_không_map_full() {
+        let (_dir, path) = tmp_path();
+        let env = open_env_with_map_size(&path, 1 << 20).unwrap();
+        let mut s = LmdbStorage::from_env(env).unwrap();
+        s.init().await.unwrap();
+
+        let mut ids = Vec::new();
+        for i in 0..400usize {
+            // ~4 KiB prefix mỗi node → tổng ~1.6 MiB, vượt map 1 MiB.
+            let id = s.new_node(vec![b'x'; 4096], i).await.unwrap();
+            let mut tx = s.new_tx();
+            tx.add_child(0, id).await.unwrap();
+            tx.commit().await.unwrap();
+            ids.push(id);
+        }
+
+        assert_eq!(s.get_node(ids[0]).await.unwrap().1, 0);
+        assert_eq!(s.get_node(*ids.last().unwrap()).await.unwrap().1, 399);
+    }
+
+    /// `get_nodes` phải trả đúng thứ tự `ids` và giống hệt `get_node` từng cái.
+    #[tokio::test]
+    async fn test_get_nodes_batch_matches_single() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        let mut ids: Vec<usize> = Vec::new();
+        for i in 1..=20usize {
+            ids.push(s.new_node(vec![i as u8; (i % 5) + 1], i * 3).await.unwrap());
+        }
+
+        let batch = s.get_nodes(&ids).await.unwrap();
+        assert_eq!(batch.len(), ids.len());
+        for (i, &id) in ids.iter().enumerate() {
+            assert_eq!(batch[i], s.get_node(id).await.unwrap());
+        }
+
+        // Rỗng → rỗng, không mở txn nào.
+        assert!(s.get_nodes(&[]).await.unwrap().is_empty());
+    }
+
+    /// `get_childrens` phải trả list đã sort, khớp `get_children` từng cái.
+    #[tokio::test]
+    async fn test_get_childrens_batch_matches_single() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        let a = s.new_node(b"a".to_vec(), 1).await.unwrap();
+        let b = s.new_node(b"b".to_vec(), 2).await.unwrap();
+        // Hai child của `a`, tạo ngược thứ tự id để chắc chắn phải sort mới ra
+        // thứ tự tăng dần.
+        let kids = [
+            s.new_node(b"k1".to_vec(), 10).await.unwrap(),
+            s.new_node(b"k0".to_vec(), 11).await.unwrap(),
+        ];
+        for &kid in &kids {
+            let mut tx = s.new_tx();
+            tx.add_child(a, kid).await.unwrap();
+            tx.commit().await.unwrap();
+        }
+
+        let batch = s.get_childrens(&[a, b]).await.unwrap();
+        assert_eq!(batch[0], s.get_children(a).await.unwrap());
+        assert_eq!(batch[1], s.get_children(b).await.unwrap());
+        // Children luôn sort tăng dần dù tạo ngược thứ tự.
+        let mut sorted = kids.to_vec();
+        sorted.sort_unstable();
+        assert_eq!(batch[0], sorted);
+        // Node không có child → list rỗng (không phải lỗi).
+        assert!(batch[1].is_empty());
+
+        assert!(s.get_childrens(&[]).await.unwrap().is_empty());
+    }
+
+    /// Id không tồn tại → `BranchOutOfRange`, giống `get_node` đơn lẻ.
+    #[tokio::test]
+    async fn test_batch_missing_id_errors() {
+        let (_d, path) = tmp_path();
+        let s = LmdbStorage::open(&path).await.unwrap();
+        assert!(matches!(
+            s.get_nodes(&[999_999]).await,
+            Err(StorageError::BranchOutOfRange(_))
+        ));
+    }
+
+    /// Regression `MDB_BAD_RSLOT`: N task đọc SONG SONG phải không lỗi khi
+    /// reader-slot LMDB có trần (`max_readers`). Trước khi có batch read,
+    /// mỗi `get_node` là một read-txn nên tải đọc nhân lên rất nhanh.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_concurrent_batch_reads_no_bad_rslot() {
+        use std::sync::Arc;
+        let (_d, path) = tmp_path();
+        let ids = {
+            let mut s = LmdbStorage::open(&path).await.unwrap();
+            let mut ids = Vec::new();
+            for i in 1..=500usize {
+                ids.push(s.new_node(vec![(i % 251) as u8; 6], i).await.unwrap());
+            }
+            for &id in ids.iter() {
+                let mut tx = s.new_tx();
+                tx.add_child(EMPTY, id).await.unwrap();
+                tx.commit().await.unwrap();
+            }
+            ids
+        };
+        let st = Arc::new(LmdbStorage::open(&path).await.unwrap());
+
+        // 8 task × 200 vòng batch-read — tổng ~800k lần đọc node.
+        let mut handles = Vec::new();
+        for _ in 0..8 {
+            let st = Arc::clone(&st);
+            let ids = ids.clone();
+            handles.push(tokio::spawn(async move {
+                for _ in 0..200 {
+                    let chunk: Vec<usize> = ids.iter().copied().take(64).collect();
+                    let got = st.get_nodes(&chunk).await.unwrap();
+                    assert_eq!(got.len(), chunk.len());
+                }
+            }));
+        }
+        for h in handles {
+            h.await.unwrap();
+        }
+    }
+
+    /// `probe_version` phải trả đúng version khi gọi lặp lại (dùng env + DBI
+    /// handle cache) và vẫn lỗi khi path không tồn tại.
+    #[tokio::test]
+    async fn test_probe_version_reuses_cached_handle() {
+        let (_d, path) = tmp_path();
+        {
+            let mut s = LmdbStorage::open(&path).await.unwrap();
+            s.set_version(42).await.unwrap();
+        }
+        // Nhiều lần gọi liên tiếp — lần 2+ đi qua cache handle.
+        for _ in 0..100 {
+            assert_eq!(probe_version(&path).await.unwrap(), 42);
+        }
+        assert!(probe_version("definitely/missing.lmdb").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_new_node_and_get_node() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        let id = s.new_node(b"hello".to_vec(), 42).await.unwrap();
+        assert_ne!(id, EMPTY);
+        let (prefix, record) = s.get_node(id).await.unwrap();
+        assert_eq!(prefix, b"hello");
+        assert_eq!(record, 42);
+    }
+
+    #[tokio::test]
+    async fn test_embeddings_roundtrip() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        let v1 = vec![0.1f32, 0.2, 0.3, -0.4];
+        let v2 = vec![1.0f32, -1.0, 0.0, 0.5];
+        s.save_embedding(100, &v1).await.unwrap();
+        s.save_embedding(101, &v2).await.unwrap();
+        // upsert overwrite cho 100.
+        s.save_embedding(100, &v2).await.unwrap();
+
+        let all = s.load_all_embeddings().await.unwrap();
+        assert_eq!(all.len(), 2);
+        assert_eq!(all.get(&100).unwrap(), &v2);
+        assert_eq!(all.get(&101).unwrap(), &v2);
+        assert_eq!(s.load_embedding(100).await.unwrap().unwrap(), v2);
+        assert_eq!(s.load_embedding(101).await.unwrap().unwrap(), v2);
+
+        s.clear_embeddings().await.unwrap();
+        assert!(s.load_all_embeddings().await.unwrap().is_empty());
+        assert_eq!(s.load_embedding(101).await.unwrap(), None);
+    }
+
+    /// Node trong tx chưa lộ ra reader cho tới `commit`.
+    #[tokio::test]
+    async fn test_tx_atomic() {
+        let (_d, path) = tmp_path();
+        let s = LmdbStorage::open(&path).await.unwrap();
+        let mut tx = s.new_tx();
+        let id = tx.new_node(b"x".to_vec(), 7).await.unwrap();
+        // Chưa commit → đọc qua storage thấy "chưa có".
+        assert!(matches!(
+            s.get_node(id).await,
+            Err(StorageError::BranchOutOfRange(_))
+        ));
+
+        tx.add_child(EMPTY, id).await.unwrap();
+        tx.commit().await.unwrap();
+
+        assert_eq!(s.get_node(id).await.unwrap(), (b"x".to_vec(), 7));
+        assert_eq!(s.get_children(EMPTY).await.unwrap(), vec![id]);
+    }
+
+    /// Move child từ parent này sang parent khác.
+    #[tokio::test]
+    async fn test_move_child() {
+        let (_d, path) = tmp_path();
+        let s = LmdbStorage::open(&path).await.unwrap();
+        let mut sa = s.new_tx();
+        let a = sa.new_node(b"a".to_vec(), 1).await.unwrap();
+        let b = sa.new_node(b"b".to_vec(), 2).await.unwrap();
+        sa.add_child(EMPTY, a).await.unwrap();
+        sa.add_child(EMPTY, b).await.unwrap();
+        sa.commit().await.unwrap();
+
+        let mut tx = s.new_tx();
+        tx.move_child(EMPTY, a, b).await.unwrap();
+        tx.commit().await.unwrap();
+        assert_eq!(s.get_children(EMPTY).await.unwrap(), vec![a]);
+        assert_eq!(s.get_children(a).await.unwrap(), vec![b]);
+    }
+
+    /// Shortcut set đọc/ghi đúng, node id unique sort.
+    #[tokio::test]
+    async fn test_shortcut() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        let elem = b"ab".to_vec();
+        s.add_shortcut_node(0, &elem, 5).await.unwrap();
+        s.add_shortcut_node(0, &elem, 3).await.unwrap();
+        s.add_shortcut_node(0, &elem, 5).await.unwrap(); // dup — bị loại
+        assert_eq!(s.get_shortcut_nodes(0, &elem).await.unwrap(), vec![3, 5]);
+    }
+
+    /// Meta/keylen ghi đọc như sqlite.
+    #[tokio::test]
+    async fn test_meta_and_keylen() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        s.set_meta(1, b"m").await.unwrap();
+        assert_eq!(s.get_meta(1).await.unwrap(), Some(b"m".to_vec()));
+        assert_eq!(s.get_meta(2).await.unwrap(), None);
+        s.set_key_len(1, 9).await.unwrap();
+        assert_eq!(s.get_key_len(1).await.unwrap(), Some(9));
+    }
+
+    /// Dữ liệu tồn tại sau reopen + probe_version đọc đúng, không tạo file mới.
+    #[tokio::test]
+    async fn test_reopen_persists_and_probe() {
+        let (_d, path) = tmp_path();
+        {
+            let mut s = LmdbStorage::open(&path).await.unwrap();
+            s.new_node(b"hi".to_vec(), 1).await.unwrap();
+            s.set_version(7).await.unwrap();
+        }
+        let s = LmdbStorage::open(&path).await.unwrap();
+        assert_eq!(s.version().await.unwrap(), 7);
+
+        let (prefix, record) = s.get_node(1).await.unwrap();
+        assert_eq!(prefix, b"hi");
+        assert_eq!(record, 1);
+
+        // probe_version đọc từ file hiện có (không tạo file mới).
+        assert_eq!(probe_version(&path).await.unwrap(), 7);
+        assert!(probe_version("definitely/missing.lmdb").await.is_err());
+    }
+
+    /// Regression MDB_BAD_RSLOT: nhiều reader probe song song trên cùng path
+    /// phải dùng chung env cache — không mở/đóng Environment mỗi lần gọi.
+    #[tokio::test]
+    async fn test_concurrent_probe_reuses_env() {
+        let (_d, path) = tmp_path();
+        let (_d2, path2) = tmp_path();
+        {
+            let mut s = LmdbStorage::open(&path).await.unwrap();
+            s.set_version(5).await.unwrap();
+        }
+        {
+            let mut s = LmdbStorage::open(&path2).await.unwrap();
+            s.set_version(9).await.unwrap();
+        }
+
+        // Nhiều task probe song song trên 2 path khác nhau — mỗi path trả đúng
+        // version, và KHÔNG mở env mới mỗi lần (cache dùng chung → không BAD_RSLOT).
+        let mut tasks = Vec::new();
+        for _ in 0..8 {
+            let p1 = path.clone();
+            let p2 = path2.clone();
+            tasks.push(tokio::spawn(async move {
+                for _ in 0..20 {
+                    let v1 = probe_version(&p1).await.unwrap();
+                    let v2 = probe_version(&p2).await.unwrap();
+                    assert_eq!(v1, 5);
+                    assert_eq!(v2, 9);
+                }
+            }));
+        }
+        for t in tasks {
+            t.await.unwrap();
+        }
+    }
+
+    /// Regression MDB_BAD_VALSIZE: key chuỗi > 511 byte bị LMDB từ chối; `str_key`
+    /// phải hash về key cố định 24B và giữ chuỗi gốc trong value để đọc lại đúng.
+    #[tokio::test]
+    async fn test_long_call_name_and_path_roundtrip() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+
+        // call-name > 511 byte.
+        let long_call = format!("very{}long{}mangled", "t".repeat(300), "q".repeat(300));
+        assert!(long_call.len() > 511);
+        s.set_call_name_index(&long_call, b"sites").await.unwrap();
+        // Đọc lại nguyên payload dù key đã bị hash.
+        assert_eq!(
+            s.load_call_name_index(&long_call).await.unwrap().as_deref(),
+            Some(b"sites".as_slice())
+        );
+        // Scan trả đúng tên gốc.
+        let all = s.all_call_name_indexes().await.unwrap();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].0, long_call);
+        assert_eq!(all[0].1, b"sites");
+
+        // path file > 511 byte.
+        let seg = "d".repeat(300);
+        let long_path = format!("src/{seg}/{seg}/mod.ts");
+        assert!(long_path.len() > 511);
+        let f = FileInfo {
+            path: long_path.clone(),
+            language: "ts".into(),
+            bytes: 10,
+            lines: 1,
+        };
+        s.upsert_file(&f).await.unwrap();
+        let files = s.load_all_files().await.unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, long_path);
+    }
+
+    #[tokio::test]
+    async fn test_stats_roundtrip() {
+        let (_d, path) = tmp_path();
+        let mut s = LmdbStorage::open(&path).await.unwrap();
+        // Chưa ghi → trả zeros (caller fallback rebuild).
+        assert_eq!(s.stats().await.unwrap(), IndexCounts::default());
+        let counts = IndexCounts {
+            symbols: 12,
+            chains: 3,
+            edges: 5,
+            files: 2,
+            next_id: 100,
+        };
+        s.set_stats(counts).await.unwrap();
+        assert_eq!(s.stats().await.unwrap(), counts);
+        drop(s);
+        // Mở lại (stats_cached mở storage từ route — LMDB cho phép nhiều RW handle)
+        // vẫn đọc được counts đã persist.
+        let ro = LmdbStorage::open(&path).await.unwrap();
+        assert_eq!(ro.stats().await.unwrap(), counts);
+    }
+}

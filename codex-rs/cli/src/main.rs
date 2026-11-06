@@ -60,6 +60,8 @@ use supports_color::Stream;
     any(target_os = "macos", target_os = "windows")
 ))]
 mod app_cmd;
+#[cfg(feature = "codegraph")]
+mod codegraph_cmd;
 #[cfg(all(
     feature = "desktop-app",
     any(target_os = "macos", target_os = "windows")
@@ -257,6 +259,10 @@ enum Subcommand {
 
     /// Inspect feature flags.
     Features(FeaturesCli),
+
+    /// Build the codegraph index (source code and/or documents).
+    #[cfg(feature = "codegraph")]
+    Codegraph(crate::codegraph_cmd::CodegraphCli),
 }
 
 #[derive(Debug, Parser)]
@@ -1755,6 +1761,15 @@ async fn cli_main(
                 disable_feature_in_config(&feature).await?;
             }
         },
+        #[cfg(feature = "codegraph")]
+        Some(Subcommand::Codegraph(codegraph_cli)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "codegraph",
+            )?;
+            crate::codegraph_cmd::run_codegraph_command(codegraph_cli).await?;
+        }
     }
 
     Ok(())

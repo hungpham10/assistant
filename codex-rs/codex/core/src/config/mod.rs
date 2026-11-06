@@ -1105,6 +1105,30 @@ pub struct CodeModeConfig {
 pub struct CodegraphConfig {
     pub enabled: bool,
     pub permit_modes: Vec<String>,
+    /// Backend mode marker: `Local` (default) or `Cloud` (future; unused today).
+    pub mode: CodegraphMode,
+    /// Cloud endpoint URL (future marker; `None` in local mode).
+    pub cloud_url: Option<String>,
+    /// Cloud auth token (future marker; `None` in local mode).
+    pub auth: Option<String>,
+}
+
+/// Codegraph backend mode. Only `Local` is implemented; `Cloud` is accepted
+/// in config so forward-looking configs stay valid.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+pub enum CodegraphMode {
+    #[default]
+    Local,
+    Cloud,
+}
+
+impl CodegraphMode {
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "cloud" => Self::Cloud,
+            _ => Self::Local,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2532,10 +2556,27 @@ fn resolve_code_mode_config(config_toml: &ConfigToml) -> CodeModeConfig {
     }
 }
 
-fn resolve_codegraph_config(_config_toml: &ConfigToml) -> CodegraphConfig {
-    CodegraphConfig {
+fn resolve_codegraph_config(config_toml: &ConfigToml) -> CodegraphConfig {
+    let base = CodegraphConfig {
         enabled: true,
         permit_modes: vec!["lexical".to_string()],
+        mode: CodegraphMode::Local,
+        cloud_url: None,
+        auth: None,
+    };
+    let Some(toml) = config_toml.codegraph.as_ref() else {
+        return base;
+    };
+    CodegraphConfig {
+        enabled: toml.enabled.unwrap_or(base.enabled),
+        permit_modes: toml.permit_modes.clone().unwrap_or(base.permit_modes),
+        mode: toml
+            .mode
+            .as_deref()
+            .map(CodegraphMode::parse)
+            .unwrap_or(base.mode),
+        cloud_url: toml.cloud_url.clone(),
+        auth: toml.auth.clone(),
     }
 }
 

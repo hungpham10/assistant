@@ -468,6 +468,9 @@ impl App {
                 ));
                 tui.frame_requester().schedule_frame();
             }
+            AppEvent::CodegraphIndexFinished { ok, output } => {
+                self.chat_widget.on_codegraph_index_finished(ok, output);
+            }
             AppEvent::OpenAppLink {
                 app_id,
                 title,

@@ -81,6 +81,61 @@ impl ChatWidget {
         self.bottom_pane.record_pending_slash_command_history();
     }
 
+    /// Start a host codegraph index run by spawning this binary's
+    /// `codegraph index` subcommand (the TUI stays free of the index crates).
+    /// Does NOT re-bind the agent session — the agent must `begin` again.
+    fn start_codegraph_index(&mut self, kind: &str) {
+        let cwd = self
+            .current_cwd
+            .clone()
+            .unwrap_or_else(|| self.config.cwd.to_path_buf());
+        self.add_info_message(
+            format!("Indexing codegraph ({kind}) for {} …", cwd.display()),
+            Some("The agent session is not re-bound — it must call begin again.".to_string()),
+        );
+        self.request_redraw();
+        let tx = self.app_event_tx.clone();
+        std::thread::spawn(move || {
+            let exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("codex"));
+            let output = std::process::Command::new(&exe)
+                .args(["codegraph", "index", "--path"])
+                .arg(&cwd)
+                .args(["--kind", kind])
+                .output();
+            let (ok, text) = match output {
+                Ok(out) => (
+                    out.status.success(),
+                    format!(
+                        "{}{}",
+                        String::from_utf8_lossy(&out.stdout),
+                        String::from_utf8_lossy(&out.stderr)
+                    ),
+                ),
+                Err(err) => (
+                    false,
+                    format!("failed to spawn `{}`: {err}", exe.display()),
+                ),
+            };
+            tx.send(AppEvent::CodegraphIndexFinished {
+                ok,
+                output: text,
+            });
+        });
+    }
+
+    pub(super) fn on_codegraph_index_finished(&mut self, ok: bool, output: String) {
+        let text = output.trim().to_string();
+        if ok {
+            self.add_info_message(
+                format!("Codegraph index finished.\n{text}"),
+                Some("Call codegraph.call begin(path) again to search the fresh index.".to_string()),
+            );
+        } else {
+            self.add_error_message(format!("Codegraph index failed.\n{text}"));
+        }
+        self.request_redraw();
+    }
+
     fn apply_plan_slash_command(&mut self) -> bool {
         if !self.collaboration_modes_enabled() {
             self.add_info_message(
@@ -252,6 +307,9 @@ impl ChatWidget {
             SlashCommand::Init => {
                 const INIT_PROMPT: &str = include_str!("../../prompt_for_init_command.md");
                 self.submit_user_message(INIT_PROMPT.to_string().into());
+            }
+            SlashCommand::Index => {
+                self.start_codegraph_index("all");
             }
             SlashCommand::Compact => {
                 self.clear_token_usage();
@@ -689,6 +747,12 @@ impl ChatWidget {
             SlashCommand::Mcp => match trimmed.to_ascii_lowercase().as_str() {
                 "verbose" => self.add_mcp_output(McpServerStatusDetail::Full),
                 _ => self.add_error_message("Usage: /mcp [verbose]".to_string()),
+            },
+            SlashCommand::Index => match trimmed.to_ascii_lowercase().as_str() {
+                "" | "all" | "both" => self.start_codegraph_index("all"),
+                "source" | "code" | "src" => self.start_codegraph_index("source"),
+                "docs" | "doc" | "documents" | "document" => self.start_codegraph_index("docs"),
+                _ => self.add_error_message("Usage: /index [all|source|docs]".to_string()),
             },
             SlashCommand::Tools => {
                 let parts: Vec<&str> = trimmed.split_whitespace().collect();

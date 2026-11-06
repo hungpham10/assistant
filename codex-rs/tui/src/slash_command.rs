@@ -38,6 +38,8 @@ pub enum SlashCommand {
     Fork,
     App,
     Init,
+    /// Build the codegraph index (source code and/or documents).
+    Index,
     Compact,
     Plan,
     Goal,
@@ -97,6 +99,9 @@ impl SlashCommand {
                 }
             },
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
+            SlashCommand::Index => {
+                "build the codegraph index: /index [all|source|docs]"
+            }
             SlashCommand::Review => "review my current changes and find issues",
             SlashCommand::Rename => "rename the current thread",
             SlashCommand::Resume => "resume a saved chat",
@@ -213,6 +218,7 @@ impl SlashCommand {
                 | SlashCommand::Btw
                 | SlashCommand::Resume
                 | SlashCommand::SandboxReadRoot
+                | SlashCommand::Index
         )
     }
 
@@ -238,6 +244,7 @@ impl SlashCommand {
             | SlashCommand::Delete
             | SlashCommand::Fork
             | SlashCommand::Init
+            | SlashCommand::Index
             | SlashCommand::Compact
             | SlashCommand::Model
             | SlashCommand::Harness

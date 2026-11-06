@@ -394,6 +394,12 @@ pub(crate) enum AppEvent {
     /// Result of computing a `/diff` command.
     DiffResult(String),
 
+    /// Result of a `/index` host indexing run (spawned `codex codegraph index`).
+    CodegraphIndexFinished {
+        ok: bool,
+        output: String,
+    },
+
     /// Open the app link view in the bottom pane.
     OpenAppLink {
         app_id: String,

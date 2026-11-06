@@ -1,0 +1,21 @@
+[package]
+name = "codegraph-context"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+codegraph-core  = { path = "../codegraph-core" }
+codegraph-graph = { path = "../codegraph-graph" }
+codegraph-source = { path = "../codegraph-source" }
+async-trait = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "macros"] }
+tempfile = "3"
+camino = { workspace = true }
+codegraph-graph = { path = "../codegraph-graph", features = ["sqlite"] }

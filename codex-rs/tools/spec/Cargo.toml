@@ -10,10 +10,6 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-codegraph-context = { path = "vendor/codegraph-context" }
-codegraph-core = { path = "vendor/codegraph-core" }
-codegraph-graph = { path = "vendor/codegraph-graph" }
-codegraph-source = { path = "vendor/codegraph-source" }
 codex-code-mode = { workspace = true }
 codex-connectors = { workspace = true }
 codex-enrich = { workspace = true }
