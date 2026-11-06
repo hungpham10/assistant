@@ -2292,6 +2292,8 @@ fn unsupported_subcommand_name_for_strict_config(
         #[cfg(feature = "internal-tools")]
         Some(Subcommand::StdioToUds(_)) => Some("stdio-to-uds"),
         Some(Subcommand::Features(_)) => Some("features"),
+        #[cfg(feature = "codegraph")]
+        Some(Subcommand::Codegraph(_)) => Some("codegraph"),
     }
 }
 

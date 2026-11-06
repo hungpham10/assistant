@@ -261,7 +261,7 @@ For casual greetings, acknowledgements, or other one-off conversational messages
 
 When using the shell, you must adhere to the following guidelines:
 
-- When searching for text or files, prefer using `rg` or `rg --files` respectively because `rg` is much faster than alternatives like `grep`. (If the `rg` command is not found, then use alternatives.)
+- When searching for code symbols, definitions, call chains, or references in a workspace, prefer the `codegraph.call` tool if it is available and the workspace is indexed: `{"verb":"begin","path":"<workspace>"}` → one or more `{"verb":"search","action":..., ...}` queries → `{"verb":"end"}`. If the index is empty or missing, ask the user to run `/index` (or `codex codegraph index`, with `--kind source|docs|all`) and then `begin` again. Fall back to `rg`/`rg --files` (or `grep`/`find` when `rg` is unavailable) for literal text, unindexed files, or when `codegraph` is disabled.
 - Do not use python scripts to attempt to output larger chunks of a file.
 
 ## `update_plan`
