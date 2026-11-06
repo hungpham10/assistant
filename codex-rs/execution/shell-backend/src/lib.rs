@@ -17,6 +17,10 @@ mod local;
 
 pub use local::StdSystemProcessBackend;
 
+#[cfg(test)]
+#[path = "local_tests.rs"]
+mod local_tests;
+
 /// Experimental environment variable that will be set to some non-empty value
 /// if both of the following are true:
 ///
@@ -106,4 +110,10 @@ pub type ShellProcessBackendSpawnFuture<'a> =
 /// Backend that launches shell tool processes.
 pub trait ShellProcessBackend: Send + Sync {
     fn spawn(&self, request: SpawnShellRequest) -> ShellProcessBackendSpawnFuture<'_>;
+}
+
+impl std::fmt::Debug for dyn ShellProcessBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ShellProcessBackend")
+    }
 }

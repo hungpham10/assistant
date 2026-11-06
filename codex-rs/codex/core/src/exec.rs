@@ -14,15 +14,12 @@ use async_channel::Sender;
 use tokio::io::AsyncRead;
 use tokio::io::AsyncReadExt;
 use tokio::io::BufReader;
-use tokio::process::Child;
 use tokio_util::sync::CancellationToken;
 
 use crate::sandboxing::ExecOptions;
 use crate::sandboxing::ExecRequest;
 use crate::sandboxing::SandboxPermissions;
-use crate::spawn::SpawnChildRequest;
 use crate::spawn::StdioPolicy;
-use crate::spawn::spawn_child_async;
 use codex_network_proxy::NetworkProxy;
 use codex_path::absolute_path::AbsolutePathBuf;
 use codex_path::path_uri::PathUri;
@@ -52,8 +49,11 @@ use codex_sandboxing::resolve_windows_restricted_token_filesystem_overrides;
 #[cfg(test)]
 use codex_sandboxing::unsupported_windows_restricted_token_sandbox_reason;
 use codex_sandboxing::windows_sandbox_uses_elevated_backend;
+use codex_shell_backend::ShellProcessBackend;
+use codex_shell_backend::SpawnShellRequest;
+use codex_shell_backend::SpawnedShellProcess;
+use codex_shell_backend::StdSystemProcessBackend;
 use codex_utils_pty::DEFAULT_OUTPUT_BYTES_CAP;
-use codex_utils_pty::process_group::kill_child_process_group;
 
 pub const DEFAULT_EXEC_COMMAND_TIMEOUT_MS: u64 = 10_000;
 
@@ -313,7 +313,12 @@ pub async fn process_exec_tool_call(
     )?;
 
     // Route through the sandboxing module for a single, unified execution path.
-    crate::sandboxing::execute_env(exec_req, stdout_stream).await
+    crate::sandboxing::execute_env(
+        exec_req,
+        stdout_stream,
+        /*shell_backend*/ &StdSystemProcessBackend,
+    )
+    .await
 }
 
 /// Transform a portable exec request into the concrete argv/env that should be
@@ -438,6 +443,7 @@ pub(crate) async fn execute_exec_request(
     exec_request: ExecRequest,
     stdout_stream: Option<StdoutStream>,
     after_spawn: Option<Box<dyn FnOnce() + Send>>,
+    shell_backend: &dyn ShellProcessBackend,
 ) -> Result<ExecToolCallOutput> {
     let ExecRequest {
         command,
@@ -493,6 +499,7 @@ pub(crate) async fn execute_exec_request(
         network_sandbox_policy,
         stdout_stream,
         after_spawn,
+        shell_backend,
         sandbox,
         &permission_profile,
         &windows_sandbox_policy_cwd,
@@ -510,6 +517,7 @@ async fn get_raw_output_result(
     network_sandbox_policy: NetworkSandboxPolicy,
     stdout_stream: Option<StdoutStream>,
     after_spawn: Option<Box<dyn FnOnce() + Send>>,
+    shell_backend: &dyn ShellProcessBackend,
     #[cfg_attr(not(windows), allow(unused_variables))] sandbox: SandboxType,
     #[cfg_attr(not(windows), allow(unused_variables))] permission_profile: &PermissionProfile,
     #[cfg_attr(not(windows), allow(unused_variables))] windows_sandbox_policy_cwd: &AbsolutePathBuf,
@@ -531,7 +539,14 @@ async fn get_raw_output_result(
         .await;
     }
 
-    exec(params, network_sandbox_policy, stdout_stream, after_spawn).await
+    exec(
+        params,
+        network_sandbox_policy,
+        stdout_stream,
+        after_spawn,
+        shell_backend,
+    )
+    .await
 }
 
 #[cfg(target_os = "windows")]
@@ -902,6 +917,7 @@ async fn exec(
     network_sandbox_policy: NetworkSandboxPolicy,
     stdout_stream: Option<StdoutStream>,
     after_spawn: Option<Box<dyn FnOnce() + Send>>,
+    shell_backend: &dyn ShellProcessBackend,
 ) -> Result<RawExecToolCallOutput> {
     let ExecParams {
         command,
@@ -936,30 +952,31 @@ async fn exec(
         ))
     })?;
     let arg0_ref = arg0.as_deref();
-    let child = spawn_child_async(SpawnChildRequest {
-        program: PathBuf::from(program),
-        args: args.into(),
-        arg0: arg0_ref,
-        cwd,
-        network_sandbox_policy,
-        // The environment already has attempt-scoped proxy settings from
-        // apply_to_env_for_attempt above. Passing network here would reapply
-        // non-attempt proxy vars and drop attempt correlation metadata.
-        network: None,
-        stdio_policy: StdioPolicy::RedirectForShellTool,
-        env,
-    })
-    .await?;
+    let mut child = shell_backend
+        .spawn(SpawnShellRequest {
+            program: PathBuf::from(program),
+            args: args.into(),
+            arg0: arg0_ref.map(str::to_string),
+            cwd,
+            network_sandbox_policy,
+            // The environment already has attempt-scoped proxy settings from
+            // apply_to_env_for_attempt above. Passing network here would reapply
+            // non-attempt proxy vars and drop attempt correlation metadata.
+            network: None,
+            stdio_policy: StdioPolicy::RedirectForShellTool,
+            env,
+        })
+        .await?;
     if let Some(after_spawn) = after_spawn {
         after_spawn();
     }
-    consume_output(child, expiration, capture_policy, stdout_stream).await
+    consume_output(&mut child, expiration, capture_policy, stdout_stream).await
 }
 
 /// Consumes the output of a child process according to the configured capture
 /// policy.
 async fn consume_output(
-    mut child: Child,
+    child: &mut SpawnedShellProcess,
     expiration: ExecExpiration,
     capture_policy: ExecCapturePolicy,
     stdout_stream: Option<StdoutStream>,
@@ -968,12 +985,12 @@ async fn consume_output(
     // above, therefore `take()` should normally return `Some`.  If it doesn't
     // we treat it as an exceptional I/O error
 
-    let stdout_reader = child.stdout.take().ok_or_else(|| {
+    let stdout_reader = child.take_stdout().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
             "stdout pipe was unexpectedly not available",
         ))
     })?;
-    let stderr_reader = child.stderr.take().ok_or_else(|| {
+    let stderr_reader = child.take_stderr().ok_or_else(|| {
         CodexErr::Io(io::Error::other(
             "stderr pipe was unexpectedly not available",
         ))
@@ -1009,7 +1026,7 @@ async fn consume_output(
         outcome = &mut expiration_wait => {
             match outcome {
                 Some(ExecExpirationOutcome::TimedOut) => {
-                    kill_child_process_group(&mut child)?;
+                    child.kill_process_group()?;
                     child.start_kill()?;
                     (
                         synthetic_exit_status(EXIT_CODE_SIGNAL_BASE + TIMEOUT_CODE),
@@ -1042,7 +1059,7 @@ async fn consume_output(
                             }
                         }
                         Err(_) => {
-                            kill_child_process_group(&mut child)?;
+                            child.kill_process_group()?;
                             child.start_kill()?;
                         }
                     }
@@ -1052,7 +1069,7 @@ async fn consume_output(
             }
         }
         _ = tokio::signal::ctrl_c() => {
-            kill_child_process_group(&mut child)?;
+            child.kill_process_group()?;
             child.start_kill()?;
             (synthetic_exit_status(EXIT_CODE_SIGNAL_BASE + SIGKILL_CODE), false)
         }

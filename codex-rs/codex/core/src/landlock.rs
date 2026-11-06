@@ -1,6 +1,8 @@
-use crate::spawn::SpawnChildRequest;
+use crate::spawn::ShellProcessBackend;
+use crate::spawn::SpawnShellRequest;
+use crate::spawn::SpawnedShellProcess;
+use crate::spawn::StdSystemProcessBackend;
 use crate::spawn::StdioPolicy;
-use crate::spawn::spawn_child_async;
 use codex_network_proxy::NetworkProxy;
 use codex_path::absolute_path::AbsolutePathBuf;
 use codex_protocol::models::PermissionProfile;
@@ -9,7 +11,7 @@ use codex_sandboxing::landlock::allow_network_for_proxy;
 use codex_sandboxing::landlock::create_linux_sandbox_command_args_for_permission_profile;
 use std::collections::HashMap;
 use std::path::Path;
-use tokio::process::Child;
+use std::sync::Arc;
 
 /// Spawn a shell tool command under the Linux sandbox helper
 /// (codex-linux-sandbox), which defaults to bubblewrap for filesystem
@@ -29,7 +31,7 @@ pub async fn spawn_command_under_linux_sandbox<P>(
     stdio_policy: StdioPolicy,
     network: Option<&NetworkProxy>,
     env: HashMap<String, String>,
-) -> std::io::Result<Child>
+) -> std::io::Result<SpawnedShellProcess>
 where
     P: AsRef<Path>,
 {
@@ -56,15 +58,16 @@ where
     } else {
         CODEX_LINUX_SANDBOX_ARG0.to_string()
     };
-    spawn_child_async(SpawnChildRequest {
-        program: codex_linux_sandbox_exe.to_path_buf(),
-        args,
-        arg0: Some(&arg0),
-        cwd: command_cwd,
-        network_sandbox_policy,
-        network,
-        stdio_policy,
-        env,
-    })
-    .await
+    StdSystemProcessBackend
+        .spawn(SpawnShellRequest {
+            program: codex_linux_sandbox_exe.to_path_buf(),
+            args,
+            arg0: Some(arg0),
+            cwd: command_cwd,
+            network_sandbox_policy,
+            network: network.map(|network| Arc::new(network.clone())),
+            stdio_policy,
+            env,
+        })
+        .await
 }

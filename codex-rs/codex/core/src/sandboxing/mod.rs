@@ -11,9 +11,6 @@ use crate::exec::ExecCapturePolicy;
 use crate::exec::ExecExpiration;
 use crate::exec::StdoutStream;
 use crate::exec::execute_exec_request;
-#[cfg(target_os = "macos")]
-use crate::spawn::CODEX_SANDBOX_ENV_VAR;
-use crate::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use codex_file_system::FileSystemSandboxContext;
 use codex_network_proxy::ManagedNetworkSandboxContext;
 use codex_network_proxy::NetworkProxy;
@@ -28,6 +25,10 @@ use codex_protocol::permissions::NetworkSandboxPolicy;
 use codex_sandboxing::SandboxExecRequest;
 use codex_sandboxing::SandboxType;
 use codex_sandboxing::WindowsSandboxFilesystemOverrides;
+#[cfg(target_os = "macos")]
+use codex_shell_backend::CODEX_SANDBOX_ENV_VAR;
+use codex_shell_backend::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
+use codex_shell_backend::ShellProcessBackend;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug)]
@@ -176,14 +177,22 @@ impl ExecRequest {
 pub async fn execute_env(
     exec_request: ExecRequest,
     stdout_stream: Option<StdoutStream>,
+    shell_backend: &dyn ShellProcessBackend,
 ) -> codex_protocol::error::Result<ExecToolCallOutput> {
-    execute_exec_request(exec_request, stdout_stream, /*after_spawn*/ None).await
+    execute_exec_request(
+        exec_request,
+        stdout_stream,
+        /*after_spawn*/ None,
+        shell_backend,
+    )
+    .await
 }
 
 pub async fn execute_exec_request_with_after_spawn(
     exec_request: ExecRequest,
     stdout_stream: Option<StdoutStream>,
     after_spawn: Option<Box<dyn FnOnce() + Send>>,
+    shell_backend: &dyn ShellProcessBackend,
 ) -> codex_protocol::error::Result<ExecToolCallOutput> {
-    execute_exec_request(exec_request, stdout_stream, after_spawn).await
+    execute_exec_request(exec_request, stdout_stream, after_spawn, shell_backend).await
 }

@@ -19,9 +19,13 @@ use codex_sandboxing::policy_transforms::effective_network_sandbox_policy;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::future::Shared;
+use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use tracing::instrument;
+
+use codex_shell_backend::ShellProcessBackend;
+use codex_shell_backend::StdSystemProcessBackend;
 
 #[derive(Clone, Debug)]
 pub(crate) struct TurnSkillsContext {
@@ -131,6 +135,9 @@ pub struct TurnContext {
     pub(crate) approval_policy: Constrained<AskForApproval>,
     pub(crate) permission_profile: PermissionProfile,
     pub(crate) network: Option<NetworkProxy>,
+    /// Backend used to spawn shell tool processes for this turn. Defaults to
+    /// the local system backend; a remote executor can be injected instead.
+    pub(crate) shell_backend: Arc<dyn ShellProcessBackend>,
     pub(crate) windows_sandbox_level: WindowsSandboxLevel,
     pub(crate) available_models: Vec<ModelPreset>,
     pub(crate) unified_exec_shell_mode: UnifiedExecShellMode,
@@ -288,6 +295,7 @@ impl TurnContext {
             approval_policy: self.approval_policy.clone(),
             permission_profile: self.permission_profile.clone(),
             network: self.network.clone(),
+            shell_backend: self.shell_backend.clone(),
             windows_sandbox_level: self.windows_sandbox_level,
             available_models,
             unified_exec_shell_mode: self.unified_exec_shell_mode.clone(),
@@ -570,6 +578,7 @@ impl Session {
             approval_policy: session_configuration.approval_policy.clone(),
             permission_profile: session_configuration.permission_profile(),
             network,
+            shell_backend: Arc::new(StdSystemProcessBackend),
             windows_sandbox_level: session_configuration.windows_sandbox_level,
             available_models,
             unified_exec_shell_mode,

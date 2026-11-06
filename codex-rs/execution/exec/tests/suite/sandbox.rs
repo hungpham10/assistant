@@ -4,12 +4,12 @@ use codex_path::absolute_path::AbsolutePathBuf;
 use codex_path::absolute_path::test_support::PathBufExt;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::permissions::NetworkSandboxPolicy;
+use codex_shell_backend::SpawnedShellProcess;
 use std::collections::HashMap;
 use std::future::Future;
 use std::io;
 use std::process::ExitStatus;
 use tokio::fs::create_dir_all;
-use tokio::process::Child;
 
 #[cfg(target_os = "macos")]
 async fn spawn_command_under_sandbox(
@@ -19,7 +19,7 @@ async fn spawn_command_under_sandbox(
     sandbox_cwd: &AbsolutePathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+) -> std::io::Result<SpawnedShellProcess> {
     use codex_core::exec::ExecCapturePolicy;
     use codex_core::exec::ExecParams;
     use codex_core::exec::build_exec_request;
@@ -83,7 +83,7 @@ async fn spawn_command_under_sandbox(
         }
     }
 
-    child.kill_on_drop(true).spawn()
+    Ok(SpawnedShellProcess::new(child.kill_on_drop(true).spawn()?))
 }
 
 #[cfg(target_os = "linux")]
@@ -94,7 +94,7 @@ async fn spawn_command_under_sandbox(
     sandbox_cwd: &AbsolutePathBuf,
     stdio_policy: StdioPolicy,
     env: HashMap<String, String>,
-) -> std::io::Result<Child> {
+) -> std::io::Result<SpawnedShellProcess> {
     use codex_core::spawn_command_under_linux_sandbox;
 
     let codex_linux_sandbox_exe = core_test_support::find_codex_linux_sandbox_exe()

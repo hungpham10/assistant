@@ -283,6 +283,7 @@ async fn exec_full_buffer_capture_ignores_expiration() -> Result<()> {
         NetworkSandboxPolicy::Enabled,
         /*stdout_stream*/ None,
         /*after_spawn*/ None,
+        /*shell_backend*/ &codex_shell_backend::StdSystemProcessBackend,
     )
     .await?;
 
@@ -320,6 +321,7 @@ async fn exec_full_buffer_capture_keeps_io_drain_timeout_when_descendant_holds_p
             NetworkSandboxPolicy::Enabled,
             /*stdout_stream*/ None,
             /*after_spawn*/ None,
+            /*shell_backend*/ &codex_shell_backend::StdSystemProcessBackend,
         ),
     )
     .await
@@ -1069,6 +1071,7 @@ async fn kill_child_process_group_kills_grandchildren_on_timeout() -> Result<()>
         NetworkSandboxPolicy::Restricted,
         /*stdout_stream*/ None,
         /*after_spawn*/ None,
+        /*shell_backend*/ &codex_shell_backend::StdSystemProcessBackend,
     )
     .await?;
     assert!(output.timed_out);

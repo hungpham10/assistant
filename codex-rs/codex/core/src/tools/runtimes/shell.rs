@@ -327,9 +327,13 @@ impl ToolRuntime<ShellRequest, ExecToolCallOutput> for ShellRuntime {
                 Some(&req.turn_environment.environment_id),
             )
             .map_err(ToolError::Codex)?;
-        let out = execute_env(env, Self::stdout_stream(ctx))
-            .await
-            .map_err(ToolError::Codex)?;
+        let out = execute_env(
+            env,
+            Self::stdout_stream(ctx),
+            ctx.turn.shell_backend.as_ref(),
+        )
+        .await
+        .map_err(ToolError::Codex)?;
         Ok(out)
     }
 }
