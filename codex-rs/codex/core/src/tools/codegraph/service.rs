@@ -153,7 +153,7 @@ pub fn resolve_auto_init(base_cwd: &Path, auto_init: Option<String>) -> Option<S
     // workspace root itself rather than `/root/.`.
     let cleaned: std::path::PathBuf = joined
         .components()
-        .filter(|component| component != std::path::Component::CurDir)
+        .filter(|component| *component != std::path::Component::CurDir)
         .collect();
     Some(cleaned.to_string_lossy().to_string())
 }
