@@ -6,7 +6,10 @@ license.workspace = true
 
 [dependencies]
 codegraph-core     = { path = "../codegraph-core" }
-codegraph-graph    = { path = "../codegraph-graph", features = ["sqlite"] }
+# sqlite + lmdb: both on-disk backends a workspace's [storage] type may select
+# (`sqlite://` / `lmdb://` DSNs). The other backends (redis/postgres/mysql)
+# stay opt-in so the agent binary never links their drivers by default.
+codegraph-graph    = { path = "../codegraph-graph", features = ["sqlite", "lmdb"] }
 codegraph-context  = { path = "../codegraph-context" }
 codegraph-extract  = { path = "../codegraph-extract", default-features = false, features = ["all-langs"] }
 codegraph-source   = { path = "../codegraph-source" }
