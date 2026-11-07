@@ -135,6 +135,29 @@ pub struct IndexSummary {
     pub docs_failed: usize,
 }
 
+/// Resolve the configured `auto_init` path against the session workspace root.
+/// `None`/empty → `None` (no auto-init, by design); absolute paths are kept
+/// as-is; relative paths join `base_cwd` so `auto_init = "."` binds the
+/// workspace regardless of the directory the process was launched from.
+pub fn resolve_auto_init(base_cwd: &Path, auto_init: Option<String>) -> Option<String> {
+    let raw = auto_init?;
+    if raw.is_empty() {
+        return None;
+    }
+    let path = Path::new(&raw);
+    if path.is_absolute() {
+        return Some(raw);
+    }
+    let joined = base_cwd.join(path);
+    // Drop `.` components lexically so `auto_init = "."` resolves to the
+    // workspace root itself rather than `/root/.`.
+    let cleaned: std::path::PathBuf = joined
+        .components()
+        .filter(|component| component != std::path::Component::CurDir)
+        .collect();
+    Some(cleaned.to_string_lossy().to_string())
+}
+
 pub struct CodegraphService;
 
 impl CodegraphService {
@@ -228,7 +251,8 @@ impl CodegraphService {
             }
         }
         let Some(session) = bound_session() else {
-            return "status: not bound — call begin(path=...) first".to_string();
+            return "status: not bound — call begin(path=...) first (or set [codegraph] auto_init in config.toml)"
+                .to_string();
         };
         let root = session.root().await;
         let initialized = session.is_initialized().await;

@@ -109,6 +109,30 @@ async fn begin_with_bad_path_fails_without_binding() {
     assert!(status.contains("not bound"), "unexpected status: {status}");
 }
 
+#[test]
+fn resolve_auto_init_variants() {
+    use super::resolve_auto_init;
+    let base = std::path::Path::new("/base");
+    assert_eq!(resolve_auto_init(base, None), None);
+    assert_eq!(resolve_auto_init(base, Some(String::new())), None);
+    assert_eq!(
+        resolve_auto_init(base, Some(".".to_string())),
+        Some("/base".to_string())
+    );
+    assert_eq!(
+        resolve_auto_init(base, Some("./sub".to_string())),
+        Some("/base/sub".to_string())
+    );
+    assert_eq!(
+        resolve_auto_init(base, Some("sub/dir".to_string())),
+        Some("/base/sub/dir".to_string())
+    );
+    assert_eq!(
+        resolve_auto_init(base, Some("/abs/path".to_string())),
+        Some("/abs/path".to_string())
+    );
+}
+
 #[tokio::test]
 #[serial]
 async fn docs_only_index_ingests_configured_documents() {
