@@ -1295,7 +1295,11 @@ fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut P
         if cfg.enabled {
             use std::sync::Arc;
             let service = Arc::new(crate::tools::codegraph::service::CodegraphService);
-            crate::tools::codegraph::service::set_global_auto_init(cfg.auto_init.clone());
+            let auto_init = crate::tools::codegraph::service::resolve_auto_init(
+                context.step_context.turn.config.cwd.as_path(),
+                cfg.auto_init.clone(),
+            );
+            crate::tools::codegraph::service::set_global_auto_init(auto_init);
             let exposure =
                 tool_exposure_from_config(&context.step_context.turn.config, "codegraph");
             // Add main call tool
