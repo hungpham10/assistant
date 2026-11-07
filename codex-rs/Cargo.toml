@@ -345,7 +345,7 @@ libc = "0.2.182"
 # https://www.sqlite.org/wal.html#the_wal_reset_bug
 libsqlite3-sys = { version = "0.37", default-features = false }
 log = "0.4"
-lru = "0.16.3"
+lru = "0.19.0"
 maplit = "1.0.2"
 memchr = "2.7.6"
 mime_guess = "2.0.5"
@@ -365,7 +365,7 @@ opentelemetry-otlp = { version = "0.31.0", default-features = false, features = 
     "reqwest-blocking-client",
     "reqwest-rustls",
 ] }
-opentelemetry-semantic-conventions = "0.31.0"
+opentelemetry-semantic-conventions = "0.33.1"
 opentelemetry_sdk = "0.31.0"
 os_info = "3.12.0"
 owo-colors = "4.3.0"
@@ -424,7 +424,7 @@ sqlx = { version = "0.9.0", default-features = false, features = [
     "uuid",
 ] }
 starlark = { version = "0.14.2", default-features = false }
-strum = "0.27.2"
+strum = "0.28.0"
 strum_macros = "0.28.0"
 supports-color = "3.0.2"
 syntect = "5"
