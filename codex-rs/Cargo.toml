@@ -424,7 +424,7 @@ sqlx = { version = "0.9.0", default-features = false, features = [
     "uuid",
 ] }
 starlark = { version = "0.14.2", default-features = false }
-strum = "0.27.2"
+strum = "0.28.0"
 strum_macros = "0.28.0"
 supports-color = "3.0.2"
 syntect = "5"
@@ -480,7 +480,7 @@ rayon = "1"
 redis = { version = "1.0", features = ["tokio-comp"] }
 lmdb-rkv = "0.14"
 rusqlite = { version = "0.39", features = ["bundled", "backup"] }
-ts-rs = "11"
+ts-rs = "12"
 tungstenite = { version = "0.27.0", features = ["deflate", "proxy"] }
 uds_windows = "1.1.0"
 unicode-segmentation = "1.12.0"
