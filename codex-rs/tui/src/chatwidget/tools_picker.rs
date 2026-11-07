@@ -184,7 +184,7 @@ fn build_tools_picker_items(
     let mut last_namespace: Option<&str> = None;
     for item in builtin {
         let ns = item.namespace.as_deref().unwrap_or("");
-        if ns != last_namespace {
+        if last_namespace != Some(ns) {
             let label = if ns.is_empty() {
                 "Core tools".to_string()
             } else {
