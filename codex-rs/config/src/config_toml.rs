@@ -609,6 +609,10 @@ pub struct CodegraphToml {
     pub cloud_url: Option<String>,
     /// Cloud auth token (marker only, unused while `mode = "local"`).
     pub auth: Option<String>,
+    /// Auto-initialize codegraph on startup when set. If not set, no auto-init.
+    /// When set (e.g. `.` or `./codex-rs`), the session will bind to that path
+    /// and load `.codegraph/` configuration automatically.
+    pub auto_init: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
@@ -689,6 +693,13 @@ pub struct ToolsToml {
     )]
     pub web_search: Option<WebSearchToolConfig>,
     pub experimental_request_user_input: Option<ExperimentalRequestUserInput>,
+    /// Default tool exposure: "direct" (shown upfront) or "deferred" (discoverable on-demand).
+    /// Defaults to "direct".
+    #[serde(default)]
+    pub default_exposure: Option<String>,
+    /// Per-tool exposure overrides. Key is tool name or namespace (e.g., "codegraph" or "codegraph.call").
+    #[serde(default)]
+    pub tool_exposure: Option<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
