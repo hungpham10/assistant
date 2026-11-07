@@ -224,7 +224,7 @@ jobs:
           if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
             export LIBSQLITE3_FLAGS=SQLITE_DISABLE_INTRINSIC
           fi
-          build_args=(--bin codex --no-default-features --features minimal)
+          build_args=(--bin codex --no-default-features --features minimal,codegraph)
           if [[ "$target" == *windows* ]]; then
             build_args+=(--bin codex-command-runner --bin codex-windows-sandbox-setup)
           fi
