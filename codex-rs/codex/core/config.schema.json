@@ -384,6 +384,10 @@
           "description": "Cloud auth token (marker only, unused while `mode = \"local\"`).",
           "type": "string"
         },
+        "auto_init": {
+          "description": "Auto-initialize codegraph on startup when set. If not set, no auto-init. When set (e.g. `.` or `./codex-rs`), the session will bind to that path and load `.codegraph/` configuration automatically.",
+          "type": "string"
+        },
         "cloud_url": {
           "description": "Cloud endpoint URL (marker only, unused while `mode = \"local\"`).",
           "type": "string"
@@ -3058,8 +3062,21 @@
     "ToolsToml": {
       "additionalProperties": false,
       "properties": {
+        "default_exposure": {
+          "default": null,
+          "description": "Default tool exposure: \"direct\" (shown upfront) or \"deferred\" (discoverable on-demand). Defaults to \"direct\".",
+          "type": "string"
+        },
         "experimental_request_user_input": {
           "$ref": "#/definitions/ExperimentalRequestUserInput"
+        },
+        "tool_exposure": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": null,
+          "description": "Per-tool exposure overrides. Key is tool name or namespace (e.g., \"codegraph\" or \"codegraph.call\").",
+          "type": "object"
         },
         "web_search": {
           "allOf": [

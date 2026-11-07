@@ -18,6 +18,8 @@ use camino::Utf8Path;
 use camino::Utf8PathBuf;
 use serde_json::Value as JsonValue;
 use serde_json::json;
+use std::env;
+use std::path::Path;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::OnceLock;
@@ -39,6 +41,19 @@ static GLOBAL_SESSION: OnceLock<Mutex<Option<Arc<Session>>>> = OnceLock::new();
 
 fn global_session() -> &'static Mutex<Option<Arc<Session>>> {
     GLOBAL_SESSION.get_or_init(|| Mutex::new(None))
+}
+
+/// Process-global auto-init configuration.
+static GLOBAL_AUTO_INIT: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn global_auto_init() -> &'static Mutex<Option<String>> {
+    GLOBAL_AUTO_INIT.get_or_init(|| Mutex::new(None))
+}
+
+pub fn set_global_auto_init(path: Option<String>) {
+    if let Ok(mut guard) = global_auto_init().lock() {
+        *guard = path;
+    }
 }
 
 /// Clone the bound session out (caller awaits without holding the lock).
@@ -123,6 +138,33 @@ pub struct IndexSummary {
 pub struct CodegraphService;
 
 impl CodegraphService {
+    /// Attempt to auto-initialize from config if not already bound.
+    /// If `auto_init` is Some, resolve the path (relative to cwd if not absolute)
+    /// and call begin() if not currently bound.
+    pub async fn auto_init_from_config(auto_init: Option<&str>) -> Option<String> {
+        auto_init?;
+        // If already bound, don't re-init
+        if bound_session().is_some() {
+            return None;
+        }
+        let path_str = auto_init.unwrap_or("");
+        if path_str.is_empty() {
+            return None;
+        }
+        let path = Path::new(path_str);
+        let resolved = if path.is_absolute() {
+            path.to_path_buf()
+        } else {
+            match env::current_dir() {
+                Ok(cwd) => cwd.join(path),
+                Err(_) => return Some("auto_init failed: cannot get current dir".to_string()),
+            }
+        };
+        let resolved_str = resolved.to_string_lossy().to_string();
+        let result = Self::begin(&resolved_str).await;
+        Some(result)
+    }
+
     /// `{"verb":"begin","path":...}` — bind-only, never indexes.
     pub async fn begin(path: &str) -> String {
         let session = Arc::new(Session::new());
@@ -178,6 +220,13 @@ impl CodegraphService {
 
     /// `{"verb":"status"}` — bound root + stats, or "not bound".
     pub async fn status() -> String {
+        // Try lazy auto-init if configured
+        if bound_session().is_none() {
+            let auto_init = global_auto_init().lock().ok().and_then(|g| g.clone());
+            if auto_init.is_some() {
+                let _ = Self::auto_init_from_config(auto_init.as_deref()).await;
+            }
+        }
         let Some(session) = bound_session() else {
             return "status: not bound — call begin(path=...) first".to_string();
         };
@@ -210,6 +259,12 @@ impl CodegraphService {
 
     /// `{"verb":"search","action":...}` — dispatch one query verb.
     pub async fn search(action: &str, args: &JsonValue) -> String {
+        if bound_session().is_none() {
+            let auto_init = global_auto_init().lock().ok().and_then(|g| g.clone());
+            if auto_init.is_some() {
+                let _ = Self::auto_init_from_config(auto_init.as_deref()).await;
+            }
+        }
         if bound_session().is_none() {
             return format!(
                 "error: no codegraph session bound — call begin(path=...) first, then search. (requested action: {action})"
@@ -580,6 +635,23 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let flow = api.flow(id).await?;
             Ok(serde_json::to_string(&serde_json::to_value(&flow)?)
                 .expect("flow result is serializable"))
+        }
+        "trace_full_flow" => {
+            let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
+            let max_depth = arg_u32(args, "max_depth")
+                .or_else(|| arg_u32(args, "depth"))
+                .unwrap_or(10) as usize;
+            let max_paths = arg_u32(args, "max_paths").unwrap_or(10) as usize;
+            let max_loop_iter = arg_u32(args, "max_loop_iter").unwrap_or(100) as usize;
+            let traces = api
+                .trace_full_flow(id, max_depth, max_paths, max_loop_iter)
+                .await?;
+            Ok(serde_json::to_string(&serde_json::to_value(&traces)?)
+                .expect("trace_full_flow result is serializable"))
+        }
+        "context" => {
+            let query = arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
+            Ok(format!("context for: {query}"))
         }
         "search_flow" => {
             let pattern =
