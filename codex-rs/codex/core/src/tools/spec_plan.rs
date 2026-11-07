@@ -1261,18 +1261,88 @@ fn code_mode_namespace_name<'a>(
 #[path = "spec_plan_tests.rs"]
 mod tests;
 
+fn tool_exposure_from_config(config: &crate::config::Config, tool_key: &str) -> ToolExposure {
+    // Check per-tool override first
+    if let Some(direct) = config.tools.tool_direct.get(tool_key) {
+        return if *direct {
+            ToolExposure::Direct
+        } else {
+            ToolExposure::Deferred
+        };
+    }
+    // Also check by namespace (e.g., "codegraph")
+    if let Some(namespace) = tool_key.split(':').next()
+        && let Some(direct) = config.tools.tool_direct.get(namespace)
+    {
+        return if *direct {
+            ToolExposure::Direct
+        } else {
+            ToolExposure::Deferred
+        };
+    }
+    // Use default
+    if config.tools.default_direct {
+        ToolExposure::Direct
+    } else {
+        ToolExposure::Deferred
+    }
+}
+
 fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
     #[cfg(feature = "codegraph")]
     {
         let cfg = &context.step_context.turn.config.codegraph;
         if cfg.enabled {
             use std::sync::Arc;
+            let service = Arc::new(crate::tools::codegraph::service::CodegraphService);
+            crate::tools::codegraph::service::set_global_auto_init(cfg.auto_init.clone());
+            let exposure =
+                tool_exposure_from_config(&context.step_context.turn.config, "codegraph");
+            // Add main call tool
             planned_tools.add_with_exposure(
-                crate::tools::handlers::CodegraphHandler::new(Arc::new(
-                    crate::tools::codegraph::service::CodegraphService,
-                )),
-                codex_tools::ToolExposure::Deferred,
+                crate::tools::handlers::CodegraphHandler::new(Arc::clone(&service)),
+                exposure,
             );
+            // Add individual tools similar to MCP codegraph
+            for name in [
+                "search_symbol",
+                "code_search",
+                "callers",
+                "callees",
+                "context",
+                "files",
+                "flow",
+                "trace_full_flow",
+                "impact",
+                "symbol",
+                "stats",
+                "code_stats",
+                "status",
+                "init",
+            ] {
+                let tool_exposure = tool_exposure_from_config(
+                    &context.step_context.turn.config,
+                    &format!("codegraph.{name}"),
+                );
+                planned_tools.add_with_exposure(
+                    crate::tools::handlers::CodegraphHandler::new_named(Arc::clone(&service), name),
+                    tool_exposure,
+                );
+            }
+            // Docgraph namespace
+            #[cfg(feature = "codegraph")]
+            for name in ["search", "list", "stats", "init"] {
+                let tool_exposure = tool_exposure_from_config(
+                    &context.step_context.turn.config,
+                    &format!("docgraph.{name}"),
+                );
+                planned_tools.add_with_exposure(
+                    crate::tools::handlers::DocgraphHandler::new_named(Arc::clone(&service), name),
+                    tool_exposure,
+                );
+            }
+        } else {
+            crate::tools::codegraph::service::set_global_auto_init(None);
         }
     }
     #[cfg(not(feature = "codegraph"))]
