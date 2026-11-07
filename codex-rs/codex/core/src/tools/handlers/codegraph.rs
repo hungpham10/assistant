@@ -35,11 +35,22 @@ pub struct CodegraphHandler {
     // pass an `Arc` like other handlers.
     #[allow(dead_code)]
     service: Arc<CodegraphService>,
+    tool_name: String,
 }
 
 impl CodegraphHandler {
     pub fn new(service: Arc<CodegraphService>) -> Self {
-        Self { service }
+        Self {
+            service,
+            tool_name: TOOL_NAME.to_string(),
+        }
+    }
+
+    pub fn new_named(service: Arc<CodegraphService>, name: &str) -> Self {
+        Self {
+            service,
+            tool_name: name.to_string(),
+        }
     }
 }
 
@@ -190,7 +201,7 @@ fn parameters_schema() -> JsonSchema {
 
 impl ToolExecutor<ToolInvocation> for CodegraphHandler {
     fn tool_name(&self) -> ToolName {
-        ToolName::namespaced(NAMESPACE, TOOL_NAME)
+        ToolName::namespaced(NAMESPACE, self.tool_name.clone())
     }
 
     fn spec(&self) -> ToolSpec {
@@ -200,61 +211,555 @@ impl ToolExecutor<ToolInvocation> for CodegraphHandler {
                 Lifecycle: begin(path) -> search(action, ...) -> end(). \
                 Indexing is host-only (codex codegraph index / /index)."
                 .to_string(),
-            tools: vec![ResponsesApiNamespaceTool::Function(ResponsesApiTool {
-                name: TOOL_NAME.to_string(),
-                description: "Call codegraph verbs (begin/search/end/status).".to_string(),
-                strict: false,
-                defer_loading: None,
-                parameters: parameters_schema(),
-                output_schema: None,
-            })],
+            tools: vec![
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: TOOL_NAME.to_string(),
+                    description: "Call codegraph verbs (begin/search/end/status).".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: parameters_schema(),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "search_symbol".to_string(),
+                    description: "Search for symbols by name/pattern.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "query".to_string(),
+                                JsonSchema::string(Some("search query".to_string())),
+                            );
+                            props.insert(
+                                "mode".to_string(),
+                                JsonSchema::string(Some(
+                                    "match mode: contains|prefix|suffix|exact|semantic|hybrid"
+                                        .to_string(),
+                                )),
+                            );
+                            props.insert(
+                                "kind".to_string(),
+                                JsonSchema::string(Some("symbol kind filter".to_string())),
+                            );
+                            props.insert(
+                                "limit".to_string(),
+                                JsonSchema::integer(Some("max results".to_string())),
+                            );
+                            props.insert(
+                                "offset".to_string(),
+                                JsonSchema::integer(Some("pagination offset".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec!["query".to_string()]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "code_search".to_string(),
+                    description: "Search for code symbols.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "query".to_string(),
+                                JsonSchema::string(Some("search query".to_string())),
+                            );
+                            props.insert(
+                                "mode".to_string(),
+                                JsonSchema::string(Some(
+                                    "match mode: contains|prefix|suffix|exact|semantic|hybrid"
+                                        .to_string(),
+                                )),
+                            );
+                            props.insert(
+                                "kind".to_string(),
+                                JsonSchema::string(Some("symbol kind filter".to_string())),
+                            );
+                            props.insert(
+                                "limit".to_string(),
+                                JsonSchema::integer(Some("max results".to_string())),
+                            );
+                            props.insert(
+                                "offset".to_string(),
+                                JsonSchema::integer(Some("pagination offset".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec!["query".to_string()]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "callers".to_string(),
+                    description: "Find callers of a symbol.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some(
+                                    "symbol name (if id not provided)".to_string(),
+                                )),
+                            );
+                            props.insert(
+                                "depth".to_string(),
+                                JsonSchema::integer(Some("call depth".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "callees".to_string(),
+                    description: "Find callees of a symbol.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some("symbol name".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "context".to_string(),
+                    description: "Get context for a symbol or topic.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "query".to_string(),
+                                JsonSchema::string(Some("query".to_string())),
+                            );
+                            props.insert(
+                                "depth".to_string(),
+                                JsonSchema::integer(Some("depth".to_string())),
+                            );
+                            props.insert("include_source".to_string(), JsonSchema::boolean(None));
+                            props.insert(
+                                "limit".to_string(),
+                                JsonSchema::integer(Some("limit".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec!["query".to_string()]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "files".to_string(),
+                    description: "List files in the indexed codebase.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "prefix".to_string(),
+                                JsonSchema::string(Some("path prefix filter".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "flow".to_string(),
+                    description: "Get flow/call chain for a symbol.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some("symbol name".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "trace_full_flow".to_string(),
+                    description: "Trace full flow from a symbol.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some("symbol name".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "impact".to_string(),
+                    description: "Find impact radius of changing a symbol.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some("symbol name".to_string())),
+                            );
+                            props.insert(
+                                "max_depth".to_string(),
+                                JsonSchema::integer(Some("max depth".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "symbol".to_string(),
+                    description: "Get symbol details.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "id".to_string(),
+                                JsonSchema::integer(Some("symbol id".to_string())),
+                            );
+                            props.insert(
+                                "name".to_string(),
+                                JsonSchema::string(Some("symbol name".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "stats".to_string(),
+                    description: "Get codegraph statistics.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        BTreeMap::new(),
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "code_stats".to_string(),
+                    description: "Get code statistics.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        BTreeMap::new(),
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "status".to_string(),
+                    description: "Get session status.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        BTreeMap::new(),
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "doc_search".to_string(),
+                    description: "Search documents.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "query".to_string(),
+                                JsonSchema::string(Some("search query".to_string())),
+                            );
+                            props.insert(
+                                "limit".to_string(),
+                                JsonSchema::integer(Some("limit".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec!["query".to_string()]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "doc_list".to_string(),
+                    description: "List documents.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        BTreeMap::new(),
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "doc_stats".to_string(),
+                    description: "Get document statistics.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        BTreeMap::new(),
+                        Some(vec![]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+                ResponsesApiNamespaceTool::Function(ResponsesApiTool {
+                    name: "init".to_string(),
+                    description: "Bind to a workspace.".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: JsonSchema::object(
+                        {
+                            let mut props = BTreeMap::new();
+                            props.insert(
+                                "path".to_string(),
+                                JsonSchema::string(Some("workspace path".to_string())),
+                            );
+                            props
+                        },
+                        Some(vec!["path".to_string()]),
+                        Some(AdditionalProperties::Boolean(false)),
+                    ),
+                    output_schema: None,
+                }),
+            ],
         })
     }
 
     fn handle(&self, invocation: ToolInvocation) -> codex_tools::ToolExecutorFuture<'_> {
+        let tool_name = self.tool_name.clone();
         Box::pin(async move {
             let ToolPayload::Function { arguments, .. } = invocation.payload else {
                 return Err(FunctionCallError::RespondToModel(
                     "codegraph handler received unsupported payload".to_string(),
                 ));
             };
-            let args: JsonValue = if arguments.trim().is_empty() {
-                JsonValue::Null
+            let mut args: JsonValue = if arguments.trim().is_empty() {
+                json!({})
             } else {
                 serde_json::from_str(&arguments).map_err(|err| {
                     FunctionCallError::RespondToModel(format!(
-                        "invalid arguments for `codegraph.call`: {err}"
+                        "invalid arguments for `codegraph.{tool_name}`: {err}"
                     ))
                 })?
             };
-            let verb = args
-                .get("verb")
-                .and_then(|v| v.as_str())
-                .unwrap_or_default();
-            let output = match verb {
-                "begin" => {
-                    let path = args
-                        .get("path")
+            if !args.is_object() {
+                args = json!({});
+            }
+            match tool_name.as_str() {
+                "call" => {
+                    let verb = args
+                        .get("verb")
                         .and_then(|v| v.as_str())
-                        .unwrap_or_default();
-                    CodegraphService::begin(path).await
+                        .unwrap_or("")
+                        .to_string();
+                    let output = match verb.as_str() {
+                        "begin" | "init" => {
+                            let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                            CodegraphService::begin(path).await
+                        }
+                        "search" => {
+                            let action = args
+                                .get("action")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("")
+                                .to_string();
+                            CodegraphService::search(&action, &args).await
+                        }
+                        "end" => CodegraphService::end().await,
+                        "status" => CodegraphService::status().await,
+                        other => format!("error: unknown verb \"{other}\""),
+                    };
+                    Ok(boxed_tool_output(CodegraphOutput(output)))
                 }
-                "search" => {
-                    let action = args.get("action").and_then(|v| v.as_str()).unwrap_or("");
-                    CodegraphService::search(action, &args).await
+                "search_symbol" | "code_search" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("search_symbol"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("search_symbol", &args).await,
+                    )))
                 }
-                "end" => CodegraphService::end().await,
-                "status" => CodegraphService::status().await,
-                "index" | "deinit" => format!(
-                    "error: verb \"{verb}\" is host-only — run `codex codegraph index` \
-                     (or the TUI /index command) instead; codegraph.call only supports \
-                     begin/search/end/status"
-                ),
-                other => format!(
-                    "error: unknown verb \"{other}\" — codegraph.call verbs: begin, search, end, status"
-                ),
-            };
-            Ok(boxed_tool_output(CodegraphOutput(output)))
+                "callers" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("callers"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("callers", &args).await,
+                    )))
+                }
+                "callees" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("callees"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("callees", &args).await,
+                    )))
+                }
+                "context" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("context"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("context", &args).await,
+                    )))
+                }
+                "files" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("files"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("files", &args).await,
+                    )))
+                }
+                "flow" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("flow"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("flow", &args).await,
+                    )))
+                }
+                "trace_full_flow" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("trace_full_flow"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("trace_full_flow", &args).await,
+                    )))
+                }
+                "impact" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("impact"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("impact", &args).await,
+                    )))
+                }
+                "symbol" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("symbol"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("symbol", &args).await,
+                    )))
+                }
+                "stats" | "code_stats" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("stats"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("stats", &args).await,
+                    )))
+                }
+                "status" => Ok(boxed_tool_output(CodegraphOutput(
+                    CodegraphService::status().await,
+                ))),
+                "doc_search" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("doc_search"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("doc_search", &args).await,
+                    )))
+                }
+                "doc_list" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("doc_list"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("doc_list", &args).await,
+                    )))
+                }
+                "doc_stats" => {
+                    if let Some(obj) = args.as_object_mut() {
+                        obj.insert("action".to_string(), json!("doc_stats"));
+                    }
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::search("doc_stats", &args).await,
+                    )))
+                }
+                "init" => {
+                    let path = args.get("path").and_then(|v| v.as_str()).unwrap_or("");
+                    Ok(boxed_tool_output(CodegraphOutput(
+                        CodegraphService::begin(path).await,
+                    )))
+                }
+                other => Ok(boxed_tool_output(CodegraphOutput(format!(
+                    "unknown codegraph tool: {other}"
+                )))),
+            }
         })
     }
 }

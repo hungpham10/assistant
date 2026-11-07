@@ -1033,6 +1033,8 @@ pub struct Config {
 
     /// Configuration for the native codegraph tool surface.
     pub codegraph: CodegraphConfig,
+    /// Configuration for tool exposure (direct/deferred).
+    pub tools: ToolsExposureConfig,
     /// Configuration for the pipeline/enrichment layer.
     pub pipeline: PipelineConfig,
 
@@ -1111,6 +1113,27 @@ pub struct CodegraphConfig {
     pub cloud_url: Option<String>,
     /// Cloud auth token (future marker; `None` in local mode).
     pub auth: Option<String>,
+    /// Auto-initialize codegraph on startup when set. If `None`, no auto-init.
+    /// Relative paths are resolved against the current working directory.
+    pub auto_init: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ToolsExposureConfig {
+    /// Default exposure for tools: true means Direct, false means Deferred.
+    /// Defaults to true (Direct).
+    pub default_direct: bool,
+    /// Per-tool exposure overrides. Key can be tool name or namespace.
+    pub tool_direct: std::collections::HashMap<String, bool>,
+}
+
+impl Default for ToolsExposureConfig {
+    fn default() -> Self {
+        Self {
+            default_direct: true,
+            tool_direct: std::collections::HashMap::new(),
+        }
+    }
 }
 
 /// Codegraph backend mode. Only `Local` is implemented; `Cloud` is accepted
@@ -2563,6 +2586,7 @@ fn resolve_codegraph_config(config_toml: &ConfigToml) -> CodegraphConfig {
         mode: CodegraphMode::Local,
         cloud_url: None,
         auth: None,
+        auto_init: None,
     };
     let Some(toml) = config_toml.codegraph.as_ref() else {
         return base;
@@ -2577,7 +2601,25 @@ fn resolve_codegraph_config(config_toml: &ConfigToml) -> CodegraphConfig {
             .unwrap_or(base.mode),
         cloud_url: toml.cloud_url.clone(),
         auth: toml.auth.clone(),
+        auto_init: toml.auto_init.clone(),
     }
+}
+
+fn resolve_tools_exposure_config(config_toml: &ConfigToml) -> ToolsExposureConfig {
+    let mut cfg = ToolsExposureConfig::default();
+    let Some(tools) = config_toml.tools.as_ref() else {
+        return cfg;
+    };
+    if let Some(default_exposure) = tools.default_exposure.as_deref() {
+        cfg.default_direct = !matches!(default_exposure.to_ascii_lowercase().as_str(), "deferred");
+    }
+    if let Some(tool_exposure) = tools.tool_exposure.as_ref() {
+        for (key, value) in tool_exposure {
+            let direct = !matches!(value.to_ascii_lowercase().as_str(), "deferred");
+            cfg.tool_direct.insert(key.clone(), direct);
+        }
+    }
+    cfg
 }
 
 fn resolve_pipeline_config(config_toml: &ConfigToml) -> PipelineConfig {
@@ -3507,6 +3549,7 @@ impl Config {
             resolve_experimental_request_user_input_enabled(&cfg);
         let code_mode = resolve_code_mode_config(&cfg);
         let codegraph = resolve_codegraph_config(&cfg);
+        let tools = resolve_tools_exposure_config(&cfg);
         let pipeline = resolve_pipeline_config(&cfg);
         let multi_agent_v2 = resolve_multi_agent_v2_config(&cfg);
         let token_budget = resolve_token_budget_config(&cfg, &features)?;
@@ -4053,6 +4096,7 @@ impl Config {
             experimental_request_user_input_enabled,
             code_mode,
             codegraph,
+            tools,
             pipeline,
             use_experimental_unified_exec_tool,
             background_terminal_max_timeout,
