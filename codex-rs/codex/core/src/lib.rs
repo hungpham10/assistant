@@ -152,11 +152,14 @@ pub use state_db_bridge::init_state_db;
 mod thread_rollout_truncation;
 pub use thread_rollout_truncation::truncate_rollout_after_turn_id;
 #[cfg(feature = "codegraph")]
+#[cfg(feature = "codegraph")]
 pub use tools::codegraph::service::CodegraphService;
 #[cfg(feature = "codegraph")]
 pub use tools::codegraph::service::IndexKind;
 #[cfg(feature = "codegraph")]
 pub use tools::codegraph::service::IndexSummary;
+#[cfg(feature = "codegraph")]
+pub use tools::codegraph::service::set_global_auto_init;
 mod tools;
 pub(crate) mod turn_diff_tracker;
 mod turn_metadata;
