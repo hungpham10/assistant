@@ -179,6 +179,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         startup_warnings: Vec::new(),
         bypass_hook_trust: false,
         pipeline: Default::default(),
+        tools: Default::default(),
         model,
         service_tier: None,
         review_model: None,
