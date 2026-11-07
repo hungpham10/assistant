@@ -127,7 +127,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.43"
+version = "0.0.44"
 # Track the edition for all workspace crates in one place. Individual
 # crates can still override this value, but keeping it here means new
 # crates created with `cargo new -w ...` automatically inherit the 2024
@@ -480,7 +480,7 @@ rayon = "1"
 redis = { version = "1.0", features = ["tokio-comp"] }
 lmdb-rkv = "0.14"
 rusqlite = { version = "0.39", features = ["bundled", "backup"] }
-ts-rs = "12"
+ts-rs = "11"
 tungstenite = { version = "0.27.0", features = ["deflate", "proxy"] }
 uds_windows = "1.1.0"
 unicode-segmentation = "1.12.0"
