@@ -274,6 +274,7 @@ async fn schedule_startup_prewarm_inner(
         session.as_ref(),
         step_context.as_ref(),
         &startup_cancellation_token,
+        None,
     )
     .await?;
     startup_turn_context.session_telemetry.record_startup_phase(

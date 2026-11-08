@@ -3059,6 +3059,59 @@
       ],
       "type": "string"
     },
+    "ToolSuggestJevConfig": {
+      "additionalProperties": false,
+      "description": "Question-driven MCP tool suggestion through the Jev decision model (TypeSafe SystemOne), mirroring the optional `rerank = \"jev\"` setting of codegraph.\n\nOpt-in: when `enabled`, the current user question — together with the MCP tool candidates (names + descriptions, English) — is sent to Jev to pick the tools advertised directly for this turn. The remaining MCP tools stay deferred and remain discoverable through `tool_search`. Every failure (disabled, missing token, timeout, error) keeps the previous exposure: fail-open.",
+      "properties": {
+        "api_key_env": {
+          "default": null,
+          "description": "Name of the env var that carries the API token. Key values never live in config files.",
+          "type": "string"
+        },
+        "direct_tools": {
+          "default": null,
+          "description": "How many Jev-ranked tools are advertised directly (the rest stay deferred and discoverable through `tool_search`).",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "endpoint": {
+          "default": null,
+          "description": "Full URL of the SystemOne endpoint. `None` → codegraph default.",
+          "type": "string"
+        },
+        "max_candidates": {
+          "default": null,
+          "description": "Maximum candidates sent to Jev (Choice accepts up to 255 options).",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "min_probability": {
+          "default": null,
+          "description": "Minimum probability of the top pick before it counts as a match.",
+          "format": "float",
+          "type": "number"
+        },
+        "model": {
+          "default": null,
+          "description": "Model id — `jev-1.13-free` default; `jev-1.13` for the paid model.",
+          "type": "string"
+        },
+        "timeout_ms": {
+          "default": null,
+          "description": "Request timeout in milliseconds; exceeded → fail-open.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "ToolsToml": {
       "additionalProperties": false,
       "properties": {
@@ -5619,6 +5672,14 @@
         }
       ],
       "description": "Additional discoverable tools that can be suggested for installation."
+    },
+    "tool_suggest_jev": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ToolSuggestJevConfig"
+        }
+      ],
+      "description": "Question-driven MCP tool suggestion through the Jev decision model. Opt-in; every other field falls back to the codegraph `[jev]` defaults."
     },
     "tools": {
       "allOf": [

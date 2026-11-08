@@ -277,6 +277,46 @@ pub struct ToolSuggestConfig {
     pub disabled_tools: Vec<ToolSuggestDisabledTool>,
 }
 
+/// Question-driven MCP tool suggestion through the Jev decision model
+/// (TypeSafe SystemOne), mirroring the optional `rerank = "jev"` setting of
+/// codegraph.
+///
+/// Opt-in: when `enabled`, the current user question — together with the MCP
+/// tool candidates (names + descriptions, English) — is sent to Jev to pick
+/// the tools advertised directly for this turn. The remaining MCP tools stay
+/// deferred and remain discoverable through `tool_search`. Every failure
+/// (disabled, missing token, timeout, error) keeps the previous exposure:
+/// fail-open.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct ToolSuggestJevConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Full URL of the SystemOne endpoint. `None` → codegraph default.
+    #[serde(default)]
+    pub endpoint: Option<String>,
+    /// Model id — `jev-1.13-free` default; `jev-1.13` for the paid model.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Name of the env var that carries the API token. Key values never live
+    /// in config files.
+    #[serde(default)]
+    pub api_key_env: Option<String>,
+    /// Request timeout in milliseconds; exceeded → fail-open.
+    #[serde(default)]
+    pub timeout_ms: Option<u64>,
+    /// Maximum candidates sent to Jev (Choice accepts up to 255 options).
+    #[serde(default)]
+    pub max_candidates: Option<usize>,
+    /// Minimum probability of the top pick before it counts as a match.
+    #[serde(default)]
+    pub min_probability: Option<f32>,
+    /// How many Jev-ranked tools are advertised directly (the rest stay
+    /// deferred and discoverable through `tool_search`).
+    #[serde(default)]
+    pub direct_tools: Option<usize>,
+}
+
 /// Memories settings loaded from config.toml.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]

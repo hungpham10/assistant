@@ -69,6 +69,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
         sess.as_ref(),
         step_context.as_ref(),
         &CancellationToken::new(),
+        /*query*/ None,
     )
     .await?;
     let mut input = prompt_input.clone();

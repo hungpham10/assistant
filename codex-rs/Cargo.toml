@@ -127,7 +127,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.45"
+version = "0.0.46"
 # Track the edition for all workspace crates in one place. Individual
 # crates can still override this value, but keeping it here means new
 # crates created with `cargo new -w ...` automatically inherit the 2024
@@ -159,6 +159,7 @@ codegraph-core = { path = "codegraph/codegraph-core" }
 codegraph-docs = { path = "codegraph/codegraph-docs" }
 codegraph-extract = { path = "codegraph/codegraph-extract" }
 codegraph-graph = { path = "codegraph/codegraph-graph" }
+codegraph-context = { path = "codegraph/codegraph-context" }
 codex-arg0 = { path = "support/arg0" }
 codex-async-utils = { path = "support/async-utils" }
 codex-backend-client = { path = "integrations/cloud/backend-client" }

@@ -63,6 +63,7 @@ pub(super) async fn run_remote_compact_attempt(
         sess.as_ref(),
         step_context.as_ref(),
         &CancellationToken::new(),
+        None,
     )
     .await?;
     let prompt = Prompt {

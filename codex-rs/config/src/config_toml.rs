@@ -24,6 +24,7 @@ use crate::types::SandboxWorkspaceWrite;
 use crate::types::ShellEnvironmentPolicyToml;
 use crate::types::SkillsConfig;
 use crate::types::ToolSuggestConfig;
+use crate::types::ToolSuggestJevConfig;
 use crate::types::Tui;
 use crate::types::UriBasedFileOpener;
 use crate::types::WindowsToml;
@@ -449,6 +450,10 @@ pub struct ConfigToml {
 
     /// Additional discoverable tools that can be suggested for installation.
     pub tool_suggest: Option<ToolSuggestConfig>,
+
+    /// Question-driven MCP tool suggestion through the Jev decision model.
+    /// Opt-in; every other field falls back to the codegraph `[jev]` defaults.
+    pub tool_suggest_jev: Option<ToolSuggestJevConfig>,
 
     /// Agent-related settings (thread limits, etc.).
     pub agents: Option<AgentsToml>,
