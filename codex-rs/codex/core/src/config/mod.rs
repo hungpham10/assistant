@@ -47,6 +47,7 @@ use codex_config::types::SessionPickerViewMode;
 use codex_config::types::ToolSuggestConfig;
 use codex_config::types::ToolSuggestDisabledTool;
 use codex_config::types::ToolSuggestDiscoverable;
+use codex_config::types::ToolSuggestJevConfig;
 use codex_config::types::TuiKeymap;
 use codex_config::types::TuiNotificationSettings;
 use codex_config::types::TuiPetAnchor;
@@ -1092,6 +1093,9 @@ pub struct Config {
 
     /// Configured discoverable tools for tool suggestions.
     pub tool_suggest: ToolSuggestConfig,
+
+    /// Question-driven MCP tool suggestion through the Jev decision model.
+    pub tool_suggest_jev: ToolSuggestJevConfig,
 
     /// OTEL configuration (exporter type, endpoint, headers, etc.).
     pub otel: codex_config::types::OtelConfig,
@@ -2260,6 +2264,25 @@ fn resolve_tool_suggest_config(
     resolve_tool_suggest_config_from_config(config_toml.tool_suggest.as_ref(), config_layer_stack)
 }
 
+/// Highest-precedence-wins merge: the plain `[tool_suggest_jev]` table beats
+/// the same table from any config layer when it declares the field at all.
+fn resolve_tool_suggest_jev_config(
+    config_toml: &ConfigToml,
+    config_layer_stack: &ConfigLayerStack,
+) -> ToolSuggestJevConfig {
+    let from_layer = config_layer_stack
+        .effective_config()
+        .get("tool_suggest_jev")
+        .cloned()
+        .and_then(|value| value.try_into::<ToolSuggestJevConfig>().ok());
+    config_toml
+        .tool_suggest_jev
+        .as_ref()
+        .or(from_layer.as_ref())
+        .cloned()
+        .unwrap_or_default()
+}
+
 pub(crate) fn resolve_tool_suggest_config_from_layer_stack(
     config_layer_stack: &ConfigLayerStack,
 ) -> ToolSuggestConfig {
@@ -3190,6 +3213,7 @@ impl Config {
         }
 
         let tool_suggest = resolve_tool_suggest_config(&cfg, &config_layer_stack);
+        let tool_suggest_jev = resolve_tool_suggest_jev_config(&cfg, &config_layer_stack);
         let feature_overrides = FeatureOverrides {
             web_search_request: override_tools_web_search_request,
         };
@@ -4120,6 +4144,7 @@ impl Config {
                 .and_then(|feedback| feedback.enabled)
                 .unwrap_or(true),
             tool_suggest,
+            tool_suggest_jev,
             tui_notifications: cfg
                 .tui
                 .as_ref()

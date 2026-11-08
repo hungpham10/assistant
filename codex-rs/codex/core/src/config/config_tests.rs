@@ -10886,6 +10886,58 @@ made_up_feature = true
 }
 
 #[tokio::test]
+async fn tool_suggest_jev_loads_from_config_toml() -> std::io::Result<()> {
+    let cfg: ConfigToml = toml::from_str(
+        r#"
+[tool_suggest_jev]
+enabled = true
+model = "jev-1.13"
+api_key_env = "MY_JEV_KEY"
+timeout_ms = 3000
+direct_tools = 4
+"#,
+    )
+    .expect("TOML deserialization should succeed");
+
+    let codex_home = TempDir::new()?;
+    let config = Config::load_from_base_config_with_overrides(
+        cfg,
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+
+    assert_eq!(
+        config.tool_suggest_jev,
+        ToolSuggestJevConfig {
+            enabled: true,
+            endpoint: None,
+            model: Some("jev-1.13".to_string()),
+            api_key_env: Some("MY_JEV_KEY".to_string()),
+            timeout_ms: Some(3000),
+            max_candidates: None,
+            min_probability: None,
+            direct_tools: Some(4),
+        }
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn tool_suggest_jev_defaults_to_disabled() -> std::io::Result<()> {
+    let codex_home = TempDir::new()?;
+    let config = Config::load_from_base_config_with_overrides(
+        ConfigToml::default(),
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+
+    assert!(!config.tool_suggest_jev.enabled);
+    Ok(())
+}
+
+#[tokio::test]
 async fn tool_suggest_discoverables_load_from_config_toml() -> std::io::Result<()> {
     let cfg: ConfigToml = toml::from_str(
         r#"

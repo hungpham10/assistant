@@ -159,6 +159,7 @@ codegraph-core = { path = "codegraph/codegraph-core" }
 codegraph-docs = { path = "codegraph/codegraph-docs" }
 codegraph-extract = { path = "codegraph/codegraph-extract" }
 codegraph-graph = { path = "codegraph/codegraph-graph" }
+codegraph-context = { path = "codegraph/codegraph-context" }
 codex-arg0 = { path = "support/arg0" }
 codex-async-utils = { path = "support/async-utils" }
 codex-backend-client = { path = "integrations/cloud/backend-client" }

@@ -3088,6 +3088,7 @@ dependencies = [
  "chrono",
  "clap",
  "codegraph-api",
+ "codegraph-context",
  "codegraph-core",
  "codegraph-docs",
  "codegraph-extract",

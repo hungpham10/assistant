@@ -60,6 +60,8 @@ use crate::tasks::emit_compact_metric;
 use crate::tools::ToolRouter;
 use crate::tools::context::SharedTurnDiffTracker;
 use crate::tools::handlers::take_claude_code_bare_completed_task_notification;
+use crate::tools::jev_suggest::last_user_question;
+use crate::tools::jev_suggest::suggest_direct_mcp_tools;
 use crate::tools::parallel::ToolCallRuntime;
 use crate::tools::registry::ToolArgumentDiffConsumer;
 use crate::tools::router::ToolRouterParams;
@@ -1227,7 +1229,13 @@ async fn run_sampling_request(
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
     let turn_context = Arc::clone(&step_context.turn);
-    let router = built_tools(sess.as_ref(), step_context.as_ref(), &cancellation_token).await?;
+    let router = built_tools(
+        sess.as_ref(),
+        step_context.as_ref(),
+        &cancellation_token,
+        Some(input.as_slice()),
+    )
+    .await?;
 
     let base_instructions = sess.get_base_instructions().await;
 
@@ -1325,6 +1333,7 @@ pub(crate) async fn built_tools(
     sess: &Session,
     step_context: &StepContext,
     cancellation_token: &CancellationToken,
+    query: Option<&[ResponseItem]>,
 ) -> CodexResult<Arc<ToolRouter>> {
     let turn_context = step_context.turn.as_ref();
     let mcp_connection_manager = step_context.mcp.manager();
@@ -1441,6 +1450,28 @@ pub(crate) async fn built_tools(
         &turn_context.config,
         search_tool_enabled(turn_context),
     );
+    // Question-driven Jev suggestion: rerank the MCP pool against this turn's
+    // question and advertise only the top picks directly; the rest stay
+    // discoverable through `tool_search`. Only applies when the search-tool
+    // fallback exists; otherwise the previous exposure is kept (fail-open).
+    let mcp_tool_exposure = if search_tool_enabled(turn_context) {
+        if let Some(question) = query.and_then(last_user_question) {
+            let repo = repo_name(turn_context);
+            let original = mcp_tool_exposure.clone();
+            suggest_direct_mcp_tools(
+                &question,
+                repo,
+                mcp_tool_exposure,
+                &turn_context.config.tool_suggest_jev,
+            )
+            .await
+            .unwrap_or(original)
+        } else {
+            mcp_tool_exposure
+        }
+    } else {
+        mcp_tool_exposure
+    };
     let mcp_tools = has_mcp_servers.then_some(mcp_tool_exposure.direct_tools);
     let deferred_mcp_tools = mcp_tool_exposure.deferred_tools;
     let tool_selection = {
@@ -1464,6 +1495,19 @@ pub(crate) async fn built_tools(
         state.tool_inventory = inventory;
     }
     Ok(Arc::new(router))
+}
+
+/// Workspace-repo name passed to Jev as request context (`Repo: …`). Derived
+/// from the turn's cwd basename; `None` when it cannot be determined.
+fn repo_name(turn_context: &TurnContext) -> Option<String> {
+    let cwd = turn_context
+        .environments
+        .primary()
+        .and_then(|environment| environment.cwd().to_abs_path().ok())?;
+    std::path::Path::new(&cwd.display().to_string())
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(str::to_string)
 }
 
 #[derive(Debug)]

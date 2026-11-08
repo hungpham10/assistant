@@ -7991,6 +7991,7 @@ async fn built_tools_uses_the_step_mcp_runtime() -> anyhow::Result<()> {
         session.as_ref(),
         step_context.as_ref(),
         &CancellationToken::new(),
+        None,
     )
     .await?;
     assert!(

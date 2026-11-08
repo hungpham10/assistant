@@ -13,7 +13,6 @@ path = "src/lib.rs"
 # `codegraph.call` agent tool and the host `codex codegraph index` command.
 codegraph = [
     "dep:codegraph-api",
-    "dep:codegraph-core",
     "dep:codegraph-docs",
     "dep:codegraph-extract",
 ]
@@ -45,7 +44,8 @@ codex-code-mode = { workspace = true }
 codex-connectors = { workspace = true }
 codex-context-fragments = { workspace = true }
 codegraph-api = { workspace = true, optional = true }
-codegraph-core = { workspace = true, optional = true }
+codegraph-context = { workspace = true }
+codegraph-core = { workspace = true }
 codegraph-docs = { workspace = true, optional = true }
 codegraph-extract = { workspace = true, optional = true }
 camino = { workspace = true }

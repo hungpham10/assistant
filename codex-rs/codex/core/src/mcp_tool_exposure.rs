@@ -10,6 +10,7 @@ use tracing::instrument;
 use crate::config::Config;
 use crate::connectors;
 
+#[derive(Clone, Debug)]
 pub(crate) struct McpToolExposure {
     pub(crate) direct_tools: Vec<McpToolInfo>,
     pub(crate) deferred_tools: Option<Vec<McpToolInfo>>,

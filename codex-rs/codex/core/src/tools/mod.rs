@@ -8,6 +8,7 @@ pub(crate) mod handlers;
 pub(crate) mod hook_names;
 pub(crate) mod hosted_spec;
 pub(crate) mod inventory;
+pub(crate) mod jev_suggest;
 pub(crate) mod lifecycle;
 pub(crate) mod network_approval;
 pub(crate) mod orchestrator;
