@@ -4,10 +4,10 @@ use pretty_assertions::assert_eq;
 #[test]
 fn set_enabled_moves_between_deny_and_enable() {
     let mut selection = SessionToolSelection::default();
-    selection.set_enabled("apply_patch", false);
+    selection.set_hidden("apply_patch", true);
     assert!(selection.tool_is_hidden(&ToolName::plain("apply_patch")));
 
-    selection.set_enabled("apply_patch", true);
+    selection.set_hidden("apply_patch", false);
     assert!(selection.enable.contains("apply_patch"));
     assert!(!selection.tool_is_hidden(&ToolName::plain("apply_patch")));
 }
@@ -15,13 +15,13 @@ fn set_enabled_moves_between_deny_and_enable() {
 #[test]
 fn namespace_wildcard_denies_whole_server() {
     let mut selection = SessionToolSelection::default();
-    selection.set_enabled("chrome-devtools:*", false);
+    selection.set_hidden("chrome-devtools:*", true);
 
     assert!(selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "click"),));
     assert!(!selection.tool_is_hidden(&ToolName::plain("shell")));
 
     // Re-enabling one tool inside a denied namespace wins.
-    selection.set_enabled("chrome-devtools:screenshot", true);
+    selection.set_hidden("chrome-devtools:screenshot", false);
     assert!(!selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "screenshot"),));
     assert!(selection.tool_is_hidden(&ToolName::namespaced("chrome-devtools", "click"),));
 }
@@ -50,8 +50,8 @@ fn plan_mode_demotes_write_builtin_tools_only() {
 #[test]
 fn protected_tools_are_never_demoted() {
     let mut selection = SessionToolSelection::default();
-    selection.set_enabled("update_plan", false);
-    selection.set_enabled("request_user_input", false);
+    selection.set_hidden("update_plan", true);
+    selection.set_hidden("request_user_input", true);
     assert!(!selection.tool_is_hidden(&ToolName::plain("update_plan")));
     assert!(!selection.tool_is_hidden(&ToolName::plain("request_user_input")));
     assert!(!selection.tool_is_demoted(&ToolName::plain("update_plan"), /*plan_mode*/ true));
