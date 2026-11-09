@@ -2361,6 +2361,38 @@
       ],
       "type": "object"
     },
+    "JevToolSuggestionNotification": {
+      "description": "MCP tools Jev advertised directly for a turn (TUI tool-usage stats).",
+      "properties": {
+        "noMatch": {
+          "description": "`true` when Jev found no relevant tools.",
+          "type": "boolean"
+        },
+        "threadId": {
+          "description": "Optional thread target when the suggestion applies to a specific thread.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tools": {
+          "description": "Tools advertised directly for this turn, as `server/tool`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "noMatch",
+        "tools",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "LegacyAppPathString": {
       "type": "string"
     },
@@ -6804,6 +6836,26 @@
         "params"
       ],
       "title": "GuardianWarningNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/jevToolSuggestion"
+          ],
+          "title": "Thread/jevToolSuggestionNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/JevToolSuggestionNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/jevToolSuggestionNotification",
       "type": "object"
     },
     {

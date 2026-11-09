@@ -33,6 +33,7 @@ use codex_app_server_protocol::HookCompletedNotification;
 use codex_app_server_protocol::HookStartedNotification;
 use codex_app_server_protocol::ItemCompletedNotification;
 use codex_app_server_protocol::ItemStartedNotification;
+use codex_app_server_protocol::JevToolSuggestionNotification;
 use codex_app_server_protocol::McpServerElicitationAction;
 use codex_app_server_protocol::McpServerElicitationRequestParams;
 use codex_app_server_protocol::McpServerElicitationRequestResponse;
@@ -231,6 +232,17 @@ pub(crate) async fn apply_bespoke_event_handling(
             };
             outgoing
                 .send_server_notification(ServerNotification::Warning(notification))
+                .await;
+        }
+        EventMsg::JevToolSuggestion(suggestion_event) => {
+            let notification = JevToolSuggestionNotification {
+                thread_id: Some(conversation_id.to_string()),
+                turn_id: suggestion_event.turn_id,
+                tools: suggestion_event.tools,
+                no_match: suggestion_event.no_match,
+            };
+            outgoing
+                .send_server_notification(ServerNotification::JevToolSuggestion(notification))
                 .await;
         }
         EventMsg::GuardianWarning(warning_event) => {

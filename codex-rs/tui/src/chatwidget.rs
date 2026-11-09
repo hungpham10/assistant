@@ -418,6 +418,8 @@ mod tokens;
 pub(crate) use self::tokens::TokenActivityView;
 mod tool_lifecycle;
 mod tool_requests;
+mod tool_usage;
+use self::tool_usage::ToolUsageTracker;
 mod transcript;
 use self::transcript::TranscriptState;
 mod turn_lifecycle;
@@ -575,6 +577,8 @@ pub(crate) struct ChatWidget {
     rate_limit_snapshots_by_limit_id: BTreeMap<String, RateLimitSnapshotDisplay>,
     refreshing_status_outputs: Vec<(u64, StatusHistoryHandle)>,
     next_status_refresh_request_id: u64,
+    /// Per-tool usage statistics fed by completed tool calls and Jev suggestions.
+    tool_usage: ToolUsageTracker,
     refreshing_token_activity_output: Option<tokens::PendingTokenActivityOutput>,
     completed_token_activity_output: Option<history_cell::CompositeHistoryCell>,
     next_token_activity_request_id: u64,

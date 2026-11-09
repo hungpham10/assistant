@@ -76,6 +76,14 @@ pub(crate) fn last_user_question(input: &[ResponseItem]) -> Option<String> {
     Some(truncate_chars(&text, MAX_QUESTION_CHARS))
 }
 
+/// Tools Jev advertised directly for one turn, for `/status` tool-usage stats.
+/// Names use the TUI tracker format `server/tool`.
+#[derive(Debug, Clone)]
+pub(crate) struct JevSuggestedTools {
+    pub(crate) names: Vec<String>,
+    pub(crate) no_match: bool,
+}
+
 /// Reranks the MCP pool against `question` and returns a new exposure where
 /// the top-ranked tools are advertised directly. `None` means "keep the
 /// original exposure": Jev disabled, missing token, ranking failure, or
@@ -85,7 +93,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
     repo: Option<String>,
     exposure: McpToolExposure,
     cfg: &ToolSuggestJevConfig,
-) -> Option<McpToolExposure> {
+) -> Option<(McpToolExposure, JevSuggestedTools)> {
     if !cfg.enabled {
         return None;
     }
@@ -124,10 +132,16 @@ pub(crate) async fn suggest_direct_mcp_tools(
     }
     if outcome.no_match {
         tracing::info!("tool_suggest_jev found no relevant MCP tools — everything stays deferred");
-        return Some(McpToolExposure {
-            direct_tools: Vec::new(),
-            deferred_tools: Some(pool),
-        });
+        return Some((
+            McpToolExposure {
+                direct_tools: Vec::new(),
+                deferred_tools: Some(pool),
+            },
+            JevSuggestedTools {
+                names: Vec::new(),
+                no_match: true,
+            },
+        ));
     }
 
     let picks: HashSet<usize> = outcome
@@ -138,8 +152,10 @@ pub(crate) async fn suggest_direct_mcp_tools(
         .collect();
     let mut direct = Vec::new();
     let mut deferred = Vec::new();
+    let mut suggested = Vec::new();
     for (index, tool) in pool.iter().enumerate() {
         if picks.contains(&index) {
+            suggested.push(format!("{}/{}", tool.server_name, tool.tool.name));
             direct.push(tool.clone());
         } else {
             deferred.push(tool.clone());
@@ -156,10 +172,16 @@ pub(crate) async fn suggest_direct_mcp_tools(
             .join(","),
         "tool_suggest_jev advertised tools directly for this question"
     );
-    Some(McpToolExposure {
-        direct_tools: direct,
-        deferred_tools: (!deferred.is_empty()).then_some(deferred),
-    })
+    Some((
+        McpToolExposure {
+            direct_tools: direct,
+            deferred_tools: (!deferred.is_empty()).then_some(deferred),
+        },
+        JevSuggestedTools {
+            names: suggested,
+            no_match: false,
+        },
+    ))
 }
 
 /// English label fed to Jev: namespace-qualified name (`namespace:name`) plus

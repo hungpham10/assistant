@@ -4410,6 +4410,27 @@
       ],
       "type": "object"
     },
+    "ThreadSetToolEnabledParams": {
+      "description": "Enable or disable one tool for a running thread session.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Tool key: a plain name (`apply_patch`) or a namespace wildcard (`server:*`).",
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "name",
+        "threadId"
+      ],
+      "type": "object"
+    },
     "ThreadShellCommandParams": {
       "properties": {
         "command": {
@@ -4580,6 +4601,48 @@
         "clear"
       ],
       "type": "string"
+    },
+    "ThreadToolsListDetail": {
+      "enum": [
+        "summary",
+        "schema"
+      ],
+      "type": "string"
+    },
+    "ThreadToolsListParams": {
+      "properties": {
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadToolsListDetail"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "type": "object"
     },
     "ThreadUnarchiveParams": {
       "properties": {
@@ -5165,6 +5228,54 @@
         "params"
       ],
       "title": "Thread/name/setRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/tools/set"
+          ],
+          "title": "Thread/tools/setRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadSetToolEnabledParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/tools/setRequest",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/tools/list"
+          ],
+          "title": "Thread/tools/listRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/ThreadToolsListParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/tools/listRequest",
       "type": "object"
     },
     {

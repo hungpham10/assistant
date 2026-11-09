@@ -15,6 +15,8 @@ pub(crate) mod remote_connection;
 
 pub(crate) use account::StatusAccountDisplay;
 pub(crate) use card::StatusHistoryHandle;
+pub(crate) use card::StatusToolUsageData;
+pub(crate) use card::StatusToolUsageRow;
 #[cfg(test)]
 pub(crate) use card::new_status_output;
 #[cfg(test)]

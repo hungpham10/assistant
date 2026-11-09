@@ -58,7 +58,8 @@
       "enum": [
         "responses",
         "chat",
-        "messages"
+        "messages",
+        "google"
       ],
       "type": "string"
     }

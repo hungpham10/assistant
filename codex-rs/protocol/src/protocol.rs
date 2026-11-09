@@ -1400,6 +1400,10 @@ pub enum EventMsg {
 
     ExecCommandEnd(ExecCommandEndEvent),
 
+    /// Tools advertised directly for this turn after Jev reranking. Carries
+    /// the per-tool suggestion counts the TUI shows in `/status`.
+    JevToolSuggestion(JevToolSuggestionEvent),
+
     /// Notification that the agent attached a local image via the view_image tool.
     ViewImageToolCall(ViewImageToolCallEvent),
 
@@ -1935,6 +1939,17 @@ pub struct ModelRerouteEvent {
     pub from_model: String,
     pub to_model: String,
     pub reason: ModelRerouteReason,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct JevToolSuggestionEvent {
+    pub turn_id: String,
+    /// MCP tools Jev advertised directly for this turn, as `server/tool`
+    /// (matching the TUI tracker keys).
+    pub tools: Vec<String>,
+    /// `true` when Jev found no relevant tools and everything stayed deferred.
+    pub no_match: bool,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]

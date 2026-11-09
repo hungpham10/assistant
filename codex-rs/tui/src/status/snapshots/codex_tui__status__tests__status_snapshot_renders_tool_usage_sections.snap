@@ -1,0 +1,28 @@
+---
+source: tui/src/status/tests.rs
+expression: sanitized
+---
+/status
+
+╭──────────────────────────────────────────────────────────────────────────╮
+│  >_ OpenAI Codex (v0.0.46)                                               │
+│                                                                          │
+│ Visit https://chatgpt.com/codex/settings/usage for up-to-date            │
+│ information on rate limits and credits                                   │
+│                                                                          │
+│  Model:         gpt-5.1-codex (reasoning none, summaries auto)           │
+│  Directory: [[workspace]]                                                │
+│  Permissions:   Custom (workspace with network access, Ask for approval) │
+│  Agents.md:     <none>                                                   │
+│                                                                          │
+│  Token usage:   0 total  (0 input + 0 output)                            │
+│  Limits:        data not available yet                                   │
+│                                                                          │
+│         Tool usage (top 3)                                               │
+│         └ 12 shell (last 14:32)                                          │
+│         └ 7 codegraph/codegraph_search_symbol (last 14:10) ⇢ Jev×3       │
+│         └ 4 web_search (last 13:58)                                      │
+│                                                                          │
+│         Suggested but unused (top 3)                                     │
+│         └ 5 codegraph/codegraph_graphcode_stats ⇢ Jev, never called      │
+╰──────────────────────────────────────────────────────────────────────────╯

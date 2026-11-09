@@ -1441,6 +1441,54 @@
             },
             "method": {
               "enum": [
+                "thread/tools/set"
+              ],
+              "title": "Thread/tools/setRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadSetToolEnabledParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/tools/setRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
+                "thread/tools/list"
+              ],
+              "title": "Thread/tools/listRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/ThreadToolsListParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/tools/listRequest",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/RequestId"
+            },
+            "method": {
+              "enum": [
                 "thread/goal/set"
               ],
               "title": "Thread/goal/setRequestMethod",
@@ -8189,6 +8237,40 @@
       "title": "ItemStartedNotification",
       "type": "object"
     },
+    "JevToolSuggestionNotification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "MCP tools Jev advertised directly for a turn (TUI tool-usage stats).",
+      "properties": {
+        "noMatch": {
+          "description": "`true` when Jev found no relevant tools.",
+          "type": "boolean"
+        },
+        "threadId": {
+          "description": "Optional thread target when the suggestion applies to a specific thread.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tools": {
+          "description": "Tools advertised directly for this turn, as `server/tool`.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "turnId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "noMatch",
+        "tools",
+        "turnId"
+      ],
+      "title": "JevToolSuggestionNotification",
+      "type": "object"
+    },
     "LegacyAppPathString": {
       "type": "string"
     },
@@ -14329,6 +14411,26 @@
           "properties": {
             "method": {
               "enum": [
+                "thread/jevToolSuggestion"
+              ],
+              "title": "Thread/jevToolSuggestionNotificationMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/JevToolSuggestionNotification"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "title": "Thread/jevToolSuggestionNotification",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "enum": [
                 "deprecationNotice"
               ],
               "title": "DeprecationNoticeNotificationMethod",
@@ -17577,6 +17679,34 @@
       "title": "ThreadSetNameResponse",
       "type": "object"
     },
+    "ThreadSetToolEnabledParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "Enable or disable one tool for a running thread session.",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "name": {
+          "description": "Tool key: a plain name (`apply_patch`) or a namespace wildcard (`server:*`).",
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled",
+        "name",
+        "threadId"
+      ],
+      "title": "ThreadSetToolEnabledParams",
+      "type": "object"
+    },
+    "ThreadSetToolEnabledResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ThreadSetToolEnabledResponse",
+      "type": "object"
+    },
     "ThreadSettings": {
       "properties": {
         "activePermissionProfile": {
@@ -18072,6 +18202,132 @@
         "turnId"
       ],
       "title": "ThreadTokenUsageUpdatedNotification",
+      "type": "object"
+    },
+    "ThreadToolInventoryItem": {
+      "properties": {
+        "advertised": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "exposure": {
+          "type": "string"
+        },
+        "hidden": {
+          "type": "boolean"
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "serverName": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source": {
+          "$ref": "#/definitions/ThreadToolSource"
+        },
+        "spec": true
+      },
+      "required": [
+        "advertised",
+        "exposure",
+        "hidden",
+        "key",
+        "name",
+        "source"
+      ],
+      "type": "object"
+    },
+    "ThreadToolSource": {
+      "enum": [
+        "builtin",
+        "mcp",
+        "extension",
+        "dynamic",
+        "hosted"
+      ],
+      "type": "string"
+    },
+    "ThreadToolsListDetail": {
+      "enum": [
+        "summary",
+        "schema"
+      ],
+      "type": "string"
+    },
+    "ThreadToolsListParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/ThreadToolsListDetail"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limit": {
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "threadId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "threadId"
+      ],
+      "title": "ThreadToolsListParams",
+      "type": "object"
+    },
+    "ThreadToolsListResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "data": {
+          "items": {
+            "$ref": "#/definitions/ThreadToolInventoryItem"
+          },
+          "type": "array"
+        },
+        "nextCursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "data"
+      ],
+      "title": "ThreadToolsListResponse",
       "type": "object"
     },
     "ThreadUnarchiveParams": {
@@ -19196,7 +19452,8 @@
       "enum": [
         "responses",
         "chat",
-        "messages"
+        "messages",
+        "google"
       ],
       "type": "string"
     },

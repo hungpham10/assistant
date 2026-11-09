@@ -70,6 +70,10 @@ impl ChatWidget {
         turn_id: String,
         render_source: ThreadItemRenderSource,
     ) {
+        if let Some((name, item_id, errored)) = tool_usage::extract_tool_call(&item) {
+            self.tool_usage
+                .record_call(name, item_id, errored, turn_id.clone());
+        }
         let from_replay = render_source.is_replay();
         let replay_kind = render_source.replay_kind();
         match item {
