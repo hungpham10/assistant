@@ -1458,14 +1458,30 @@ pub(crate) async fn built_tools(
         if let Some(question) = query.and_then(last_user_question) {
             let repo = repo_name(turn_context);
             let original = mcp_tool_exposure.clone();
-            suggest_direct_mcp_tools(
+            let outcome = suggest_direct_mcp_tools(
                 &question,
                 repo,
                 mcp_tool_exposure,
                 &turn_context.config.tool_suggest_jev,
             )
-            .await
-            .unwrap_or(original)
+            .await;
+            match outcome {
+                Some((exposure, suggested)) => {
+                    sess.send_event(
+                        turn_context,
+                        EventMsg::JevToolSuggestion(
+                            codex_protocol::protocol::JevToolSuggestionEvent {
+                                turn_id: turn_context.sub_id.to_string(),
+                                tools: suggested.names,
+                                no_match: suggested.no_match,
+                            },
+                        ),
+                    )
+                    .await;
+                    exposure
+                }
+                None => original,
+            }
         } else {
             mcp_tool_exposure
         }
@@ -1697,6 +1713,7 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<(String, Option<
         EventMsg::Error(_)
         | EventMsg::Warning(_)
         | EventMsg::GuardianWarning(_)
+        | EventMsg::JevToolSuggestion(_)
         | EventMsg::RealtimeConversationStarted(_)
         | EventMsg::RealtimeConversationSdp(_)
         | EventMsg::RealtimeConversationRealtime(_)

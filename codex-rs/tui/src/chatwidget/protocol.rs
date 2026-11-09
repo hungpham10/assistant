@@ -115,6 +115,9 @@ impl ChatWidget {
                         .collect(),
                 })
             }
+            ServerNotification::JevToolSuggestion(notification) => {
+                self.tool_usage.record_jev_suggestions(&notification.tools);
+            }
             ServerNotification::HookStarted(notification) => {
                 self.on_hook_started(notification.run);
             }

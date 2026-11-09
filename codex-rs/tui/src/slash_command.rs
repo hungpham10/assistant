@@ -137,7 +137,7 @@ impl SlashCommand {
                 "import setup, this project, and recent chats from another coding agent"
             }
             SlashCommand::Hooks => "view and manage lifecycle hooks",
-            SlashCommand::Status => "show current session configuration and token usage",
+            SlashCommand::Status => "show session info and tool usage; /status <tool> for detail",
             SlashCommand::Usage => "view account usage or use a usage limit reset",
             SlashCommand::DebugConfig => "show config layers and requirement sources for debugging",
             SlashCommand::Title => "configure which items appear in the terminal title",
@@ -211,6 +211,7 @@ impl SlashCommand {
                 | SlashCommand::Mcp
                 | SlashCommand::Raw
                 | SlashCommand::Usage
+                | SlashCommand::Status
                 | SlashCommand::Pets
                 | SlashCommand::Side
                 | SlashCommand::Btw

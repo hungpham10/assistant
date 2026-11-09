@@ -102,6 +102,20 @@ impl StatusHistoryHandle {
     }
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct StatusToolUsageRow {
+    pub(crate) name: String,
+    pub(crate) calls: u64,
+    pub(crate) jev_suggestions: u64,
+    pub(crate) last_used: Option<String>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct StatusToolUsageData {
+    pub(crate) top: Vec<StatusToolUsageRow>,
+    pub(crate) suggested_unused: Vec<StatusToolUsageRow>,
+}
+
 #[derive(Debug)]
 struct StatusHistoryCell {
     model_name: String,
@@ -118,6 +132,7 @@ struct StatusHistoryCell {
     session_id: Option<String>,
     forked_from: Option<String>,
     token_usage: StatusTokenUsageData,
+    tool_usage: Option<StatusToolUsageData>,
     rate_limit_state: Arc<RwLock<StatusRateLimitState>>,
 }
 
@@ -193,6 +208,7 @@ pub(crate) fn new_status_output_with_rate_limits(
         reasoning_effort_override,
         "<none>".to_string(),
         refreshing_rate_limits,
+        /*tool_usage*/ None,
     )
     .0
 }
@@ -216,6 +232,7 @@ pub(crate) fn new_status_output_with_rate_limits_handle(
     reasoning_effort_override: Option<Option<ReasoningEffort>>,
     agents_summary: String,
     refreshing_rate_limits: bool,
+    tool_usage: Option<StatusToolUsageData>,
 ) -> (CompositeHistoryCell, StatusHistoryHandle) {
     let command = PlainHistoryCell::new(vec!["/status".magenta().into()]);
     let (card, handle) = StatusHistoryCell::new(
@@ -236,6 +253,7 @@ pub(crate) fn new_status_output_with_rate_limits_handle(
         reasoning_effort_override,
         agents_summary,
         refreshing_rate_limits,
+        tool_usage,
     );
 
     (
@@ -264,6 +282,7 @@ impl StatusHistoryCell {
         reasoning_effort_override: Option<Option<ReasoningEffort>>,
         agents_summary: String,
         refreshing_rate_limits: bool,
+        tool_usage: Option<StatusToolUsageData>,
     ) -> (Self, StatusHistoryHandle) {
         let approval_policy = AskForApproval::from(config.permissions.approval_policy.value());
         let permission_profile = config.permissions.effective_permission_profile();
@@ -366,6 +385,7 @@ impl StatusHistoryCell {
                 session_id,
                 forked_from,
                 token_usage,
+                tool_usage,
                 agents_summary,
                 rate_limit_state: rate_limit_state.clone(),
             },
@@ -574,6 +594,49 @@ impl StatusHistoryCell {
             StatusRateLimitData::Missing => push_label(labels, seen, "Limits"),
         }
     }
+}
+
+fn tool_usage_lines(tool_usage: &StatusToolUsageData) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    if !tool_usage.top.is_empty() {
+        lines.push(Line::from(Vec::<Span<'static>>::new()));
+        lines.push(Line::from(vec![
+            "        ".into(),
+            Span::from("Tool usage (top 3)").bold(),
+        ]));
+        for row in &tool_usage.top {
+            let mut spans = vec![
+                "        ".into(),
+                Span::from("└ ".dim()),
+                Span::from(format!("{} ", row.calls)).bold(),
+                Span::from(row.name.clone()),
+            ];
+            if let Some(last_used) = &row.last_used {
+                spans.push(Span::from(format!(" (last {last_used})")).dim());
+            }
+            if row.jev_suggestions > 0 {
+                spans.push(Span::from(format!(" ⇢ Jev×{}", row.jev_suggestions)).dim());
+            }
+            lines.push(Line::from(spans));
+        }
+    }
+    if !tool_usage.suggested_unused.is_empty() {
+        lines.push(Line::from(Vec::<Span<'static>>::new()));
+        lines.push(Line::from(vec![
+            "        ".into(),
+            Span::from("Suggested but unused (top 3)").bold(),
+        ]));
+        for row in &tool_usage.suggested_unused {
+            lines.push(Line::from(vec![
+                "        ".into(),
+                Span::from("└ ".dim()),
+                Span::from(format!("{} ", row.jev_suggestions)).bold(),
+                Span::from(row.name.clone()),
+                Span::from(" ⇢ Jev, never called").dim(),
+            ]));
+        }
+    }
+    lines
 }
 
 fn status_permission_summary(
@@ -866,6 +929,10 @@ impl HistoryCell for StatusHistoryCell {
         }
 
         lines.extend(self.rate_limit_lines(&rate_limit_state, available_inner_width, &formatter));
+
+        if let Some(tool_usage) = &self.tool_usage {
+            lines.extend(tool_usage_lines(tool_usage));
+        }
 
         let content_width = lines.iter().map(line_display_width).max().unwrap_or(0);
         let inner_width = content_width.min(available_inner_width);

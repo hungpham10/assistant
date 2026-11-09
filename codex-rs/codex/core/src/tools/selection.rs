@@ -36,14 +36,6 @@ pub(crate) const PLAN_MODE_DEMOTED_TOOLS: &[&str] = &[
 pub(crate) const PROTECTED_TOOLS: &[&str] = &["update_plan", "request_user_input"];
 
 impl SessionToolSelection {
-    /// Sets one tool's enabled state. `key` is either a plain tool name
-    /// (`apply_patch`) or a namespace wildcard (`server:*`).
-    pub(crate) fn set_enabled(&mut self, key: impl Into<String>, enabled: bool) {
-        self.set_hidden(key, !enabled);
-    }
-
-    /// Hides or shows a tool entirely for this session. Hidden tools are
-    /// removed from the model-visible list and from dispatch.
     pub(crate) fn set_hidden(&mut self, key: impl Into<String>, hidden: bool) {
         let key = key.into();
         // Protected tools cannot be hidden.

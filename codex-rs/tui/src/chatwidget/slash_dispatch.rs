@@ -954,6 +954,9 @@ impl ChatWidget {
                     instructions: args,
                 }));
             }
+            SlashCommand::Status if !trimmed.is_empty() => {
+                self.add_tool_detail_output(args);
+            }
             SlashCommand::Resume if !trimmed.is_empty() => {
                 self.app_event_tx
                     .send(AppEvent::ResumeSessionByIdOrName(args));

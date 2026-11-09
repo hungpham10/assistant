@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "MCP tools Jev advertised directly for a turn (TUI tool-usage stats).",
+  "properties": {
+    "noMatch": {
+      "description": "`true` when Jev found no relevant tools.",
+      "type": "boolean"
+    },
+    "threadId": {
+      "description": "Optional thread target when the suggestion applies to a specific thread.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tools": {
+      "description": "Tools advertised directly for this turn, as `server/tool`.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "turnId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "noMatch",
+    "tools",
+    "turnId"
+  ],
+  "title": "JevToolSuggestionNotification",
+  "type": "object"
+}

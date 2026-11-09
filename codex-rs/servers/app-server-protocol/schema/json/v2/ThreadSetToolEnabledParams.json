@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Enable or disable one tool for a running thread session.",
+  "properties": {
+    "enabled": {
+      "type": "boolean"
+    },
+    "name": {
+      "description": "Tool key: a plain name (`apply_patch`) or a namespace wildcard (`server:*`).",
+      "type": "string"
+    },
+    "threadId": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "enabled",
+    "name",
+    "threadId"
+  ],
+  "title": "ThreadSetToolEnabledParams",
+  "type": "object"
+}

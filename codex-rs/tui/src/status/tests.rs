@@ -1,3 +1,5 @@
+use super::StatusToolUsageData;
+use super::StatusToolUsageRow;
 use super::new_status_output;
 use super::new_status_output_with_rate_limits;
 use super::new_status_output_with_rate_limits_handle;
@@ -736,6 +738,7 @@ async fn status_model_provider_uses_bedrock_runtime_base_url_and_gates_usage_lin
         /*reasoning_effort_override*/ None,
         "<none>".to_string(),
         /*refreshing_rate_limits*/ false,
+        /*tool_usage*/ None,
     );
     let rendered = render_lines(&composite.display_lines(/*width*/ 120)).join("\n");
 
@@ -777,6 +780,7 @@ async fn status_model_provider_uses_bedrock_runtime_base_url_and_gates_usage_lin
         /*reasoning_effort_override*/ None,
         "<none>".to_string(),
         /*refreshing_rate_limits*/ false,
+        /*tool_usage*/ None,
     );
     let rendered = render_lines(&composite.display_lines(/*width*/ 120)).join("\n");
 
@@ -1567,6 +1571,7 @@ async fn status_snapshot_uses_default_reasoning_when_config_empty() {
         /*reasoning_effort_override*/ Some(Some(ReasoningEffort::Medium)),
         "<none>".to_string(),
         /*refreshing_rate_limits*/ false,
+        /*tool_usage*/ None,
     );
     let mut rendered_lines = render_lines(&composite.display_lines(/*width*/ 80));
     if cfg!(windows) {
@@ -1704,6 +1709,77 @@ async fn status_snapshot_includes_credits_and_limits() {
         &model_slug,
         /*collaboration_mode*/ None,
         /*reasoning_effort_override*/ None,
+    );
+    let mut rendered_lines = render_lines(&composite.display_lines(/*width*/ 80));
+    if cfg!(windows) {
+        for line in &mut rendered_lines {
+            *line = line.replace('\\', "/");
+        }
+    }
+    let sanitized = sanitize_directory(rendered_lines).join("\n");
+    assert_snapshot!(sanitized);
+}
+
+#[tokio::test]
+async fn status_snapshot_renders_tool_usage_sections() {
+    let temp_home = TempDir::new().expect("temp home");
+    let mut config = test_config(&temp_home).await;
+    config.model = Some("gpt-5.1-codex".to_string());
+    set_workspace_cwd(&mut config, test_path_buf("/workspace/tests").abs());
+
+    let usage = TokenUsage::default();
+    let captured_at = chrono::Local
+        .with_ymd_and_hms(2024, 7, 8, 9, 10, 11)
+        .single()
+        .expect("timestamp");
+    let model_slug = get_model_offline_for_tests(config.model.as_deref());
+    let tool_usage = StatusToolUsageData {
+        top: vec![
+            StatusToolUsageRow {
+                name: "shell".to_string(),
+                calls: 12,
+                jev_suggestions: 0,
+                last_used: Some("14:32".to_string()),
+            },
+            StatusToolUsageRow {
+                name: "codegraph/codegraph_search_symbol".to_string(),
+                calls: 7,
+                jev_suggestions: 3,
+                last_used: Some("14:10".to_string()),
+            },
+            StatusToolUsageRow {
+                name: "web_search".to_string(),
+                calls: 4,
+                jev_suggestions: 0,
+                last_used: Some("13:58".to_string()),
+            },
+        ],
+        suggested_unused: vec![StatusToolUsageRow {
+            name: "codegraph/codegraph_graphcode_stats".to_string(),
+            calls: 0,
+            jev_suggestions: 5,
+            last_used: None,
+        }],
+    };
+    let (composite, _handle) = new_status_output_with_rate_limits_handle(
+        &config,
+        /*runtime_model_provider_base_url*/ None,
+        /*remote_connection*/ None,
+        /*account_display*/ None,
+        /*token_info*/ None,
+        &usage,
+        &None,
+        /*thread_name*/ None,
+        /*forked_from*/ None,
+        /*rate_limits*/ &[],
+        None,
+        captured_at,
+        &model_slug,
+        /*collaboration_mode*/ None,
+        /*reasoning_effort_override*/ None,
+        "<none>".to_string(),
+        /*refreshing_rate_limits*/ false,
+        Some(tool_usage),
     );
     let mut rendered_lines = render_lines(&composite.display_lines(/*width*/ 80));
     if cfg!(windows) {

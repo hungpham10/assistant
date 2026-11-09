@@ -35,6 +35,20 @@ pub struct GuardianWarningNotification {
     pub message: String,
 }
 
+/// MCP tools Jev advertised directly for a turn (TUI tool-usage stats).
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct JevToolSuggestionNotification {
+    /// Optional thread target when the suggestion applies to a specific thread.
+    pub thread_id: Option<String>,
+    pub turn_id: String,
+    /// Tools advertised directly for this turn, as `server/tool`.
+    pub tools: Vec<String>,
+    /// `true` when Jev found no relevant tools.
+    pub no_match: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export_to = "v2/")]

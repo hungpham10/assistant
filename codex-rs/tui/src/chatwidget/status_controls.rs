@@ -222,6 +222,24 @@ impl ChatWidget {
             .collect();
         let agents_summary =
             crate::status::compose_agents_summary(&self.config, &self.instruction_source_paths);
+        let tool_usage = (!self.tool_usage.is_empty()).then(|| {
+            let to_row =
+                |entry: &super::tool_usage::ToolUsageEntry| crate::status::StatusToolUsageRow {
+                    name: entry.name.clone(),
+                    calls: entry.calls,
+                    jev_suggestions: entry.jev_suggestions,
+                    last_used: entry.last_used_at.map(|at| at.format("%H:%M").to_string()),
+                };
+            crate::status::StatusToolUsageData {
+                top: self.tool_usage.top(3).into_iter().map(to_row).collect(),
+                suggested_unused: self
+                    .tool_usage
+                    .suggested_but_unused(3)
+                    .into_iter()
+                    .map(to_row)
+                    .collect(),
+            }
+        });
         let (cell, handle) = crate::status::new_status_output_with_rate_limits_handle(
             &self.config,
             self.runtime_model_provider_base_url.as_deref(),
@@ -240,10 +258,92 @@ impl ChatWidget {
             reasoning_effort_override,
             agents_summary,
             refreshing_rate_limits,
+            tool_usage,
         );
         if let Some(request_id) = request_id {
             self.refreshing_status_outputs.push((request_id, handle));
         }
+        self.add_to_history(cell);
+    }
+
+    /// Show details for `/status <tool>`: call/error counts, Jev suggestion
+    /// counts, and last-used timestamp for one tool.
+    pub(crate) fn add_tool_detail_output(&mut self, query: String) {
+        use crate::history_cell::PlainHistoryCell;
+        use ratatui::style::Stylize;
+        use ratatui::text::Span;
+        let query = query.trim().to_string();
+        let header = Line::from(vec![
+            Span::from(format!("/status {query}")).magenta().bold(),
+        ]);
+        let cell = match self.tool_usage.lookup(&query) {
+            Some(entry) => {
+                let last_used = entry
+                    .last_used_at
+                    .map(|at| at.format("%Y-%m-%d %H:%M:%S").to_string())
+                    .unwrap_or_else(|| "never".to_string());
+                let turn = entry.last_turn_id.as_deref().unwrap_or("<none>");
+                let conversion = if entry.jev_suggestions > 0 {
+                    format!(
+                        " ({}% suggested→called)",
+                        (entry.calls as f64 / entry.jev_suggestions as f64 * 100.0).round() as u64
+                    )
+                } else {
+                    String::new()
+                };
+                PlainHistoryCell::new(vec![
+                    header,
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from("Tool ").dim(),
+                        Span::from(entry.name.clone()).bold(),
+                    ]),
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from("Calls ").dim(),
+                        Span::from(entry.calls.to_string()).bold(),
+                    ]),
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from("Errors ").dim(),
+                        Span::from(entry.errors.to_string()).bold(),
+                    ]),
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from("Jev suggestions ").dim(),
+                        Span::from(format!("{}{}", entry.jev_suggestions, conversion)).bold(),
+                    ]),
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from("Last used ").dim(),
+                        Span::from(format!("{last_used} (turn {turn})")).bold(),
+                    ]),
+                ])
+            }
+            None => {
+                let known = self
+                    .tool_usage
+                    .top(10)
+                    .into_iter()
+                    .map(|entry| entry.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                PlainHistoryCell::new(vec![
+                    header,
+                    Line::from(vec![
+                        "        ".into(),
+                        Span::from(format!(
+                            "Unknown tool '{query}'.{}",
+                            if known.is_empty() {
+                                " No tool usage recorded yet — run any tool first.".to_string()
+                            } else {
+                                format!(" Known tools: {known}.")
+                            }
+                        )),
+                    ]),
+                ])
+            }
+        };
         self.add_to_history(cell);
     }
 
