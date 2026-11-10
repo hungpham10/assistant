@@ -3091,6 +3091,13 @@
           "minimum": 0.0,
           "type": "integer"
         },
+        "min_direct_tools": {
+          "default": null,
+          "description": "Minimum number of tools that must be advertised directly. If Jev returns fewer tools above the probability threshold, the remaining slots are filled from the ranked list regardless of probability.",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
         "min_probability": {
           "default": null,
           "description": "Minimum probability of the top pick before it counts as a match.",
