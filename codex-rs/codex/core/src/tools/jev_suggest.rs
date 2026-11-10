@@ -20,7 +20,8 @@ use codex_mcp::ToolInfo as McpToolInfo;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseItem;
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 use std::time::Duration;
 use tracing::instrument;
 
