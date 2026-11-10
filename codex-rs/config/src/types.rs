@@ -315,6 +315,11 @@ pub struct ToolSuggestJevConfig {
     /// deferred and discoverable through `tool_search`).
     #[serde(default)]
     pub direct_tools: Option<usize>,
+    /// Minimum number of tools that must be advertised directly. If Jev
+    /// returns fewer tools above the probability threshold, the remaining
+    /// slots are filled from the ranked list regardless of probability.
+    #[serde(default)]
+    pub min_direct_tools: Option<usize>,
 }
 
 /// Memories settings loaded from config.toml.

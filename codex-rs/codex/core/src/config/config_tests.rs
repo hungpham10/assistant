@@ -10918,6 +10918,7 @@ direct_tools = 4
             max_candidates: None,
             min_probability: None,
             direct_tools: Some(4),
+            min_direct_tools: None,
         }
     );
     Ok(())
