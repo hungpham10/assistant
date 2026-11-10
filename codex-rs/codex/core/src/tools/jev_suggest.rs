@@ -488,10 +488,10 @@ fn tool_label(tool: &McpToolInfo) -> String {
     };
     match tool.tool.description.as_deref() {
         Some(description) if !description.trim().is_empty() => {
-            format!(
+            return format!(
                 "tool `{qualified}` — {}",
                 truncate_chars(description.trim(), 200)
-            )
+            );
         }
         _ => format!("tool `{qualified}`"),
     }
@@ -509,3 +509,201 @@ fn truncate_chars(s: &str, max: usize) -> String {
 #[cfg(test)]
 #[path = "jev_suggest_tests.rs"]
 mod tests;
+
+// ============================================================
+// Universal Jev Tool Selection (ALL tool types)
+// ============================================================
+
+/// Tool type for Jev selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ToolType {
+    Mcp,
+    Builtin,
+    Extension,
+    Dynamic,
+    CodeMode,
+}
+
+/// Tool entry for Jev selection with full metadata.
+#[derive(Debug, Clone)]
+pub(crate) struct JevToolEntry {
+    pub id: u64,
+    pub name: String,
+    pub namespace: Option<String>,
+    pub description: String,
+    pub tool_type: ToolType,
+    pub essential: bool,
+}
+
+/// Result of universal tool suggestion.
+#[derive(Debug, Clone)]
+pub(crate) struct UniversalToolSuggestion {
+    pub direct_tools: Vec<JevToolEntry>,
+    pub deferred_tools: Vec<JevToolEntry>,
+    pub suggested_names: Vec<String>,
+    pub no_match: bool,
+}
+
+/// Universal tool suggestion entry point.
+/// Reranks the FULL tool pool against `question` and returns selected tools.
+/// `None` means "keep original exposure": Jev disabled, missing token, ranking failure.
+#[instrument(level = "trace", skip_all)]
+pub(crate) async fn suggest_direct_tools(
+    question: &str,
+    repo: Option<String>,
+    all_tools: Vec<JevToolEntry>,
+    cfg: &ToolSuggestJevConfig,
+) -> Option<UniversalToolSuggestion> {
+    if !cfg.enabled {
+        return None;
+    }
+    if !cfg.include_all_tools {
+        return None; // MCP-only mode handled elsewhere
+    }
+    if all_tools.is_empty() {
+        return None;
+    }
+
+    let jev_cfg = to_jev_config(cfg);
+    if !jev_cfg.is_ready() {
+        tracing::debug!(
+            api_key_env = %cfg.api_key_env.clone().unwrap_or_else(|| "OPENCODE_API_KEY".into()),
+            "tool_suggest_jev skipped — missing token (fail-open)"
+        );
+        return None;
+    }
+
+    // Separate essential tools (always direct) from selectable tools
+    let (essential_tools, selectable_tools): (Vec<_>, Vec<_>) =
+        all_tools.into_iter().partition(|t| t.essential);
+
+    // Compute suggested_names for essential tools before any moves
+    let essential_names: Vec<String> = essential_tools
+        .iter()
+        .map(|t| format!("{}/{}", t.namespace.as_deref().unwrap_or("builtin"), t.name))
+        .collect();
+
+    // Build candidates for Jev (only selectable tools)
+    let candidates: Vec<(u64, String)> = selectable_tools
+        .iter()
+        .enumerate()
+        .map(|(idx, tool)| (idx as u64, tool_label_universal(&tool)))
+        .collect();
+
+    if candidates.is_empty() {
+        // Only essential tools - return them as direct
+        return Some(UniversalToolSuggestion {
+            direct_tools: essential_tools,
+            deferred_tools: Vec::new(),
+            suggested_names: essential_names,
+            no_match: false,
+        });
+    }
+
+    // Call Jev with planning prompt
+    let outcome = call_jev_planning(question, repo.as_deref(), &candidates, &jev_cfg).await;
+    if !outcome.used {
+        tracing::info!(reason = ?outcome.reason, "tool_suggest_jev skipped — fail-open");
+        return None;
+    }
+    if outcome.no_match {
+        tracing::info!(
+            "tool_suggest_jev found no relevant tools — essentials stay direct, rest deferred"
+        );
+        return Some(UniversalToolSuggestion {
+            direct_tools: essential_tools,
+            deferred_tools: selectable_tools,
+            suggested_names: essential_names,
+            no_match: true,
+        });
+    }
+
+    // Select tools: first take those above min_probability, then fill up to min_direct_tools
+    let min_prob = jev_cfg.min_probability;
+    let min_tools = min_direct_tool_limit(cfg);
+    let max_tools = direct_tool_limit(cfg);
+
+    let mut picked_indices: HashSet<usize> = HashSet::new();
+
+    // First pass: tools above probability threshold
+    for (id, prob) in &outcome.ranking {
+        if *prob >= min_prob && picked_indices.len() < max_tools {
+            picked_indices.insert(*id as usize);
+        }
+    }
+
+    // Second pass: fill up to min_direct_tools from ranked list regardless of probability
+    for (id, _) in &outcome.ranking {
+        if picked_indices.len() >= min_tools {
+            break;
+        }
+        if picked_indices.len() < max_tools {
+            picked_indices.insert(*id as usize);
+        }
+    }
+
+    // Cap at max_tools
+    let picked_indices: Vec<usize> = picked_indices.into_iter().take(max_tools).collect();
+
+    // Build direct and deferred lists
+    let mut direct = essential_tools;
+    let mut deferred = Vec::new();
+    let mut suggested = essential_names;
+
+    for (idx, tool) in selectable_tools.into_iter().enumerate() {
+        if picked_indices.contains(&idx) {
+            suggested.push(format!(
+                "{}/{}",
+                tool.namespace.as_deref().unwrap_or("builtin"),
+                tool.name
+            ));
+            direct.push(tool);
+        } else {
+            deferred.push(tool);
+        }
+    }
+
+    if direct.is_empty() {
+        return None;
+    }
+    tracing::info!(
+        direct = %direct
+            .iter()
+            .map(|tool| format!("{}/{}", tool.namespace.as_deref().unwrap_or("builtin"), tool.name))
+            .collect::<Vec<_>>()
+            .join(","),
+        "tool_suggest_jev advertised tools directly for this question"
+    );
+    Some(UniversalToolSuggestion {
+        direct_tools: direct,
+        deferred_tools: deferred,
+        suggested_names: suggested,
+        no_match: false,
+    })
+}
+
+/// English label fed to Jev: includes tool type and namespace-qualified name plus description.
+fn tool_label_universal(tool: &JevToolEntry) -> String {
+    let type_prefix = match tool.tool_type {
+        ToolType::Mcp => "mcp",
+        ToolType::Builtin => "builtin",
+        ToolType::Extension => "ext",
+        ToolType::Dynamic => "dyn",
+        ToolType::CodeMode => "codemode",
+    };
+    let qualified = match &tool.namespace {
+        Some(ns) => format!("{}:{}", ns, tool.name),
+        None => tool.name.clone(),
+    };
+    let desc = tool.description.as_str();
+    if !desc.trim().is_empty() {
+        format!(
+            "{} `{}` — {}",
+            type_prefix,
+            qualified,
+            truncate_chars(desc.trim(), 150)
+        )
+    } else {
+        format!("{} `{}`", type_prefix, qualified)
+    }
+}

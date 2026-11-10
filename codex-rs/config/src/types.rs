@@ -315,6 +315,13 @@ pub struct ToolSuggestJevConfig {
     /// deferred and discoverable through `tool_search`).
     #[serde(default)]
     pub direct_tools: Option<usize>,
+    /// Gate ALL tool types through Jev (MCP + built-in + extensions + dynamic + code-mode).
+    /// Default: true (opt-in for universal gating).
+    #[serde(default = "default_true")]
+    pub include_all_tools: bool,
+    /// Tools that are NEVER deferred (always advertised directly).
+    #[serde(default)]
+    pub essential_tools: Vec<String>,
     /// Minimum number of tools that must be advertised directly. If Jev
     /// returns fewer tools above the probability threshold, the remaining
     /// slots are filled from the ranked list regardless of probability.
