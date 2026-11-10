@@ -10919,6 +10919,8 @@ direct_tools = 4
             min_probability: None,
             direct_tools: Some(4),
             min_direct_tools: None,
+            include_all_tools: true,
+            essential_tools: Vec::new(),
         }
     );
     Ok(())

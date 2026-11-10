@@ -259,6 +259,8 @@ fn create_test_jev_config(
         min_probability: min_prob,
         direct_tools: max_direct,
         min_direct_tools: min_direct,
+        include_all_tools: true,
+        essential_tools: Vec::new(),
     }
 }
 
@@ -335,6 +337,8 @@ fn to_jev_config_maps_all_fields() {
         min_probability: Some(0.3),
         direct_tools: Some(4),
         min_direct_tools: Some(2),
+        include_all_tools: true,
+        essential_tools: Vec::new(),
     };
 
     let jev_cfg = super::to_jev_config(&cfg);
