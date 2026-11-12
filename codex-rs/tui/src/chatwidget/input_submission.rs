@@ -351,6 +351,10 @@ impl ChatWidget {
             personality,
         );
 
+        let op = match self.pending_strategy_context.take() {
+            Some(strategy_context) => op.with_strategy_context(strategy_context),
+            None => op,
+        };
         if !self.submit_op(op.clone()) {
             return (false, None);
         }

@@ -1718,6 +1718,7 @@ server_notification_definitions! {
     Warning => "warning" (v2::WarningNotification),
     GuardianWarning => "guardianWarning" (v2::GuardianWarningNotification),
     JevToolSuggestion => "thread/jevToolSuggestion" (v2::JevToolSuggestionNotification),
+    StrategyStep => "thread/strategyStep" (v2::StrategyStepNotification),
     DeprecationNotice => "deprecationNotice" (v2::DeprecationNoticeNotification),
     ConfigWarning => "configWarning" (v2::ConfigWarningNotification),
     FuzzyFileSearchSessionUpdated => "fuzzyFileSearch/sessionUpdated" (FuzzyFileSearchSessionUpdatedNotification),

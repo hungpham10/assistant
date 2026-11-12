@@ -84,6 +84,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         None,
         exposure.clone(),
         &ToolSuggestJevConfig::default(),
+        /*strategy*/ None,
     )
     .await;
     assert!(out.is_none());
@@ -94,7 +95,14 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         api_key_env: Some("CODEX_TEST_JEV_SUGGEST_ABSENT_KEY".into()),
         ..ToolSuggestJevConfig::default()
     };
-    let out = suggest_direct_mcp_tools("run a shell command", None, exposure, &cfg).await;
+    let out = suggest_direct_mcp_tools(
+        "run a shell command",
+        None,
+        exposure,
+        &cfg,
+        /*strategy*/ None,
+    )
+    .await;
     assert!(out.is_none());
 }
 
@@ -110,13 +118,13 @@ async fn pool_rỗng_thì_trả_none() {
         deferred_tools: None,
     };
     // Pool rỗng → không có gì để rerank, coi như None dù enabled.
-    let out = suggest_direct_mcp_tools("anything", None, exposure, &cfg).await;
+    let out = suggest_direct_mcp_tools("anything", None, exposure, &cfg, /*strategy*/ None).await;
     assert!(out.is_none());
 }
 
 #[test]
 fn build_planning_state_includes_guidance() {
-    let state = build_planning_state("run tests", Some("my-repo"), 5);
+    let state = build_planning_state("run tests", Some("my-repo"), 5, /*strategy*/ None);
     assert!(state.contains("AT LEAST 2 tools"));
     assert!(state.contains("up to 6"));
     assert!(state.contains("search → edit → test"));
@@ -129,7 +137,7 @@ fn build_planning_state_includes_guidance() {
 
 #[test]
 fn build_planning_state_without_repo() {
-    let state = build_planning_state("run tests", None, 3);
+    let state = build_planning_state("run tests", None, 3, /*strategy*/ None);
     assert!(!state.contains("Repo:"));
     assert!(state.contains("Request: run tests"));
     assert!(state.contains("3 candidates"));
@@ -282,8 +290,14 @@ async fn suggest_direct_mcp_tools_with_min_direct_tools() {
     let exposure = create_test_pool();
 
     // With no API key, should fail-open (return None)
-    let result =
-        suggest_direct_mcp_tools("run the tests", Some("test-repo".into()), exposure, &cfg).await;
+    let result = suggest_direct_mcp_tools(
+        "run the tests",
+        Some("test-repo".into()),
+        exposure,
+        &cfg,
+        /*strategy*/ None,
+    )
+    .await;
 
     // Should fail-open because test key doesn't exist
     assert!(result.is_none());
@@ -349,4 +363,87 @@ fn to_jev_config_maps_all_fields() {
     assert_eq!(jev_cfg.timeout_ms, 3000);
     assert_eq!(jev_cfg.max_candidates, 50);
     assert!((jev_cfg.min_probability - 0.3).abs() < 0.001);
+}
+
+#[test]
+fn build_planning_state_includes_strategy_preamble() {
+    let state = build_planning_state(
+        "trace the flow",
+        Some("my-repo"),
+        4,
+        Some(("explore-code", "Trace flows from entrypoints.")),
+    );
+    assert!(state.contains("Active strategy `explore-code`"));
+    assert!(state.contains("Trace flows from entrypoints."));
+    assert!(state.contains("Prefer the candidates that fit this step"));
+    assert!(state.contains("trace the flow"));
+}
+
+#[test]
+fn build_planning_state_truncates_strategy_guidance() {
+    let guidance = "x".repeat(500);
+    let state = build_planning_state("q", None, 2, Some(("s", &guidance)));
+    let injected = state
+        .lines()
+        .find(|line| line.starts_with("Active strategy"))
+        .expect("strategy line");
+    assert!(injected.len() < 500, "guidance snippet must be capped");
+}
+
+#[test]
+fn strategy_weights_boost_favored_tools() {
+    use super::apply_strategy_weights;
+    use crate::session::strategy_runtime::StrategyTurnContext;
+    use std::collections::BTreeMap;
+
+    let pool_keys = vec!["srv/flow".to_string(), "srv/edit".to_string()];
+    let ranking = vec![(0u64, 0.5f32), (1u64, 0.5f32)];
+    let mut weights = BTreeMap::new();
+    weights.insert("srv/flow".to_string(), 3.0f32);
+    weights.insert("srv/edit".to_string(), 1.0f32);
+    let strategy = StrategyTurnContext {
+        name: "explore-code".into(),
+        node: "entrypoint-flow".into(),
+        guidance: String::new(),
+        tool_weights: weights,
+        strong_prior_tools: vec!["srv/flow".into()],
+    };
+
+    let adjusted = apply_strategy_weights(ranking, &pool_keys, Some(&strategy));
+    let flow = adjusted.iter().find(|(id, _)| *id == 0).map(|(_, p)| *p);
+    let edit = adjusted.iter().find(|(id, _)| *id == 1).map(|(_, p)| *p);
+    assert!(
+        flow.unwrap() > edit.unwrap(),
+        "favored tool must overtake: {adjusted:?}"
+    );
+    let total: f32 = adjusted.iter().map(|(_, p)| p).sum();
+    assert!((total - 1.0).abs() < 1e-4, "weights renormalize: {total}");
+}
+
+#[test]
+fn strategy_weights_without_match_keep_ranking() {
+    use super::apply_strategy_weights;
+    use crate::session::strategy_runtime::StrategyTurnContext;
+
+    let pool_keys = vec!["srv/other".to_string()];
+    let ranking = vec![(0u64, 0.7f32)];
+    let mut weights = std::collections::BTreeMap::new();
+    weights.insert("srv/flow".to_string(), 3.0f32);
+    let strategy = StrategyTurnContext {
+        name: "s".into(),
+        node: "n".into(),
+        guidance: String::new(),
+        tool_weights: weights,
+        strong_prior_tools: Vec::new(),
+    };
+    let adjusted = apply_strategy_weights(ranking.clone(), &pool_keys, Some(&strategy));
+    assert!(
+        (adjusted[0].1 - 1.0).abs() < 1e-4,
+        "unmatched tools renormalize to 1: {adjusted:?}"
+    );
+    assert_eq!(
+        apply_strategy_weights(ranking, &pool_keys, None),
+        vec![(0u64, 0.7f32)],
+        "no strategy leaves the ranking untouched"
+    );
 }

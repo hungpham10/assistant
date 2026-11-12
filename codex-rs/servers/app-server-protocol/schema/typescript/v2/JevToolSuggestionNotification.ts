@@ -17,4 +17,12 @@ tools: Array<string>,
 /**
  * `true` when Jev found no relevant tools.
  */
-noMatch: boolean, };
+noMatch: boolean,
+/**
+ * Strategy name when a `/plan <strategy>` harness tuned the ranking.
+ */
+strategy: string | null,
+/**
+ * Strategy step (node) that was active for this turn.
+ */
+node: string | null, };

@@ -214,6 +214,7 @@ mod rollout_reconstruction;
 #[allow(clippy::module_inception)]
 pub(crate) mod session;
 pub(crate) mod step_context;
+pub(crate) mod strategy_runtime;
 pub(crate) mod time_reminder;
 mod token_budget;
 pub(crate) mod turn;
@@ -3147,6 +3148,17 @@ impl Session {
         let mut contextual_user_sections = Vec::new();
         let mut separate_developer_sections = Vec::new();
         let context_contributors = self.services.extensions.context_contributors().to_vec();
+
+        // `/plan <strategy>` harness: inject the current step's guidance when
+        // it changed (bounded, incremental — never a history rewrite).
+        {
+            let mut state = self.state.lock().await;
+            if let Some(runtime) = state.strategy.as_mut()
+                && let Some(fragment) = runtime.guidance_fragment()
+            {
+                developer_sections.push(fragment);
+            }
+        }
 
         for contributor in &context_contributors {
             for fragment in contributor

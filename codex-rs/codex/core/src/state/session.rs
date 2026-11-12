@@ -43,6 +43,8 @@ pub(crate) struct SessionState {
     pub(crate) active_connector_selection: HashSet<String>,
     /// Per-session tool enable/disable overrides from the `/tools` command.
     pub(crate) tool_selection: crate::tools::selection::SessionToolSelection,
+    /// Active `/plan <strategy>` harness runtime, when one is activated.
+    pub(crate) strategy: Option<crate::session::strategy_runtime::StrategyRuntime>,
     pub(crate) tool_inventory: Vec<ToolInventoryEntry>,
     pub(crate) pending_session_start_sources: VecDeque<codex_hooks::SessionStartSource>,
     granted_permissions_by_environment_id: HashMap<String, AdditionalPermissionProfile>,
@@ -77,6 +79,7 @@ impl SessionState {
             current_time_reminder: CurrentTimeReminderState::default(),
             active_connector_selection: HashSet::new(),
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
+            strategy: None,
             tool_inventory: Vec::new(),
             pending_session_start_sources: VecDeque::new(),
             granted_permissions_by_environment_id: HashMap::new(),

@@ -342,6 +342,22 @@ pub(crate) async fn handle_output_item_done(
                 payload_preview
             );
 
+            // Strategy harness: remember the dispatched call so its outcome
+            // can be classified when the output resolves.
+            {
+                let tool_key = match &call.tool_name.namespace {
+                    Some(namespace) => format!("{}:{}", namespace, call.tool_name.name),
+                    None => call.tool_name.name.clone(),
+                };
+                crate::session::strategy_runtime::record_turn_tool_call(
+                    ctx.sess.as_ref(),
+                    ctx.turn_context.as_ref(),
+                    &call.call_id,
+                    tool_key,
+                )
+                .await;
+            }
+
             record_completed_response_item(ctx.sess.as_ref(), ctx.turn_context.as_ref(), &item)
                 .await;
 

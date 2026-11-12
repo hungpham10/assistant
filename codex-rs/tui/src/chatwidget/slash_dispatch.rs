@@ -808,14 +808,30 @@ impl ChatWidget {
                 if !self.apply_plan_slash_command() {
                     return;
                 }
+                // `/plan <strategy> …` activates the strategy harness and
+                // submits the remainder; `back`/`prefer` steer an active
+                // strategy. Anything else stays plain plan text.
+                let (first_token, rest) = match args.trim().split_once(char::is_whitespace) {
+                    Some((token, rest)) => (token, rest.trim()),
+                    None => (args.trim(), ""),
+                };
+                let strategy_context = self.plan_strategy_context(first_token, rest);
+                let message_text = if strategy_context.is_some() {
+                    rest.to_string()
+                } else {
+                    args.to_string()
+                };
                 let user_message = self.prepared_inline_user_message(
-                    args,
+                    message_text,
                     text_elements,
                     local_images,
                     remote_image_urls,
                     mention_bindings,
                     source,
                 );
+                if strategy_context.is_some() {
+                    self.pending_strategy_context = strategy_context;
+                }
                 if self.is_session_configured() {
                     self.reasoning_buffer.clear();
                     self.full_reasoning_buffer.clear();
@@ -1235,5 +1251,45 @@ impl ChatWidget {
         ));
         self.bottom_pane.drain_pending_submission_state();
         false
+    }
+}
+
+impl ChatWidget {
+    /// Builds the reserved `strategy` additional-context entries for a
+    /// `/plan <args>` invocation. Recognizes `back <node|origin>`,
+    /// `prefer <tool[,tool…]>`, and `<known-strategy-name>`; anything else is
+    /// plain plan text and yields `None`.
+    fn plan_strategy_context(
+        &self,
+        first_token: &str,
+        rest: &str,
+    ) -> Option<HashMap<String, AdditionalContextEntry>> {
+        use codex_app_server_protocol::AdditionalContextKind;
+        if first_token.is_empty() {
+            return None;
+        }
+        let value = match first_token.to_ascii_lowercase().as_str() {
+            "back" => format!("back:{rest}"),
+            "prefer" if !rest.trim().is_empty() => format!("prefer:{}", rest.trim()),
+            _ => {
+                let config = self.config_ref();
+                let available = crate::legacy_core::strategies::available_strategy_names(
+                    &config.plan_strategies,
+                    config.cwd.as_path(),
+                    config.codex_home.as_path(),
+                );
+                if !available.iter().any(|name| name == first_token) {
+                    return None;
+                }
+                format!("activate:{first_token}")
+            }
+        };
+        Some(HashMap::from([(
+            crate::legacy_core::strategies::STRATEGY_CONTEXT_KEY().to_string(),
+            AdditionalContextEntry {
+                value,
+                kind: AdditionalContextKind::Application,
+            },
+        )]))
     }
 }

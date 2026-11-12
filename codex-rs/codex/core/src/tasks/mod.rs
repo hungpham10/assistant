@@ -592,12 +592,18 @@ impl Session {
             .input_queue
             .take_pending_input_for_turn_state(turn_state.as_ref())
             .await;
-        let (turn_had_memory_citation, turn_tool_calls, token_usage_at_turn_start) = {
-            let ts = turn_state.lock().await;
+        let (
+            turn_had_memory_citation,
+            turn_tool_calls,
+            token_usage_at_turn_start,
+            strategy_scratch,
+        ) = {
+            let mut ts = turn_state.lock().await;
             (
                 ts.has_memory_citation,
                 ts.tool_calls,
                 ts.token_usage_at_turn_start.clone(),
+                std::mem::take(&mut ts.strategy_scratch),
             )
         };
         if !pending_input.is_empty() {
@@ -623,6 +629,7 @@ impl Session {
             }
         }
         // Emit token usage metrics.
+        let mut strategy_turn_tokens: u64 = 0;
         {
             // TODO(jif): drop this
             let tmp_mem = (
@@ -676,6 +683,7 @@ impl Session {
                     - token_usage_at_turn_start.total_tokens)
                     .max(0),
             };
+            strategy_turn_tokens = turn_token_usage.total_tokens.max(0) as u64;
             let current_span = Span::current();
             current_span.record(
                 "codex.turn.token_usage.input_tokens",
@@ -744,6 +752,22 @@ impl Session {
             .turn_timing_state
             .completed_at_and_duration_ms()
             .await;
+        // Strategy harness: observe the finished turn, advance the walk, and
+        // surface the step transition.
+        if turn_context.config.plan_strategies.enabled {
+            if let Some(step_event) = crate::session::strategy_runtime::observe_turn_completion(
+                self.as_ref(),
+                strategy_scratch,
+                strategy_turn_tokens,
+                duration_ms.unwrap_or(0).max(0) as u64,
+                last_agent_message.as_deref(),
+            )
+            .await
+            {
+                self.send_event(turn_context.as_ref(), EventMsg::StrategyStep(step_event))
+                    .await;
+            }
+        }
         self.services
             .analytics_events_client
             .track_turn_profile(TurnProfileFact {

@@ -25,6 +25,7 @@ use crate::tasks::execute_user_shell_command;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
+use codex_protocol::protocol::AdditionalContextEntry;
 use codex_protocol::protocol::CodexErrorInfo;
 use codex_protocol::protocol::ErrorEvent;
 use codex_protocol::protocol::Event;
@@ -235,6 +236,10 @@ pub(super) async fn user_input_or_turn_inner(
     }
     sess.maybe_emit_model_warnings_for_turn(current_context.as_ref())
         .await;
+    // Reserved `strategy` context entry: activate/back/prefer the
+    // `/plan <strategy>` harness before the turn's tools are built.
+    let additional_context =
+        apply_reserved_strategy_context(sess, current_context.as_ref(), additional_context).await;
     match sess
         .steer_input(
             items.clone(),
@@ -308,6 +313,32 @@ pub async fn inter_agent_communication(
         sess.maybe_start_turn_for_pending_work_with_sub_id(sub_id)
             .await;
     }
+}
+
+/// Intercepts the reserved `strategy` additional-context key and applies the
+/// strategy command before the turn's tools are built. Remaining entries pass
+/// through to the normal context store untouched.
+async fn apply_reserved_strategy_context(
+    sess: &Arc<Session>,
+    turn_context: &crate::session::turn_context::TurnContext,
+    mut additional_context: std::collections::BTreeMap<String, AdditionalContextEntry>,
+) -> std::collections::BTreeMap<String, AdditionalContextEntry> {
+    let Some(entry) =
+        additional_context.remove(crate::session::strategy_runtime::STRATEGY_CONTEXT_KEY)
+    else {
+        return additional_context;
+    };
+    let Some(command) = crate::session::strategy_runtime::parse_strategy_command(&entry.value)
+    else {
+        return additional_context;
+    };
+    if let Some(step_event) =
+        crate::session::strategy_runtime::apply_strategy_command(sess, turn_context, command).await
+    {
+        sess.send_event(turn_context, EventMsg::StrategyStep(step_event))
+            .await;
+    }
+    additional_context
 }
 
 pub async fn run_user_shell_command(sess: &Arc<Session>, sub_id: String, command: String) {

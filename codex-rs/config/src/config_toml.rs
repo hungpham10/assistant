@@ -19,6 +19,7 @@ use crate::types::MemoriesToml;
 use crate::types::Notice;
 use crate::types::OAuthCredentialsStoreMode;
 use crate::types::OtelConfigToml;
+use crate::types::PlanStrategiesConfig;
 use crate::types::PluginConfig;
 use crate::types::SandboxWorkspaceWrite;
 use crate::types::ShellEnvironmentPolicyToml;
@@ -454,6 +455,9 @@ pub struct ConfigToml {
     /// Question-driven MCP tool suggestion through the Jev decision model.
     /// Opt-in; every other field falls back to the codegraph `[jev]` defaults.
     pub tool_suggest_jev: Option<ToolSuggestJevConfig>,
+
+    /// Strategy-harness settings for `/plan <strategy>`.
+    pub plan_strategies: Option<PlanStrategiesConfig>,
 
     /// Agent-related settings (thread limits, etc.).
     pub agents: Option<AgentsToml>,

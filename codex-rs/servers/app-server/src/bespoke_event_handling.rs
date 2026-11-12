@@ -51,6 +51,7 @@ use codex_app_server_protocol::RawResponseItemCompletedNotification;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
+use codex_app_server_protocol::StrategyStepNotification;
 use codex_app_server_protocol::ThreadGoalUpdatedNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadRealtimeClosedNotification;
@@ -240,9 +241,23 @@ pub(crate) async fn apply_bespoke_event_handling(
                 turn_id: suggestion_event.turn_id,
                 tools: suggestion_event.tools,
                 no_match: suggestion_event.no_match,
+                strategy: suggestion_event.strategy,
+                node: suggestion_event.node,
             };
             outgoing
                 .send_server_notification(ServerNotification::JevToolSuggestion(notification))
+                .await;
+        }
+        EventMsg::StrategyStep(step_event) => {
+            let notification = StrategyStepNotification {
+                thread_id: Some(conversation_id.to_string()),
+                strategy: step_event.strategy,
+                node: step_event.node,
+                phase: step_event.phase,
+                detail: step_event.detail,
+            };
+            outgoing
+                .send_server_notification(ServerNotification::StrategyStep(notification))
                 .await;
         }
         EventMsg::GuardianWarning(warning_event) => {

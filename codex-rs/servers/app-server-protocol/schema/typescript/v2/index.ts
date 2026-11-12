@@ -400,6 +400,7 @@ export type { SkillsListParams } from "./SkillsListParams";
 export type { SkillsListResponse } from "./SkillsListResponse";
 export type { SortDirection } from "./SortDirection";
 export type { SpendControlLimitSnapshot } from "./SpendControlLimitSnapshot";
+export type { StrategyStepNotification } from "./StrategyStepNotification";
 export type { SubAgentActivityKind } from "./SubAgentActivityKind";
 export type { SubagentMigration } from "./SubagentMigration";
 export type { TerminalInteractionNotification } from "./TerminalInteractionNotification";

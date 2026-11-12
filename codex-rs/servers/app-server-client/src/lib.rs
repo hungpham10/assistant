@@ -87,6 +87,12 @@ pub mod legacy_core {
             pub use codex_core::config::edit::*;
         }
     }
+
+    /// Strategy-harness helpers (`/plan <strategy>`).
+    pub mod strategies {
+        pub use codex_core::available_strategy_names;
+        pub use codex_core::strategy_context_key as STRATEGY_CONTEXT_KEY;
+    }
 }
 
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
