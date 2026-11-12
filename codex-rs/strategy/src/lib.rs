@@ -22,6 +22,10 @@ pub mod model;
 pub mod observe;
 pub mod update;
 
+#[cfg(test)]
+#[path = "persistence_tests.rs"]
+mod persistence_tests;
+
 pub use cond::ConditionParseError;
 pub use cond::StrategyCondition;
 pub use cond::ToolResultKind;
@@ -44,5 +48,6 @@ pub use model::TransitionReason;
 pub use observe::MarkerStatus;
 pub use observe::StepMarker;
 pub use observe::ToolOutcome;
+pub use observe::TurnFeedback;
 pub use observe::TurnObservation;
 pub use observe::tool_key_matches;

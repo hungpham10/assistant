@@ -206,7 +206,7 @@ pub(crate) fn extract_tool_call(item: &ThreadItem) -> Option<(String, String, bo
             Some((name, id.clone(), false))
         }
         ThreadItem::CollabAgentToolCall { id, tool, .. } => {
-            let name = format!("{:?}", tool).to_lowercase();
+            let name = format!("{tool:?}").to_lowercase();
             Some((name, id.clone(), false))
         }
         ThreadItem::FileChange { id, .. } => Some(("apply_patch".to_string(), id.clone(), false)),

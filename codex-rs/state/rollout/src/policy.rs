@@ -15,7 +15,8 @@ pub fn is_persisted_rollout_item(item: &RolloutItem, history_mode: ThreadHistory
         RolloutItem::Compacted(_)
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
-        | RolloutItem::SessionMeta(_) => true,
+        | RolloutItem::SessionMeta(_)
+        | RolloutItem::StrategyState(_) => true,
     }
 }
 
@@ -173,6 +174,8 @@ pub fn should_persist_event_msg(ev: &EventMsg, history_mode: ThreadHistoryMode) 
         | EventMsg::CollabAgentInteractionBegin(_)
         | EventMsg::CollabWaitingBegin(_)
         | EventMsg::CollabCloseBegin(_)
-        | EventMsg::CollabResumeBegin(_) => false,
+        | EventMsg::CollabResumeBegin(_)
+        | EventMsg::StrategyStateSnapshot(_)
+        | EventMsg::StrategyFeedbackRequest(_) => false,
     }
 }

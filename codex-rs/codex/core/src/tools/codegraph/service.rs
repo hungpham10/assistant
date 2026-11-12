@@ -60,7 +60,7 @@ pub fn set_global_auto_init(path: Option<String>) {
 fn bound_session() -> Option<Arc<Session>> {
     global_session()
         .lock()
-        .expect("codegraph session lock")
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
         .clone()
 }
 
@@ -204,7 +204,9 @@ impl CodegraphService {
             Err(err) => return format!("begin failed: {err:#}"),
         };
         let root = outcome.root.clone();
-        *global_session().lock().expect("codegraph session lock") = Some(Arc::clone(&session));
+        *global_session()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::clone(&session));
 
         let stats = index_stats().await;
         let doc_stats = doc_stats().await;
@@ -224,10 +226,12 @@ impl CodegraphService {
 
     /// `{"verb":"end"}` — release the session.
     pub async fn end() -> String {
-        *global_doc_graph().lock().expect("codegraph doc graph lock") = None;
+        *global_doc_graph()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         let session = global_session()
             .lock()
-            .expect("codegraph session lock")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take();
         match session {
             Some(session) => {
@@ -408,7 +412,9 @@ async fn doc_graph() -> Result<Arc<SharedDocGraph>> {
         .root()
         .await
         .ok_or_else(|| anyhow::anyhow!("no codegraph session bound"))?;
-    let mut slot = global_doc_graph().lock().expect("codegraph doc graph lock");
+    let mut slot = global_doc_graph()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     if let Some((cached_root, graph)) = slot.as_ref()
         && *cached_root == root
     {
@@ -420,10 +426,12 @@ async fn doc_graph() -> Result<Arc<SharedDocGraph>> {
 }
 
 /// Document stats of the bound root, if the graph can be opened.
+#[allow(clippy::await_holding_invalid_type)]
 async fn doc_stats() -> Option<codegraph_docs::DocStats> {
     let shared = doc_graph().await.ok()?;
     let graph = shared.graph().await;
-    graph.read().await.stats().await.ok()
+    let stats = graph.read().await.stats().await;
+    stats.ok()
 }
 
 fn arg_str<'a>(args: &'a JsonValue, key: &str) -> Option<&'a str> {
@@ -479,11 +487,12 @@ fn symbols_json(symbols: &[Symbol], total: usize) -> String {
         "total": total,
         "returned": symbols.len(),
     }))
-    .expect("symbol json is serializable")
+    .unwrap_or_else(|err| format!("{{\"error\":\"failed to serialize symbols: {err}\"}}"))
 }
 
 /// Document-graph verbs: `doc_search` (full-path trie search with key /
 /// fuzzy fallback), `doc_list`, `doc_stats`.
+#[allow(clippy::await_holding_invalid_type)]
 async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
     let shared = doc_graph().await?;
     let graph = shared.graph().await;
@@ -494,17 +503,18 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
             let docs: Vec<JsonValue> = docs
                 .into_iter()
                 .take(limit_arg(args) as usize)
-                .map(|d| serde_json::to_value(&d).expect("doc info is serializable"))
+                .filter_map(|d| serde_json::to_value(&d).ok())
                 .collect();
             Ok(serde_json::to_string(&json!({
                 "docs": docs, "total": total, "returned": docs.len(),
-            }))
-            .expect("docs json is serializable"))
+            }))?)
         }
         "doc_stats" => {
-            let stats = graph.read().await.stats().await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&stats)?)
-                .expect("doc stats are serializable"))
+            let stats = {
+                let guard = graph.read().await;
+                guard.stats().await?
+            };
+            Ok(serde_json::to_string(&serde_json::to_value(&stats)?)?)
         }
         "doc_search" => {
             let pattern = arg_str(args, "query")
@@ -512,6 +522,7 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
                 .ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
             let depth = arg_u32(args, "depth").unwrap_or(1) as usize;
             let limit = limit_arg(args) as usize;
+            #[allow(clippy::await_holding_invalid_type)]
             let graph = graph.read().await;
             let mut tokens = vec![DocToken::root()];
             let mut unknown_seg = false;
@@ -551,8 +562,7 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
                         .collect();
                     return Ok(serde_json::to_string(&json!({
                         "results": results, "total": results.len(),
-                    }))
-                    .expect("doc results are serializable"));
+                    }))?);
                 }
                 let hits = graph.search_key_fuzzy(last, limit);
                 if hits.is_empty() {
@@ -573,21 +583,19 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
                     .collect();
                 return Ok(serde_json::to_string(&json!({
                     "results": results, "total": results.len(),
-                }))
-                .expect("doc results are serializable"));
+                }))?);
             }
             let mut results = Vec::new();
             for id in ids.iter().take(limit) {
-                if let Some(payload) = graph.hydrate_depth(*id, Some(1)).await {
-                    results.push(
-                        serde_json::to_value(&payload).expect("node payload is serializable"),
-                    );
+                if let Some(payload) = graph.hydrate_depth(*id, Some(1)).await
+                    && let Ok(value) = serde_json::to_value(&payload)
+                {
+                    results.push(value);
                 }
             }
             Ok(serde_json::to_string(&json!({
                 "results": results, "total": results.len(),
-            }))
-            .expect("doc results are serializable"))
+            }))?)
         }
         other => anyhow::bail!("unknown document action: {other}"),
     }
@@ -617,10 +625,7 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
         "symbol" => {
             let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
             match api.symbol_by_id(id).await {
-                Some(s) => {
-                    Ok(serde_json::to_string(&symbol_json(&s))
-                        .expect("symbol json is serializable"))
-                }
+                Some(s) => Ok(serde_json::to_string(&symbol_json(&s))?),
                 None => Ok(format!("no symbol with id {id}")),
             }
         }
@@ -628,8 +633,7 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let name = arg_str(args, "name").unwrap_or("");
             let id = arg_u64(args, "id").unwrap_or(0);
             let r = api.resolve(name, id).await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&r)?)
-                .expect("resolve result is serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&r)?)?)
         }
         "callers" => {
             let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
@@ -657,8 +661,7 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
         "flow" => {
             let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
             let flow = api.flow(id).await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&flow)?)
-                .expect("flow result is serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&flow)?)?)
         }
         "trace_full_flow" => {
             let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
@@ -670,8 +673,7 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let traces = api
                 .trace_full_flow(id, max_depth, max_paths, max_loop_iter)
                 .await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&traces)?)
-                .expect("trace_full_flow result is serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&traces)?)?)
         }
         "context" => {
             let query = arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
@@ -690,14 +692,12 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let pattern =
                 arg_str(args, "pattern").ok_or_else(|| anyhow::anyhow!("missing `pattern`"))?;
             let results = api.search_flow_pattern(pattern).await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&results)?)
-                .expect("flow results are serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&results)?)?)
         }
         "references" => {
             let query = arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
             let refs = api.references(query, limit_arg(args)).await?;
-            Ok(serde_json::to_string(&serde_json::to_value(&refs)?)
-                .expect("references are serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&refs)?)?)
         }
         "list_by_kind" => {
             let kind = kind_arg(args)?.ok_or_else(|| anyhow::anyhow!("missing `kind`"))?;
@@ -713,17 +713,15 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let files: Vec<JsonValue> = files
                 .into_iter()
                 .take(limit_arg(args) as usize)
-                .map(|f| serde_json::to_value(&f).expect("file info is serializable"))
+                .filter_map(|f| serde_json::to_value(&f).ok())
                 .collect();
             Ok(serde_json::to_string(&json!({
                 "files": files, "total": total, "returned": files.len(),
-            }))
-            .expect("files json is serializable"))
+            }))?)
         }
         "stats" => {
             let stats = api.stats_cached().await;
-            Ok(serde_json::to_string(&serde_json::to_value(&stats)?)
-                .expect("stats are serializable"))
+            Ok(serde_json::to_string(&serde_json::to_value(&stats)?)?)
         }
         other => anyhow::bail!(
             "unknown search action: {other} (available: search_symbol, symbol, resolve, callers, callees, impact, flow, search_flow, references, list_by_kind, files, stats, doc_search, doc_list, doc_stats)"

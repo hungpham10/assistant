@@ -945,6 +945,17 @@ ON CONFLICT(id) DO UPDATE SET
         {
             return Err(err);
         }
+        if let Some(snapshot) = extract_strategy_state(items) {
+            let record = StrategyStateRecord {
+                thread_id: builder.id.to_string(),
+                strategy_name: snapshot.strategy_name.clone(),
+                model_json: snapshot.model.to_string(),
+                captured_at: snapshot.captured_at,
+                turn_id: snapshot.turn_id.clone(),
+                updated_at: updated_at.unwrap_or_else(Utc::now).timestamp(),
+            };
+            self.upsert_strategy_state(&record).await?;
+        }
         Ok(())
     }
 
@@ -1020,6 +1031,7 @@ ON CONFLICT(id) DO UPDATE SET
                 .await?;
             self.memories.delete_thread_memory(*thread_id).await?;
             self.thread_goals.delete_thread_goal(*thread_id).await?;
+            self.delete_strategy_state(&thread_id_string).await?;
         }
 
         let now = Utc::now().timestamp();
@@ -1245,7 +1257,18 @@ pub(super) fn extract_memory_mode(items: &[RolloutItem]) -> Option<String> {
         | RolloutItem::Compacted(_)
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
-        | RolloutItem::EventMsg(_) => None,
+        | RolloutItem::EventMsg(_)
+        | RolloutItem::StrategyState(_) => None,
+    })
+}
+
+/// Newest `RolloutItem::StrategyState` snapshot in the batch, if any.
+pub(super) fn extract_strategy_state(
+    items: &[RolloutItem],
+) -> Option<&codex_protocol::protocol::StrategyStateSnapshot> {
+    items.iter().rev().find_map(|item| match item {
+        RolloutItem::StrategyState(snapshot) => Some(snapshot),
+        _ => None,
     })
 }
 

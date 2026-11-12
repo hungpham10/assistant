@@ -2843,7 +2843,8 @@ async fn start_new_context_window_assigns_and_persists_item_ids() {
         | RolloutItem::InterAgentCommunicationMetadata { .. }
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
-        | RolloutItem::EventMsg(_) => None,
+        | RolloutItem::EventMsg(_)
+        | RolloutItem::StrategyState(_) => None,
     });
     assert_eq!(
         persisted_replacement_history.map(Vec::as_slice),
@@ -2902,7 +2903,8 @@ async fn record_initial_history_assigns_and_persists_id_for_forked_response_item
         | RolloutItem::Compacted(_)
         | RolloutItem::TurnContext(_)
         | RolloutItem::WorldState(_)
-        | RolloutItem::EventMsg(_) => None,
+        | RolloutItem::EventMsg(_)
+        | RolloutItem::StrategyState(_) => None,
     });
     assert_eq!(persisted_item_id, Some(live_item_id.as_str()));
 }

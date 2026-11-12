@@ -320,7 +320,7 @@ pub(crate) async fn call_jev_planning(
     // Build criteria map
     let mut criteria = std::collections::HashMap::with_capacity(candidates.len() + 1);
     for (id, label) in candidates {
-        criteria.insert(format!("s{}", id), label.clone());
+        criteria.insert(format!("s{id}"), label.clone());
     }
     criteria.insert(
         NONE_OPTION.to_string(),
@@ -538,7 +538,7 @@ pub(crate) fn parse_jev_reply(raw: &str, candidates: &[(u64, String)]) -> JevOut
         .filter_map(|(id, _)| {
             let p = best
                 .probabilities
-                .get(&format!("s{}", id))
+                .get(&format!("s{id}"))
                 .copied()
                 .unwrap_or(0.0);
             (p > 0.0).then_some((*id, p))
@@ -569,10 +569,10 @@ fn tool_label(tool: &McpToolInfo) -> String {
     };
     match tool.tool.description.as_deref() {
         Some(description) if !description.trim().is_empty() => {
-            return format!(
+            format!(
                 "tool `{qualified}` — {}",
                 truncate_chars(description.trim(), 200)
-            );
+            )
         }
         _ => format!("tool `{qualified}`"),
     }
@@ -668,7 +668,7 @@ pub(crate) async fn suggest_direct_tools(
     let candidates: Vec<(u64, String)> = selectable_tools
         .iter()
         .enumerate()
-        .map(|(idx, tool)| (idx as u64, tool_label_universal(&tool)))
+        .map(|(idx, tool)| (idx as u64, tool_label_universal(tool)))
         .collect();
 
     if candidates.is_empty() {
@@ -786,12 +786,10 @@ fn tool_label_universal(tool: &JevToolEntry) -> String {
     let desc = tool.description.as_str();
     if !desc.trim().is_empty() {
         format!(
-            "{} `{}` — {}",
-            type_prefix,
-            qualified,
+            "{type_prefix} `{qualified}` — {}",
             truncate_chars(desc.trim(), 150)
         )
     } else {
-        format!("{} `{}`", type_prefix, qualified)
+        format!("{type_prefix} `{qualified}`")
     }
 }

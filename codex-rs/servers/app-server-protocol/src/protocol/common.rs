@@ -1517,6 +1517,12 @@ server_request_definitions! {
         response: v2::ToolRequestUserInputResponse,
     },
 
+    /// Ask the user to rate a finished strategy-steered turn.
+    StrategyFeedbackRequest => "thread/strategyFeedbackRequest" {
+        params: v2::StrategyFeedbackRequestParams,
+        response: v2::StrategyFeedbackResponse,
+    },
+
     /// Request input for an MCP server elicitation.
     McpServerElicitationRequest => "mcpServer/elicitation/request" {
         params: v2::McpServerElicitationRequestParams,

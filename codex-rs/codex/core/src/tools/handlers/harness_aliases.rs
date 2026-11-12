@@ -3071,7 +3071,8 @@ fn zcode_agent_rollout_stats(
             | RolloutItem::Compacted(_)
             | RolloutItem::TurnContext(_)
             | RolloutItem::WorldState(_)
-            | RolloutItem::EventMsg(_) => {}
+            | RolloutItem::EventMsg(_)
+            | RolloutItem::StrategyState(_) => {}
         }
     }
     if duration_ms == 0 {

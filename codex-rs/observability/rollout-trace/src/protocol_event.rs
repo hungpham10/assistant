@@ -406,7 +406,9 @@ pub(crate) fn tool_runtime_trace_event(event: &EventMsg) -> Option<ToolRuntimeTr
         | EventMsg::ReasoningContentDelta(_)
         | EventMsg::ReasoningRawContentDelta(_)
         | EventMsg::CollabResumeBegin(_)
-        | EventMsg::CollabResumeEnd(_) => None,
+        | EventMsg::CollabResumeEnd(_)
+        | EventMsg::StrategyStateSnapshot(_)
+        | EventMsg::StrategyFeedbackRequest(_) => None,
     }
 }
 
@@ -424,6 +426,8 @@ pub(crate) fn wrapped_protocol_event_type(event: &EventMsg) -> Option<&'static s
         | EventMsg::SafetyBuffering(_)
         | EventMsg::JevToolSuggestion(_)
         | EventMsg::StrategyStep(_)
+        | EventMsg::StrategyStateSnapshot(_)
+        | EventMsg::StrategyFeedbackRequest(_)
         | EventMsg::RealtimeConversationStarted(_)
         | EventMsg::RealtimeConversationRealtime(_)
         | EventMsg::RealtimeConversationClosed(_)

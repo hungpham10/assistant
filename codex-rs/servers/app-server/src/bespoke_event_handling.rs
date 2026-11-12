@@ -51,6 +51,8 @@ use codex_app_server_protocol::RawResponseItemCompletedNotification;
 use codex_app_server_protocol::RequestId;
 use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequestPayload;
+use codex_app_server_protocol::StrategyFeedbackRequestParams;
+use codex_app_server_protocol::StrategyFeedbackResponse;
 use codex_app_server_protocol::StrategyStepNotification;
 use codex_app_server_protocol::ThreadGoalUpdatedNotification;
 use codex_app_server_protocol::ThreadItem;
@@ -102,6 +104,8 @@ use codex_protocol::protocol::ExecApprovalRequestEvent;
 use codex_protocol::protocol::Op;
 use codex_protocol::protocol::RealtimeEvent;
 use codex_protocol::protocol::ReviewDecision;
+use codex_protocol::protocol::StrategyFeedbackChoice;
+use codex_protocol::protocol::StrategyFeedbackRequest;
 use codex_protocol::protocol::SubAgentActivityKind;
 use codex_protocol::protocol::TokenCountEvent;
 use codex_protocol::protocol::TurnAbortedEvent;
@@ -259,6 +263,32 @@ pub(crate) async fn apply_bespoke_event_handling(
             outgoing
                 .send_server_notification(ServerNotification::StrategyStep(notification))
                 .await;
+        }
+        EventMsg::StrategyFeedbackRequest(request) => {
+            let StrategyFeedbackRequest {
+                id,
+                strategy_name,
+                node,
+            } = request;
+            let params = StrategyFeedbackRequestParams {
+                thread_id: conversation_id.to_string(),
+                turn_id: id.clone(),
+                strategy_name,
+                node,
+            };
+            let (pending_request_id, rx) = outgoing
+                .send_request(ServerRequestPayload::StrategyFeedbackRequest(params))
+                .await;
+            tokio::spawn(async move {
+                on_strategy_feedback_response(
+                    id,
+                    pending_request_id,
+                    rx,
+                    conversation,
+                    thread_state,
+                )
+                .await;
+            });
         }
         EventMsg::GuardianWarning(warning_event) => {
             let notification = GuardianWarningNotification {
@@ -1671,6 +1701,40 @@ async fn on_request_user_input_response(
         .await
     {
         error!("failed to submit UserInputAnswer: {err}");
+    }
+}
+
+async fn on_strategy_feedback_response(
+    feedback_id: String,
+    pending_request_id: RequestId,
+    receiver: oneshot::Receiver<ClientRequestResult>,
+    conversation: Arc<CodexThread>,
+    thread_state: Arc<Mutex<ThreadState>>,
+) {
+    let response = receiver.await;
+    resolve_server_request_on_thread_listener(&thread_state, pending_request_id).await;
+    let choice = match response {
+        Ok(Ok(value)) => serde_json::from_value::<StrategyFeedbackResponse>(value)
+            .map(|response| response.choice)
+            .unwrap_or(StrategyFeedbackChoice::Skip),
+        Ok(Err(err)) if is_turn_transition_server_request_error(&err) => return,
+        Ok(Err(err)) => {
+            error!("strategy feedback request failed with client error: {err:?}");
+            StrategyFeedbackChoice::Skip
+        }
+        Err(err) => {
+            error!("strategy feedback request failed: {err:?}");
+            StrategyFeedbackChoice::Skip
+        }
+    };
+    if let Err(err) = conversation
+        .submit(Op::StrategyFeedback {
+            id: feedback_id,
+            choice,
+        })
+        .await
+    {
+        error!("failed to submit StrategyFeedback: {err}");
     }
 }
 

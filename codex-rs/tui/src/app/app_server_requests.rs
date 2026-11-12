@@ -12,6 +12,7 @@ use codex_app_server_protocol::McpServerElicitationRequestResponse;
 use codex_app_server_protocol::PermissionsRequestApprovalResponse;
 use codex_app_server_protocol::RequestId as AppServerRequestId;
 use codex_app_server_protocol::ServerRequest;
+use codex_app_server_protocol::StrategyFeedbackResponse;
 use codex_protocol::request_permissions::RequestPermissionProfile as CoreRequestPermissionProfile;
 
 impl App {
@@ -74,6 +75,7 @@ pub(super) struct PendingAppServerRequests {
     permissions_approvals: HashMap<String, AppServerRequestId>,
     user_inputs: HashMap<String, VecDeque<PendingUserInputRequest>>,
     mcp_requests: HashMap<McpRequestKey, AppServerRequestId>,
+    strategy_feedback: HashMap<String, AppServerRequestId>,
 }
 
 impl PendingAppServerRequests {
@@ -83,6 +85,7 @@ impl PendingAppServerRequests {
         self.permissions_approvals.clear();
         self.user_inputs.clear();
         self.mcp_requests.clear();
+        self.strategy_feedback.clear();
     }
 
     pub(super) fn note_server_request(
@@ -138,6 +141,11 @@ impl PendingAppServerRequests {
                     },
                     request_id.clone(),
                 );
+                None
+            }
+            ServerRequest::StrategyFeedbackRequest { request_id, params } => {
+                self.strategy_feedback
+                    .insert(params.turn_id.clone(), request_id.clone());
                 None
             }
             ServerRequest::DynamicToolCall { request_id, .. } => {
@@ -247,6 +255,19 @@ impl PendingAppServerRequests {
                     })
                 })
                 .transpose()?,
+            AppCommand::StrategyFeedback { id, choice } => self
+                .strategy_feedback
+                .remove(id)
+                .map(|request_id| {
+                    Ok::<AppServerRequestResolution, String>(AppServerRequestResolution {
+                        request_id,
+                        result: serde_json::to_value(StrategyFeedbackResponse { choice: *choice })
+                            .map_err(|err| {
+                                format!("failed to serialize strategy feedback response: {err}")
+                            })?,
+                    })
+                })
+                .transpose()?,
             AppCommand::ResolveElicitation {
                 server_name,
                 request_id,
@@ -353,6 +374,10 @@ impl PendingAppServerRequests {
             }
             ServerRequest::McpServerElicitationRequest { request_id, .. } => self
                 .mcp_requests
+                .values()
+                .any(|pending_request_id| pending_request_id == request_id),
+            ServerRequest::StrategyFeedbackRequest { request_id, .. } => self
+                .strategy_feedback
                 .values()
                 .any(|pending_request_id| pending_request_id == request_id),
             ServerRequest::DynamicToolCall { .. }

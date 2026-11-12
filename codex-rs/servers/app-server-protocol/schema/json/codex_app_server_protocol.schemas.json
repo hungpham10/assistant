@@ -5790,6 +5790,31 @@
           "type": "object"
         },
         {
+          "description": "Ask the user to rate a finished strategy-steered turn.",
+          "properties": {
+            "id": {
+              "$ref": "#/definitions/v2/RequestId"
+            },
+            "method": {
+              "enum": [
+                "thread/strategyFeedbackRequest"
+              ],
+              "title": "Thread/strategyFeedbackRequestRequestMethod",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/definitions/StrategyFeedbackRequestParams"
+            }
+          },
+          "required": [
+            "id",
+            "method",
+            "params"
+          ],
+          "title": "Thread/strategyFeedbackRequestRequest",
+          "type": "object"
+        },
+        {
           "description": "Request input for an MCP server elicitation.",
           "properties": {
             "id": {
@@ -5965,6 +5990,77 @@
         }
       ],
       "title": "ServerRequest"
+    },
+    "StrategyFeedbackChoice": {
+      "description": "User's answer to a [`StrategyFeedbackRequest`].",
+      "oneOf": [
+        {
+          "description": "The turn's results were helpful; boost the used tools.",
+          "enum": [
+            "helpful"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "The turn's results were not helpful; shrink the used tools.",
+          "enum": [
+            "notHelpful"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "No opinion; leave the model unchanged.",
+          "enum": [
+            "skip"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "StrategyFeedbackRequestParams": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "Params sent when the strategy harness asks the user to rate a finished turn; the answer is a [`StrategyFeedbackResponse`].",
+      "properties": {
+        "node": {
+          "description": "Strategy node that was active for the rated turn.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strategyName": {
+          "description": "Strategy name.",
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "description": "Turn the prompt is rating; doubles as the feedback request id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategyName",
+        "threadId",
+        "turnId"
+      ],
+      "title": "StrategyFeedbackRequestParams",
+      "type": "object"
+    },
+    "StrategyFeedbackRequestResponse": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "description": "Response payload rating the strategy-steered turn.",
+      "properties": {
+        "choice": {
+          "$ref": "#/definitions/StrategyFeedbackChoice"
+        }
+      },
+      "required": [
+        "choice"
+      ],
+      "title": "StrategyFeedbackResponse",
+      "type": "object"
     },
     "ToolRequestUserInputAnswer": {
       "description": "EXPERIMENTAL. Captures a user's answer to a request_user_input question.",

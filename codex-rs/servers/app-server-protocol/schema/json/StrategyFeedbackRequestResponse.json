@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "definitions": {
+    "StrategyFeedbackChoice": {
+      "description": "User's answer to a [`StrategyFeedbackRequest`].",
+      "oneOf": [
+        {
+          "description": "The turn's results were helpful; boost the used tools.",
+          "enum": [
+            "helpful"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "The turn's results were not helpful; shrink the used tools.",
+          "enum": [
+            "notHelpful"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "No opinion; leave the model unchanged.",
+          "enum": [
+            "skip"
+          ],
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "description": "Response payload rating the strategy-steered turn.",
+  "properties": {
+    "choice": {
+      "$ref": "#/definitions/StrategyFeedbackChoice"
+    }
+  },
+  "required": [
+    "choice"
+  ],
+  "title": "StrategyFeedbackResponse",
+  "type": "object"
+}

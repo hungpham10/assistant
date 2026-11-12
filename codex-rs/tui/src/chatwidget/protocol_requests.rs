@@ -44,6 +44,9 @@ impl ChatWidget {
             ServerRequest::ToolRequestUserInput { params, .. } => {
                 self.on_request_user_input(params);
             }
+            ServerRequest::StrategyFeedbackRequest { params, .. } => {
+                self.on_strategy_feedback_request(params);
+            }
             ServerRequest::DynamicToolCall { .. }
             | ServerRequest::AttestationGenerate { .. }
             | ServerRequest::CurrentTimeRead { .. }
@@ -59,6 +62,87 @@ impl ChatWidget {
 
     pub(crate) fn handle_skills_list_response(&mut self, response: SkillsListResponse) {
         self.on_list_skills(response);
+    }
+
+    /// Shows the three-choice strategy feedback prompt; Esc (or `Skip`)
+    /// answers with `StrategyFeedbackChoice::Skip`.
+    pub(super) fn on_strategy_feedback_request(
+        &mut self,
+        params: codex_app_server_protocol::StrategyFeedbackRequestParams,
+    ) {
+        use crate::bottom_pane::SelectionItem;
+        use crate::bottom_pane::SelectionViewParams;
+        use codex_protocol::protocol::StrategyFeedbackChoice;
+
+        let Some(thread_id) = self.thread_id() else {
+            return;
+        };
+        let feedback_id = params.turn_id;
+        let node_line = params.node;
+        let make_item = |name: &'static str,
+                         description: &'static str,
+                         choice: StrategyFeedbackChoice,
+                         thread_id: ThreadId,
+                         feedback_id: &str|
+         -> SelectionItem {
+            let feedback_id = feedback_id.to_string();
+            SelectionItem {
+                name: name.to_string(),
+                description: Some(description.to_string()),
+                actions: vec![Box::new(move |tx: &AppEventSender| {
+                    tx.send(AppEvent::SubmitThreadOp {
+                        thread_id,
+                        op: AppCommand::StrategyFeedback {
+                            id: feedback_id.clone(),
+                            choice,
+                        },
+                    });
+                })],
+                dismiss_on_select: true,
+                ..Default::default()
+            }
+        };
+        let items = vec![
+            make_item(
+                "Helpful",
+                "Boost the tools this step used",
+                StrategyFeedbackChoice::Helpful,
+                thread_id,
+                &feedback_id,
+            ),
+            make_item(
+                "Not helpful",
+                "Shrink the tools this step used",
+                StrategyFeedbackChoice::NotHelpful,
+                thread_id,
+                &feedback_id,
+            ),
+            make_item(
+                "Skip",
+                "Leave the strategy unchanged",
+                StrategyFeedbackChoice::Skip,
+                thread_id,
+                &feedback_id,
+            ),
+        ];
+        let cancel_thread_id = thread_id;
+        let cancel_feedback_id = feedback_id;
+        self.bottom_pane.show_selection_view(SelectionViewParams {
+            view_id: Some("strategy_feedback"),
+            title: Some("Was this step helpful?".to_string()),
+            subtitle: node_line.map(|node| format!("strategy step: {node}")),
+            items,
+            on_cancel: Some(Box::new(move |tx: &AppEventSender| {
+                tx.send(AppEvent::SubmitThreadOp {
+                    thread_id: cancel_thread_id,
+                    op: AppCommand::StrategyFeedback {
+                        id: cancel_feedback_id.clone(),
+                        choice: StrategyFeedbackChoice::Skip,
+                    },
+                });
+            })),
+            ..Default::default()
+        });
     }
 
     pub(super) fn on_patch_apply_output_delta(&mut self, _item_id: String, _delta: String) {}

@@ -1644,3 +1644,26 @@ pub struct ToolRequestUserInputAnswer {
 pub struct ToolRequestUserInputResponse {
     pub answers: HashMap<String, ToolRequestUserInputAnswer>,
 }
+
+/// Params sent when the strategy harness asks the user to rate a finished
+/// turn; the answer is a [`StrategyFeedbackResponse`].
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct StrategyFeedbackRequestParams {
+    pub thread_id: String,
+    /// Turn the prompt is rating; doubles as the feedback request id.
+    pub turn_id: String,
+    /// Strategy name.
+    pub strategy_name: String,
+    /// Strategy node that was active for the rated turn.
+    pub node: Option<String>,
+}
+
+/// Response payload rating the strategy-steered turn.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct StrategyFeedbackResponse {
+    pub choice: codex_protocol::protocol::StrategyFeedbackChoice,
+}

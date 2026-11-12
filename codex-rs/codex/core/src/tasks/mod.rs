@@ -47,6 +47,7 @@ use codex_otel::TURN_TOOL_CALL_METRIC;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::MultiAgentVersion;
+use codex_protocol::protocol::RolloutItem;
 use codex_protocol::protocol::TokenUsage;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
@@ -754,18 +755,39 @@ impl Session {
             .await;
         // Strategy harness: observe the finished turn, advance the walk, and
         // surface the step transition.
-        if turn_context.config.plan_strategies.enabled {
-            if let Some(step_event) = crate::session::strategy_runtime::observe_turn_completion(
+        if turn_context.config.plan_strategies.enabled
+            && let Some(completion) = crate::session::strategy_runtime::observe_turn_completion(
                 self.as_ref(),
                 strategy_scratch,
+                turn_context.sub_id.as_str(),
                 strategy_turn_tokens,
                 duration_ms.unwrap_or(0).max(0) as u64,
                 last_agent_message.as_deref(),
             )
             .await
-            {
-                self.send_event(turn_context.as_ref(), EventMsg::StrategyStep(step_event))
-                    .await;
+        {
+            self.send_event(
+                turn_context.as_ref(),
+                EventMsg::StrategyStep(completion.step_event),
+            )
+            .await;
+            // Persist the strategy state as a rollout item (source of truth)
+            // and surface it for live consumers; the event itself is transient.
+            self.persist_rollout_items(&[RolloutItem::StrategyState(completion.snapshot.clone())])
+                .await;
+            self.send_event(
+                turn_context.as_ref(),
+                EventMsg::StrategyStateSnapshot(completion.snapshot),
+            )
+            .await;
+            // Offer a feedback prompt when the turn used tools under an active
+            // node; only the newest prompt is kept and answering is idempotent.
+            if let Some(request) = completion.feedback_request {
+                self.send_event(
+                    turn_context.as_ref(),
+                    EventMsg::StrategyFeedbackRequest(request),
+                )
+                .await;
             }
         }
         self.services

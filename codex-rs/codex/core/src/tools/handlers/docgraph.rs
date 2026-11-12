@@ -194,7 +194,11 @@ impl ToolExecutor<ToolInvocation> for DocgraphHandler {
             if !args.is_object() {
                 args = json!({});
             }
-            let args_obj = args.as_object_mut().unwrap();
+            let Some(args_obj) = args.as_object_mut() else {
+                return Err(FunctionCallError::RespondToModel(
+                    "docgraph arguments must be a JSON object".to_string(),
+                ));
+            };
             match tool_name.as_str() {
                 "search" => {
                     args_obj.insert("action".to_string(), json!("doc_search"));

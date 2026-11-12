@@ -132,6 +132,20 @@ pub struct TurnObservation {
     pub marker: Option<StepMarker>,
 }
 
+/// Explicit user feedback on a finished turn, collected out of band.
+///
+/// This is deliberately separate from [`TurnObservation`]: the answer arrives
+/// after the turn loop is torn down, so it is applied directly through
+/// `StrategyModel::apply_feedback` instead of waiting for the next turn.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TurnFeedback {
+    /// Tool keys called during the turn being rated (as recorded in the
+    /// per-turn scratch).
+    pub tools_called: Vec<String>,
+    /// Whether the user judged the turn's results helpful.
+    pub helpful: bool,
+}
+
 #[cfg(test)]
 #[path = "observe_tests.rs"]
 mod tests;

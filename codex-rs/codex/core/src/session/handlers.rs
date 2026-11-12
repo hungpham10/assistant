@@ -838,6 +838,11 @@ pub(super) async fn submission_loop(
                     request_user_input_response(&sess, id, response).await;
                     false
                 }
+                Op::StrategyFeedback { id, choice } => {
+                    crate::session::strategy_runtime::apply_strategy_feedback(&sess, id, choice)
+                        .await;
+                    false
+                }
                 Op::RequestPermissionsResponse { id, response } => {
                     request_permissions_response(&sess, id, response).await;
                     false
