@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "description": "Strategy-harness step transition for `/plan <strategy>` sessions.",
+  "properties": {
+    "detail": {
+      "description": "Human-readable detail (transition reason, backtrack target, …).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "node": {
+      "description": "Step (node) the harness moved to, when a step is active.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "phase": {
+      "description": "Harness lifecycle: `active`, `complete`, or `stuck`.",
+      "type": "string"
+    },
+    "strategy": {
+      "description": "Strategy name.",
+      "type": "string"
+    },
+    "threadId": {
+      "description": "Optional thread target when the step applies to a specific thread.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "phase",
+    "strategy"
+  ],
+  "title": "StrategyStepNotification",
+  "type": "object"
+}

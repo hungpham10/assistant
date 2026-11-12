@@ -6,6 +6,20 @@
       "description": "`true` when Jev found no relevant tools.",
       "type": "boolean"
     },
+    "node": {
+      "description": "Strategy step (node) that was active for this turn.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "strategy": {
+      "description": "Strategy name when a `/plan <strategy>` harness tuned the ranking.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "threadId": {
       "description": "Optional thread target when the suggestion applies to a specific thread.",
       "type": [

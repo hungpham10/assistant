@@ -2368,6 +2368,20 @@
           "description": "`true` when Jev found no relevant tools.",
           "type": "boolean"
         },
+        "node": {
+          "description": "Strategy step (node) that was active for this turn.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strategy": {
+          "description": "Strategy name when a `/plan <strategy>` harness tuned the ranking.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "threadId": {
           "description": "Optional thread target when the suggestion applies to a specific thread.",
           "type": [
@@ -3510,6 +3524,45 @@
         "remainingPercent",
         "resetsAt",
         "used"
+      ],
+      "type": "object"
+    },
+    "StrategyStepNotification": {
+      "description": "Strategy-harness step transition for `/plan <strategy>` sessions.",
+      "properties": {
+        "detail": {
+          "description": "Human-readable detail (transition reason, backtrack target, …).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "node": {
+          "description": "Step (node) the harness moved to, when a step is active.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "description": "Harness lifecycle: `active`, `complete`, or `stuck`.",
+          "type": "string"
+        },
+        "strategy": {
+          "description": "Strategy name.",
+          "type": "string"
+        },
+        "threadId": {
+          "description": "Optional thread target when the step applies to a specific thread.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "strategy"
       ],
       "type": "object"
     },
@@ -6856,6 +6909,26 @@
         "params"
       ],
       "title": "Thread/jevToolSuggestionNotification",
+      "type": "object"
+    },
+    {
+      "properties": {
+        "method": {
+          "enum": [
+            "thread/strategyStep"
+          ],
+          "title": "Thread/strategyStepNotificationMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/StrategyStepNotification"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ],
+      "title": "Thread/strategyStepNotification",
       "type": "object"
     },
     {

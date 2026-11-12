@@ -304,6 +304,7 @@ fn new_config(model: Option<String>, arg0_paths: Arg0DispatchPaths) -> anyhow::R
         feedback_enabled: false,
         tool_suggest: ToolSuggestConfig::default(),
         tool_suggest_jev: Default::default(),
+        plan_strategies: Default::default(),
         otel: OtelConfig::default(),
         codegraph: Default::default(),
     };

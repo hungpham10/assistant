@@ -80,6 +80,7 @@ use crate::token_usage::TokenUsageInfo;
 use crate::version::CODEX_CLI_VERSION;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
+use codex_app_server_protocol::AdditionalContextEntry;
 use codex_app_server_protocol::AppSummary;
 use codex_app_server_protocol::CodexErrorInfo as AppServerCodexErrorInfo;
 use codex_app_server_protocol::CollabAgentTool;
@@ -104,6 +105,7 @@ use codex_app_server_protocol::ServerNotification;
 use codex_app_server_protocol::ServerRequest;
 use codex_app_server_protocol::SkillMetadata as ProtocolSkillMetadata;
 use codex_app_server_protocol::SkillsListResponse;
+use codex_app_server_protocol::StrategyStepNotification;
 use codex_app_server_protocol::ThreadGoal as AppThreadGoal;
 use codex_app_server_protocol::ThreadGoalStatus as AppThreadGoalStatus;
 use codex_app_server_protocol::ThreadItem;
@@ -579,6 +581,11 @@ pub(crate) struct ChatWidget {
     next_status_refresh_request_id: u64,
     /// Per-tool usage statistics fed by completed tool calls and Jev suggestions.
     tool_usage: ToolUsageTracker,
+    /// Latest `/plan <strategy>` step notification for `/status`.
+    pub(crate) strategy_step: Option<StrategyStepNotification>,
+    /// One-shot `strategy` context entries staged by `/plan <strategy>` and
+    /// consumed by the next submitted user turn.
+    pending_strategy_context: Option<HashMap<String, AdditionalContextEntry>>,
     refreshing_token_activity_output: Option<tokens::PendingTokenActivityOutput>,
     completed_token_activity_output: Option<history_cell::CompositeHistoryCell>,
     next_token_activity_request_id: u64,

@@ -30,6 +30,7 @@ use crate::injection::app_id_from_path;
 use crate::injection::tool_kind_for_path;
 use crate::mcp_skill_dependencies::ensure_input_mcp_requirements;
 use crate::mcp_skill_dependencies::maybe_prompt_and_install_mcp_dependencies;
+use crate::mcp_tool_exposure::McpToolExposure;
 use crate::mcp_tool_exposure::build_mcp_tool_exposure;
 use crate::mentions::build_connector_slug_counts;
 use crate::mentions::build_skill_name_counts;
@@ -86,6 +87,7 @@ use codex_extension_api::TurnInputContext;
 use codex_extension_api::TurnInputEnvironment;
 use codex_features::Feature;
 use codex_git_utils::get_git_repo_root_with_fs;
+use codex_mcp::ToolInfo as McpToolInfo;
 use codex_protocol::config_types::AutoCompactTokenLimitScope;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::ServiceTier;
@@ -96,6 +98,7 @@ use codex_protocol::items::TurnItem;
 use codex_protocol::items::build_hook_prompt_message;
 use codex_protocol::models::BaseInstructions;
 use codex_protocol::models::ContentItem;
+use codex_protocol::models::FunctionCallOutputBody;
 use codex_protocol::models::MessagePhase;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
@@ -1450,12 +1453,18 @@ pub(crate) async fn built_tools(
         &turn_context.config,
         search_tool_enabled(turn_context),
     );
+    // Active `/plan <strategy>` harness snapshot for this turn.
+    let strategy_context = crate::session::strategy_runtime::strategy_context_for_turn(sess).await;
+    let question = query.and_then(last_user_question);
+    if let Some(question) = question.as_deref() {
+        crate::session::strategy_runtime::record_turn_user_text(sess, turn_context, question).await;
+    }
     // Question-driven Jev suggestion: rerank the MCP pool against this turn's
     // question and advertise only the top picks directly; the rest stay
     // discoverable through `tool_search`. Only applies when the search-tool
     // fallback exists; otherwise the previous exposure is kept (fail-open).
     let mcp_tool_exposure = if search_tool_enabled(turn_context) {
-        if let Some(question) = query.and_then(last_user_question) {
+        if let Some(question) = question {
             let repo = repo_name(turn_context);
             let original = mcp_tool_exposure.clone();
             let outcome = suggest_direct_mcp_tools(
@@ -1463,6 +1472,7 @@ pub(crate) async fn built_tools(
                 repo,
                 mcp_tool_exposure,
                 &turn_context.config.tool_suggest_jev,
+                strategy_context.as_ref(),
             )
             .await;
             match outcome {
@@ -1474,6 +1484,8 @@ pub(crate) async fn built_tools(
                                 turn_id: turn_context.sub_id.to_string(),
                                 tools: suggested.names,
                                 no_match: suggested.no_match,
+                                strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
+                                node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
                             },
                         ),
                     )
@@ -1487,6 +1499,14 @@ pub(crate) async fn built_tools(
         }
     } else {
         mcp_tool_exposure
+    };
+    // Strategy strong priors override the exposure split deterministically:
+    // favored tools are always advertised directly (fail-open, order kept).
+    let mcp_tool_exposure = match strategy_context.as_ref() {
+        Some(ctx) if !ctx.strong_prior_tools.is_empty() => {
+            force_direct_mcp_tools(mcp_tool_exposure, &ctx.strong_prior_tools)
+        }
+        _ => mcp_tool_exposure,
     };
     let mcp_tools = has_mcp_servers.then_some(mcp_tool_exposure.direct_tools);
     let deferred_mcp_tools = mcp_tool_exposure.deferred_tools;
@@ -1511,6 +1531,42 @@ pub(crate) async fn built_tools(
         state.tool_inventory = inventory;
     }
     Ok(Arc::new(router))
+}
+
+/// Moves strategy strong-prior tools into the direct list regardless of the
+/// Jev split. Matching is case-insensitive over `server/tool` keys and bare
+/// names, mirroring the strategy file syntax.
+fn force_direct_mcp_tools(
+    exposure: McpToolExposure,
+    strong_prior_tools: &[String],
+) -> McpToolExposure {
+    let mut pool: Vec<McpToolInfo> = exposure
+        .direct_tools
+        .iter()
+        .cloned()
+        .chain(exposure.deferred_tools.iter().flatten().cloned())
+        .collect();
+    let is_strong = |tool: &McpToolInfo| {
+        let key = format!("{}/{}", tool.server_name, tool.tool.name);
+        strong_prior_tools.iter().any(|authored| {
+            codex_strategy::tool_key_matches(&key, authored)
+                || codex_strategy::tool_key_matches(authored, &key)
+                || codex_strategy::tool_key_matches(&tool.tool.name, authored)
+        })
+    };
+    let mut direct = Vec::new();
+    let mut deferred = Vec::new();
+    for tool in pool.drain(..) {
+        if is_strong(&tool) {
+            direct.push(tool);
+        } else {
+            deferred.push(tool);
+        }
+    }
+    McpToolExposure {
+        direct_tools: direct,
+        deferred_tools: (!deferred.is_empty()).then_some(deferred),
+    }
 }
 
 /// Workspace-repo name passed to Jev as request context (`Repo: …`). Derived
@@ -1714,6 +1770,7 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<(String, Option<
         | EventMsg::Warning(_)
         | EventMsg::GuardianWarning(_)
         | EventMsg::JevToolSuggestion(_)
+        | EventMsg::StrategyStep(_)
         | EventMsg::RealtimeConversationStarted(_)
         | EventMsg::RealtimeConversationSdp(_)
         | EventMsg::RealtimeConversationRealtime(_)
@@ -2115,6 +2172,17 @@ async fn drain_in_flight(
     while let Some(res) = in_flight.next().await {
         match res {
             Ok(response_input) => {
+                // Strategy harness: classify the resolved tool output.
+                if let Some((call_id, errored, body)) = classify_tool_output(&response_input) {
+                    crate::session::strategy_runtime::record_turn_tool_output(
+                        sess.as_ref(),
+                        turn_context.as_ref(),
+                        &call_id,
+                        errored,
+                        &body,
+                    )
+                    .await;
+                }
                 let response_item = response_input.into();
                 sess.record_conversation_items(&turn_context, std::slice::from_ref(&response_item))
                     .await;
@@ -2131,6 +2199,27 @@ async fn drain_in_flight(
         }
     }
     Ok(())
+}
+
+/// Extracts `(call_id, errored, body)` from a resolved tool response so the
+/// strategy harness can classify the outcome.
+fn classify_tool_output(response_input: &ResponseInputItem) -> Option<(String, bool, String)> {
+    match response_input {
+        ResponseInputItem::FunctionCallOutput { call_id, output } => {
+            let errored = matches!(output.success, Some(false));
+            let body = match &output.body {
+                FunctionCallOutputBody::Text(text) => text.clone(),
+                FunctionCallOutputBody::ContentItems(items) => items.len().to_string(),
+            };
+            Some((call_id.clone(), errored, body))
+        }
+        ResponseInputItem::McpToolCallOutput { call_id, output } => Some((
+            call_id.clone(),
+            output.is_error.unwrap_or(false),
+            output.content.len().to_string(),
+        )),
+        _ => None,
+    }
 }
 
 fn assign_missing_streamed_response_item_id(

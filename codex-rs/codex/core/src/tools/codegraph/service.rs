@@ -675,7 +675,16 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
         }
         "context" => {
             let query = arg_str(args, "query").ok_or_else(|| anyhow::anyhow!("missing `query`"))?;
-            Ok(format!("context for: {query}"))
+            let mut request = codegraph_context::ContextRequest::default();
+            request.query = query.to_string();
+            request.depth = arg_u32(args, "depth").unwrap_or(request.depth).max(1);
+            request.limit = arg_u32(args, "limit").unwrap_or(request.limit).max(1);
+            request.include_source = args
+                .get("include_source")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(request.include_source);
+            let markdown = api.context_markdown(&request, /*source*/ None).await?;
+            Ok(markdown)
         }
         "search_flow" => {
             let pattern =

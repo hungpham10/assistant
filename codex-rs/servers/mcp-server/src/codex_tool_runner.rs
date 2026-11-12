@@ -374,6 +374,7 @@ async fn run_codex_tool_session_inner(
                     | EventMsg::ContextCompacted(_)
                     | EventMsg::ModelReroute(_)
                     | EventMsg::JevToolSuggestion(_)
+                    | EventMsg::StrategyStep(_)
                     | EventMsg::ThreadRolledBack(_)
                     | EventMsg::CollabAgentSpawnBegin(_)
                     | EventMsg::CollabAgentSpawnEnd(_)

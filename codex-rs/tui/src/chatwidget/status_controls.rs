@@ -264,6 +264,9 @@ impl ChatWidget {
             self.refreshing_status_outputs.push((request_id, handle));
         }
         self.add_to_history(cell);
+        if let Some(step) = self.strategy_step.as_ref() {
+            self.add_to_history(strategy_step_cell(step));
+        }
     }
 
     /// Show details for `/status <tool>`: call/error counts, Jev suggestion
@@ -501,4 +504,30 @@ impl ChatWidget {
             Some(effort) => effort.as_str().to_string(),
         }
     }
+}
+
+/// `/status` summary cell for the active `/plan <strategy>` harness.
+fn strategy_step_cell(
+    step: &codex_app_server_protocol::StrategyStepNotification,
+) -> crate::history_cell::PlainHistoryCell {
+    use ratatui::style::Stylize;
+    use ratatui::text::Line;
+    use ratatui::text::Span;
+    let detail = step.detail.as_deref().unwrap_or_default();
+    crate::history_cell::PlainHistoryCell::new(vec![
+        Line::from(vec![Span::from("Strategy").bold()]),
+        Line::from(vec![
+            "        ".into(),
+            Span::from(format!(
+                "`{}` · step `{}` · {}",
+                step.strategy,
+                step.node.as_deref().unwrap_or("-"),
+                step.phase
+            )),
+        ]),
+        Line::from(vec![
+            "        ".into(),
+            Span::from(detail.to_string()).dim(),
+        ]),
+    ])
 }

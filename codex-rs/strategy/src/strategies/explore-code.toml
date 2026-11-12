@@ -1,0 +1,50 @@
+# Explore source code through the codegraph: start from entrypoints and trace
+# flows, or sample symbols and expand around impact. All values are
+# initialization data (suggestions) — the harness loop adapts them.
+
+[strategy]
+name = "explore-code"
+description = "Map the call graph before judging code"
+
+[origin]
+entrypoint-flow = 0.6
+sample-impact = 0.4
+
+[node.entrypoint-flow]
+guidance = "Start from entrypoints (main, init, registered handlers). Trace flows from them with flow / trace_full_flow. If traces come back empty, the entrypoint guess is wrong: mark the step wrong or pick another entrypoint."
+tools = { "codegraph.flow" = 1.6, "codegraph.trace_full_flow" = 1.5, "codegraph.callers" = 1.2, "codegraph.callees" = 1.1, "shell" = 0.4 }
+budget = 5
+backtrack_to = "origin"
+
+[[node.entrypoint-flow.edges]]
+to = "judge"
+when = "tool_result:codegraph.trace_full_flow:nonempty"
+likelihood = 0.8
+
+[[node.entrypoint-flow.edges]]
+to = "sample-impact"
+when = "tool_result:codegraph.trace_full_flow:empty"
+likelihood = 0.6
+
+[node.sample-impact]
+guidance = "Pick some symbols via search, then run impact and context around them and expand to callers/callees. Empty searches mean the keywords are off: try files or symbols by kind."
+tools = { "codegraph.search_symbol" = 1.5, "codegraph.impact" = 1.7, "codegraph.context" = 1.4, "codegraph.callers" = 1.1, "codegraph.files" = 1.1, "apply_patch" = 0.1 }
+budget = 5
+backtrack_to = "origin"
+
+[[node.sample-impact.edges]]
+to = "judge"
+when = "tool_result:codegraph.impact:nonempty"
+likelihood = 0.8
+
+[[node.sample-impact.edges]]
+to = "sample-impact"
+when = "tool_result:codegraph.search_symbol:empty"
+likelihood = 0.6
+
+[node.judge]
+guidance = "Summarize the mapped call graph and propose the plan. Only summarize what the traces actually showed."
+tools = { "codegraph.stats" = 1.1, "shell" = 0.6 }
+budget = 2
+backtrack_to = "sample-impact"
+terminal = true

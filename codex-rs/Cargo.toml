@@ -78,6 +78,7 @@ members = [
     "protocol",
     "state/prompts",
     "state/rollout",
+    "strategy",
     "observability/rollout-trace",
     "integrations/rmcp-client",
     "servers/responses-api-proxy",
@@ -127,7 +128,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.0.49"
+version = "0.0.50"
 # Track the edition for all workspace crates in one place. Individual
 # crates can still override this value, but keeping it here means new
 # crates created with `cargo new -w ...` automatically inherit the 2024
@@ -239,6 +240,7 @@ codex-shell-command = { path = "execution/shell-command" }
 codex-shell-escalation = { path = "execution/shell-escalation" }
 codex-skills-extension = { path = "ext/skills" }
 codex-state = { path = "state/state" }
+codex-strategy = { path = "strategy" }
 codex-terminal-detection = { path = "platform/terminal-detection" }
 codex-test-binary-support = { path = "build/test-binary-support" }
 codex-thread-store = { path = "state/thread-store" }

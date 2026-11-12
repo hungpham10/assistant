@@ -187,6 +187,8 @@ pub use rollout::parse_cursor;
 pub use rollout::read_head_for_summary;
 pub use rollout::read_session_meta_line;
 pub use rollout::rollout_date_parts;
+pub use session::strategy_runtime::available_strategy_names;
+pub use session::strategy_runtime::strategy_context_key;
 mod function_tool;
 mod state;
 mod tasks;

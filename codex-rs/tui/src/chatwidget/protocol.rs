@@ -118,6 +118,9 @@ impl ChatWidget {
             ServerNotification::JevToolSuggestion(notification) => {
                 self.tool_usage.record_jev_suggestions(&notification.tools);
             }
+            ServerNotification::StrategyStep(notification) => {
+                self.on_strategy_step(&notification);
+            }
             ServerNotification::HookStarted(notification) => {
                 self.on_hook_started(notification.run);
             }
@@ -338,5 +341,22 @@ impl ChatWidget {
             notification.turn_id,
             replay_kind.map_or(ThreadItemRenderSource::Live, ThreadItemRenderSource::Replay),
         );
+    }
+
+    /// Surfaces `/plan <strategy>` step transitions as a status line and
+    /// keeps the latest step for `/status`.
+    pub(crate) fn on_strategy_step(&mut self, notification: &StrategyStepNotification) {
+        self.strategy_step = Some(notification.clone());
+        let node = notification.node.as_deref().unwrap_or("-");
+        let detail = notification.detail.as_deref().unwrap_or_default();
+        let line = match notification.phase.as_str() {
+            "complete" => format!("Strategy `{}` complete ({}).", notification.strategy, node),
+            "stuck" => format!("Strategy `{}` stopped: {detail}", notification.strategy),
+            _ => format!(
+                "Strategy `{}` → step `{node}` {detail}",
+                notification.strategy
+            ),
+        };
+        self.add_info_message(line, /*hint*/ None);
     }
 }

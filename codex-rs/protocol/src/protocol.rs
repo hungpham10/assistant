@@ -1404,6 +1404,9 @@ pub enum EventMsg {
     /// the per-tool suggestion counts the TUI shows in `/status`.
     JevToolSuggestion(JevToolSuggestionEvent),
 
+    /// Strategy-harness step transition for `/plan <strategy>` sessions.
+    StrategyStep(StrategyStepEvent),
+
     /// Notification that the agent attached a local image via the view_image tool.
     ViewImageToolCall(ViewImageToolCallEvent),
 
@@ -1950,6 +1953,24 @@ pub struct JevToolSuggestionEvent {
     pub tools: Vec<String>,
     /// `true` when Jev found no relevant tools and everything stayed deferred.
     pub no_match: bool,
+    /// Strategy name when a `/plan <strategy>` harness tuned the ranking.
+    pub strategy: Option<String>,
+    /// Strategy step (node) that was active for this turn.
+    pub node: Option<String>,
+}
+
+/// Strategy-harness step transition emitted by `/plan <strategy>` sessions.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct StrategyStepEvent {
+    /// Strategy name.
+    pub strategy: String,
+    /// Step (node) the harness moved to, when a step is active.
+    pub node: Option<String>,
+    /// Harness lifecycle: `active`, `complete`, or `stuck`.
+    pub phase: String,
+    /// Human-readable detail (transition reason, backtrack target, …).
+    pub detail: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema, TS)]

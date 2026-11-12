@@ -2445,6 +2445,48 @@
       },
       "type": "object"
     },
+    "PlanStrategiesConfig": {
+      "additionalProperties": false,
+      "description": "Strategy-harness settings (`[plan_strategies]`).\n\nStrategies are user-editable TOML documents that initialize a small probabilistic way-of-working model for `/plan <strategy>`. See `codex-strategy`. Everything here tunes the runtime loop; the documents themselves live in the strategies directory.",
+      "properties": {
+        "dir": {
+          "default": null,
+          "description": "Directory scanned for strategy files, relative to the project root. Defaults to `.assistant/strategies`.",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Master switch; strategies only activate through `/plan <strategy>`.",
+          "type": "boolean"
+        },
+        "explore_epsilon": {
+          "default": null,
+          "description": "Probability of exploring a non-dominant branch or edge.",
+          "format": "float",
+          "type": "number"
+        },
+        "learning_rate": {
+          "default": null,
+          "description": "EMA learning rate α for transition-likelihood updates.",
+          "format": "float",
+          "type": "number"
+        },
+        "max_guidance_bytes": {
+          "default": null,
+          "description": "Cap in bytes for the per-step guidance fragment injected into the model context. Oversized guidance is truncated.",
+          "format": "uint",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "strong_prior_weight": {
+          "default": null,
+          "description": "Tool weight at or above which a tool is treated as a strong prior (candidate for force-advertising).",
+          "format": "float",
+          "type": "number"
+        }
+      },
+      "type": "object"
+    },
     "PluginConfig": {
       "additionalProperties": false,
       "properties": {
@@ -3083,6 +3125,19 @@
           "default": null,
           "description": "Full URL of the SystemOne endpoint. `None` → codegraph default.",
           "type": "string"
+        },
+        "essential_tools": {
+          "default": [],
+          "description": "Tools that are NEVER deferred (always advertised directly).",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "include_all_tools": {
+          "default": true,
+          "description": "Gate ALL tool types through Jev (MCP + built-in + extensions + dynamic + code-mode). Default: true (opt-in for universal gating).",
+          "type": "boolean"
         },
         "max_candidates": {
           "default": null,
@@ -5544,6 +5599,14 @@
     },
     "plan_mode_reasoning_effort": {
       "$ref": "#/definitions/ReasoningEffort"
+    },
+    "plan_strategies": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/PlanStrategiesConfig"
+        }
+      ],
+      "description": "Strategy-harness settings for `/plan <strategy>`."
     },
     "plugins": {
       "additionalProperties": {

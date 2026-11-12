@@ -329,6 +329,38 @@ pub struct ToolSuggestJevConfig {
     pub min_direct_tools: Option<usize>,
 }
 
+/// Strategy-harness settings (`[plan_strategies]`).
+///
+/// Strategies are user-editable TOML documents that initialize a small
+/// probabilistic way-of-working model for `/plan <strategy>`. See
+/// `codex-strategy`. Everything here tunes the runtime loop; the documents
+/// themselves live in the strategies directory.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct PlanStrategiesConfig {
+    /// Master switch; strategies only activate through `/plan <strategy>`.
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Directory scanned for strategy files, relative to the project root.
+    /// Defaults to `.assistant/strategies`.
+    #[serde(default)]
+    pub dir: Option<String>,
+    /// Cap in bytes for the per-step guidance fragment injected into the
+    /// model context. Oversized guidance is truncated.
+    #[serde(default)]
+    pub max_guidance_bytes: Option<usize>,
+    /// EMA learning rate α for transition-likelihood updates.
+    #[serde(default)]
+    pub learning_rate: Option<f32>,
+    /// Probability of exploring a non-dominant branch or edge.
+    #[serde(default)]
+    pub explore_epsilon: Option<f32>,
+    /// Tool weight at or above which a tool is treated as a strong prior
+    /// (candidate for force-advertising).
+    #[serde(default)]
+    pub strong_prior_weight: Option<f32>,
+}
+
 /// Memories settings loaded from config.toml.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]

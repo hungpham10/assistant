@@ -26,6 +26,7 @@ use std::time::Duration;
 use tracing::instrument;
 
 use crate::mcp_tool_exposure::McpToolExposure;
+use crate::session::strategy_runtime::StrategyTurnContext;
 
 /// Limit on the question text forwarded to Jev — it rides in `state`.
 pub(crate) const MAX_QUESTION_CHARS: usize = 4000;
@@ -166,6 +167,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
     repo: Option<String>,
     exposure: McpToolExposure,
     cfg: &ToolSuggestJevConfig,
+    strategy: Option<&StrategyTurnContext>,
 ) -> Option<(McpToolExposure, JevSuggestedTools)> {
     if !cfg.enabled {
         return None;
@@ -189,7 +191,12 @@ pub(crate) async fn suggest_direct_mcp_tools(
         return None;
     }
 
-    // Build candidates with labels for Jev
+    // Build candidates with labels for Jev; keys mirror the TUI tracker
+    // format (`server/tool`) so strategy weights can match them.
+    let pool_keys: Vec<String> = pool
+        .iter()
+        .map(|tool| format!("{}/{}", tool.server_name, tool.tool.name))
+        .collect();
     let candidates: Vec<(u64, String)> = pool
         .iter()
         .enumerate()
@@ -197,7 +204,14 @@ pub(crate) async fn suggest_direct_mcp_tools(
         .collect();
 
     // Call Jev with planning prompt
-    let outcome = call_jev_planning(question, repo.as_deref(), &candidates, &jev_cfg).await;
+    let outcome = call_jev_planning(
+        question,
+        repo.as_deref(),
+        &candidates,
+        &jev_cfg,
+        strategy.map(|ctx| (ctx.name.as_str(), ctx.guidance.as_str())),
+    )
+    .await;
     if !outcome.used {
         tracing::info!(reason = ?outcome.reason, "tool_suggest_jev skipped — fail-open");
         return None;
@@ -215,6 +229,10 @@ pub(crate) async fn suggest_direct_mcp_tools(
             },
         ));
     }
+
+    // Strategy matrix: multiply Jev's returned percentiles by the active
+    // step's tool weights, then renormalize so favored tools compete.
+    let ranking = apply_strategy_weights(outcome.ranking.clone(), &pool_keys, strategy);
 
     // Select tools: first take those above min_probability, then fill up to min_direct_tools
     let min_prob = jev_cfg.min_probability;
@@ -277,12 +295,14 @@ pub(crate) async fn suggest_direct_mcp_tools(
     ))
 }
 
-/// Calls Jev with a planning prompt for tool selection.
+/// Calls Jev with a planning prompt for tool selection. The optional
+/// strategy pair (name, guidance) biases the planning state.
 pub(crate) async fn call_jev_planning(
     question: &str,
     repo: Option<&str>,
     candidates: &[(u64, String)],
     cfg: &JevConfig,
+    strategy: Option<(&str, &str)>,
 ) -> JevOutcome {
     let api_key = match cfg.api_key() {
         Some(key) => key,
@@ -308,7 +328,7 @@ pub(crate) async fn call_jev_planning(
     );
 
     // Build planning state prompt
-    let state = build_planning_state(question, repo, candidates.len());
+    let state = build_planning_state(question, repo, candidates.len(), strategy);
 
     // Build Jev request
     let ask = JevAsk {
@@ -393,21 +413,33 @@ pub(crate) async fn call_jev_planning(
     parse_jev_reply(&text, candidates)
 }
 
-/// Builds the planning state prompt for Jev.
+/// Builds the planning state prompt for Jev. The optional strategy pair
+/// (name, guidance) injects the active `/plan <strategy>` step so Jev's
+/// probability distribution leans toward the step's tools.
 pub(crate) fn build_planning_state(
     question: &str,
     repo: Option<&str>,
     num_candidates: usize,
+    strategy: Option<(&str, &str)>,
 ) -> String {
     let repo_part = repo
         .filter(|r| !r.trim().is_empty())
         .map(|r| format!("Repo: {r}. "))
         .unwrap_or_default();
+    let strategy_part = strategy
+        .map(|(name, guidance)| {
+            format!(
+                "Active strategy `{name}` — current step guidance (a suggestion, not a mandate): {}\n\
+                 Prefer the candidates that fit this step of the strategy.\n",
+                truncate_chars(guidance.trim(), MAX_STRATEGY_GUIDANCE_CHARS)
+            )
+        })
+        .unwrap_or_default();
 
     format!(
         "{repo_part}Request: {question}
 
-Your task: Select the tools needed to accomplish the user's request.
+{strategy_part}Your task: Select the tools needed to accomplish the user's request.
 - Choose AT LEAST 2 tools, up to 6
 - Consider the full workflow (search → edit → test, etc.)
 - Tools should form a complete chain to fulfill the request
@@ -415,6 +447,55 @@ Your task: Select the tools needed to accomplish the user's request.
 
 Available tools ({num_candidates} candidates) are listed in the criteria below."
     )
+}
+
+/// Cap on the strategy guidance snippet injected into the Jev state.
+pub(crate) const MAX_STRATEGY_GUIDANCE_CHARS: usize = 300;
+
+/// Multiplies Jev's returned percentiles by the active step's tool weights
+/// and renormalizes, so strategy-favored tools compete for direct slots.
+/// Unmatched tools keep weight 1.0; the ranking is untouched without a
+/// strategy or an empty weight row.
+pub(crate) fn apply_strategy_weights(
+    ranking: Vec<(u64, f32)>,
+    pool_keys: &[String],
+    strategy: Option<&StrategyTurnContext>,
+) -> Vec<(u64, f32)> {
+    let Some(strategy) = strategy else {
+        return ranking;
+    };
+    if strategy.tool_weights.is_empty() || ranking.is_empty() {
+        return ranking;
+    }
+    let weight_for = |pool_key: &str| {
+        strategy
+            .tool_weights
+            .iter()
+            .find(|(authored, _)| {
+                codex_strategy::tool_key_matches(pool_key, authored)
+                    || codex_strategy::tool_key_matches(authored, pool_key)
+            })
+            .map(|(_, weight)| *weight)
+            .unwrap_or(1.0)
+    };
+    let mut adjusted: Vec<(u64, f32)> = ranking
+        .into_iter()
+        .map(|(id, prob)| {
+            let weight = pool_keys
+                .get(id as usize)
+                .map(|key| weight_for(key))
+                .unwrap_or(1.0)
+                .max(0.05);
+            (id, prob * weight)
+        })
+        .collect();
+    let total: f32 = adjusted.iter().map(|(_, p)| p).sum();
+    if total > 0.0 && total.is_finite() {
+        for (_, p) in adjusted.iter_mut() {
+            *p /= total;
+        }
+    }
+    adjusted
 }
 
 /// Parses Jev reply into outcome.
@@ -601,7 +682,14 @@ pub(crate) async fn suggest_direct_tools(
     }
 
     // Call Jev with planning prompt
-    let outcome = call_jev_planning(question, repo.as_deref(), &candidates, &jev_cfg).await;
+    let outcome = call_jev_planning(
+        question,
+        repo.as_deref(),
+        &candidates,
+        &jev_cfg,
+        /*strategy*/ None,
+    )
+    .await;
     if !outcome.used {
         tracing::info!(reason = ?outcome.reason, "tool_suggest_jev skipped — fail-open");
         return None;

@@ -47,6 +47,27 @@ pub struct JevToolSuggestionNotification {
     pub tools: Vec<String>,
     /// `true` when Jev found no relevant tools.
     pub no_match: bool,
+    /// Strategy name when a `/plan <strategy>` harness tuned the ranking.
+    pub strategy: Option<String>,
+    /// Strategy step (node) that was active for this turn.
+    pub node: Option<String>,
+}
+
+/// Strategy-harness step transition for `/plan <strategy>` sessions.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export_to = "v2/")]
+pub struct StrategyStepNotification {
+    /// Optional thread target when the step applies to a specific thread.
+    pub thread_id: Option<String>,
+    /// Strategy name.
+    pub strategy: String,
+    /// Step (node) the harness moved to, when a step is active.
+    pub node: Option<String>,
+    /// Harness lifecycle: `active`, `complete`, or `stuck`.
+    pub phase: String,
+    /// Human-readable detail (transition reason, backtrack target, …).
+    pub detail: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]

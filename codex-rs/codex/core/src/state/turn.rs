@@ -97,6 +97,8 @@ pub(crate) struct TurnState {
     pub(crate) tool_calls: u64,
     pub(crate) has_memory_citation: bool,
     pub(crate) token_usage_at_turn_start: TokenUsage,
+    /// Facts accumulated for the strategy harness during this turn.
+    pub(crate) strategy_scratch: crate::session::strategy_runtime::StrategyTurnScratch,
 }
 
 pub(crate) struct PendingRequestPermissions {

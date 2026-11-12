@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
+use codex_app_server_protocol::AdditionalContextEntry;
 use codex_app_server_protocol::AskForApproval;
 use codex_app_server_protocol::CommandExecutionApprovalDecision;
 use codex_app_server_protocol::FileChangeApprovalDecision;
@@ -44,6 +46,8 @@ pub(crate) enum AppCommand {
         final_output_json_schema: Option<Value>,
         collaboration_mode: Option<CollaborationMode>,
         personality: Option<Personality>,
+        /// Reserved `strategy` additional-context entries (`/plan <strategy>`).
+        strategy_context: Option<HashMap<String, AdditionalContextEntry>>,
     },
     OverrideTurnContext {
         cwd: Option<PathBuf>,
@@ -162,7 +166,24 @@ impl AppCommand {
             final_output_json_schema,
             collaboration_mode,
             personality,
+            strategy_context: None,
         }
+    }
+
+    /// Attaches reserved `strategy` additional-context entries so the turn
+    /// activates/backtracks the `/plan <strategy>` harness in core.
+    pub(crate) fn with_strategy_context(
+        mut self,
+        strategy_context: HashMap<String, AdditionalContextEntry>,
+    ) -> Self {
+        if let Self::UserTurn {
+            strategy_context: slot,
+            ..
+        } = &mut self
+        {
+            *slot = Some(strategy_context);
+        }
+        self
     }
 
     #[allow(clippy::too_many_arguments)]
