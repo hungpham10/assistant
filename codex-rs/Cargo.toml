@@ -462,7 +462,7 @@ tree-sitter = "0.25.10"
 tree-sitter-bash = "0.25"
 # codegraph data layer (see codegraph/*) — tree-sitter grammars (all-langs)
 tree-sitter-astro-next = "0.1.1"
-tree-sitter-c = "0.23"
+tree-sitter-c = "0.24"
 tree-sitter-c-sharp = "0.23"
 tree-sitter-cpp = "0.23"
 tree-sitter-go = "0.23"
