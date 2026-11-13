@@ -1700,6 +1700,35 @@
       },
       "type": "object"
     },
+    "StrategyFeedbackRequestParams": {
+      "description": "Params sent when the strategy harness asks the user to rate a finished turn; the answer is a [`StrategyFeedbackResponse`].",
+      "properties": {
+        "node": {
+          "description": "Strategy node that was active for the rated turn.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "strategyName": {
+          "description": "Strategy name.",
+          "type": "string"
+        },
+        "threadId": {
+          "type": "string"
+        },
+        "turnId": {
+          "description": "Turn the prompt is rating; doubles as the feedback request id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "strategyName",
+        "threadId",
+        "turnId"
+      ],
+      "type": "object"
+    },
     "ThreadId": {
       "type": "string"
     },
@@ -1868,6 +1897,31 @@
         "params"
       ],
       "title": "Item/tool/requestUserInputRequest",
+      "type": "object"
+    },
+    {
+      "description": "Ask the user to rate a finished strategy-steered turn.",
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/RequestId"
+        },
+        "method": {
+          "enum": [
+            "thread/strategyFeedbackRequest"
+          ],
+          "title": "Thread/strategyFeedbackRequestRequestMethod",
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/definitions/StrategyFeedbackRequestParams"
+        }
+      },
+      "required": [
+        "id",
+        "method",
+        "params"
+      ],
+      "title": "Thread/strategyFeedbackRequestRequest",
       "type": "object"
     },
     {

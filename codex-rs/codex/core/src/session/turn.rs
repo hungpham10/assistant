@@ -1771,6 +1771,8 @@ pub(super) fn realtime_text_for_event(msg: &EventMsg) -> Option<(String, Option<
         | EventMsg::GuardianWarning(_)
         | EventMsg::JevToolSuggestion(_)
         | EventMsg::StrategyStep(_)
+        | EventMsg::StrategyStateSnapshot(_)
+        | EventMsg::StrategyFeedbackRequest(_)
         | EventMsg::RealtimeConversationStarted(_)
         | EventMsg::RealtimeConversationSdp(_)
         | EventMsg::RealtimeConversationRealtime(_)

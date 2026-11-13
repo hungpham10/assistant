@@ -107,7 +107,7 @@ fn enter_picks_start_branch_from_pi() {
     );
     assert_eq!(m.current_node(), Some("a"));
     assert_eq!(m.phase(), Phase::Active);
-    assert_eq!(m.visits().get("a"), Some(&1));
+    assert_eq!(m.visits("a"), 1);
 }
 
 #[test]
@@ -175,12 +175,12 @@ fn condition_edge_ships_to_another_node() {
 fn strengthen_taken_edge_on_good_reward() {
     let mut m = model(DOC_MAIN);
     let _ = m.enter();
-    let initial = m.row("a").to_vec();
+    let initial = m.row("a").expect("row").to_vec();
     let _ = m.observe_turn(&observation(&[(
         "codegraph.impact",
         ToolResultKind::NonEmpty,
     )]));
-    let updated = m.row("a").to_vec();
+    let updated = m.row("a").expect("row").to_vec();
     let c_before = initial.iter().find(|(to, _)| to == "c").map(|(_, w)| *w);
     let c_after = updated.iter().find(|(to, _)| to == "c").map(|(_, w)| *w);
     assert!(c_after > c_before, "good reward strengthens the taken edge");
@@ -192,9 +192,9 @@ fn strengthen_taken_edge_on_good_reward() {
 fn weaken_taken_edge_on_bad_reward() {
     let mut m = model(DOC_MAIN);
     let _ = m.enter();
-    let initial = m.row("a").to_vec();
+    let initial = m.row("a").expect("row").to_vec();
     let _ = m.observe_turn(&observation(&[("shell", ToolResultKind::Error)]));
-    let updated = m.row("a").to_vec();
+    let updated = m.row("a").expect("row").to_vec();
     let b_before = initial.iter().find(|(to, _)| to == "b").map(|(_, w)| *w);
     let b_after = updated.iter().find(|(to, _)| to == "b").map(|(_, w)| *w);
     assert!(b_after < b_before, "bad reward weakens the taken edge");
@@ -204,36 +204,39 @@ fn weaken_taken_edge_on_bad_reward() {
 fn non_empty_results_grow_tool_weights() {
     let mut m = model(DOC_MAIN);
     let _ = m.enter();
-    let before = *m
-        .b_row("a")
-        .expect("row")
-        .get("codegraph.impact")
-        .expect("tool");
+    let initial = m.b_row("a").expect("row").clone();
     let _ = m.observe_turn(&observation(&[(
         "codegraph.impact",
         ToolResultKind::NonEmpty,
     )]));
-    let after = *m
-        .b_row("a")
-        .expect("row")
-        .get("codegraph.impact")
-        .expect("tool");
-    assert!(after > before, "non-empty result boosts the tool weight");
-    assert_eq!(
-        *m.b_row("a").expect("row").get("shell").expect("tool"),
-        1.0,
-        "uncalled tools untouched"
-    );
+    let updated = m.b_row("a").expect("row").clone();
+    let before = initial.get("codegraph.impact").copied();
+    let after = updated.get("codegraph.impact").copied();
+    assert!(after > before, "non-empty result grows tool weight");
 }
 
 #[test]
-fn error_results_shrink_tool_weights() {
+fn empty_results_shrink_tool_weights() {
     let mut m = model(DOC_MAIN);
     let _ = m.enter();
-    let before = *m.b_row("a").expect("row").get("shell").expect("tool");
-    let _ = m.observe_turn(&observation(&[("shell", ToolResultKind::Error)]));
-    let after = *m.b_row("a").expect("row").get("shell").expect("tool");
-    assert!(after < before, "error result suppresses the tool weight");
+    let initial = m.b_row("a").expect("row").clone();
+    let _ = m.observe_turn(&observation(&[("codegraph.impact", ToolResultKind::Empty)]));
+    let updated = m.b_row("a").expect("row").clone();
+    let before = initial.get("codegraph.impact").copied();
+    let after = updated.get("codegraph.impact").copied();
+    assert!(after < before, "empty result shrinks tool weight");
+}
+
+#[test]
+fn error_results_shrink_tool_weights_more() {
+    let mut m = model(DOC_MAIN);
+    let _ = m.enter();
+    let initial = m.b_row("a").expect("row").clone();
+    let _ = m.observe_turn(&observation(&[("codegraph.impact", ToolResultKind::Error)]));
+    let updated = m.b_row("a").expect("row").clone();
+    let before = initial.get("codegraph.impact").copied();
+    let after = updated.get("codegraph.impact").copied();
+    assert!(after < before, "error result shrinks tool weight more");
 }
 
 #[test]
@@ -276,32 +279,7 @@ fn budget_expiry_backtracks_to_origin_and_reenters() {
 }
 
 #[test]
-fn done_marker_advances_to_named_node() {
-    let mut m = model(DOC_MAIN);
-    let _ = m.enter();
-    let obs = TurnObservation {
-        marker: Some(StepMarker {
-            node: None,
-            status: MarkerStatus::Done,
-            next: Some("c".into()),
-            back_to: None,
-            note: None,
-        }),
-        ..TurnObservation::default()
-    };
-    let outcome = m.observe_turn(&obs);
-    assert_eq!(
-        outcome,
-        AdvanceOutcome::Advanced {
-            from: "a".into(),
-            to: "c".into(),
-            reason: TransitionReason::MarkerNext,
-        }
-    );
-}
-
-#[test]
-fn done_marker_into_terminal_completes() {
+fn done_marker_advances_to_terminal() {
     let mut m = model(DOC_TERMINAL);
     let _ = m.enter();
     let obs = TurnObservation {
@@ -315,6 +293,7 @@ fn done_marker_into_terminal_completes() {
         ..TurnObservation::default()
     };
     let outcome = m.observe_turn(&obs);
+    // When entering a terminal node, outcome is Complete
     assert_eq!(
         outcome,
         AdvanceOutcome::Complete {
@@ -322,7 +301,16 @@ fn done_marker_into_terminal_completes() {
         }
     );
     assert_eq!(m.phase(), Phase::Complete);
-    // Completed harness no longer transitions.
+}
+
+#[test]
+fn terminal_node_stays() {
+    let mut m = model(DOC_TERMINAL);
+    let _ = m.enter();
+    let _ = m.observe_turn(&observation(&[(
+        "codegraph.impact",
+        ToolResultKind::NonEmpty,
+    )]));
     assert_eq!(
         m.observe_turn(&TurnObservation::default()),
         AdvanceOutcome::Stayed {

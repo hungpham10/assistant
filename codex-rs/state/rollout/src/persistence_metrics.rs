@@ -239,6 +239,7 @@ fn rollout_item_type(item: &RolloutItem) -> String {
             format!("event.item_completed.{}", turn_item_type(&event.item))
         }
         RolloutItem::EventMsg(event) => format!("event.{event}"),
+        RolloutItem::StrategyState(_) => "strategy_state".to_string(),
     }
 }
 

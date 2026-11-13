@@ -1742,6 +1742,18 @@ async fn handle_server_request(
             )
             .await
         }
+        ServerRequest::StrategyFeedbackRequest { request_id, params } => {
+            reject_server_request(
+                client,
+                request_id,
+                &method,
+                format!(
+                    "strategy feedback is not supported in exec mode for thread `{}`",
+                    params.thread_id
+                ),
+            )
+            .await
+        }
         ServerRequest::DynamicToolCall { request_id, params } => {
             reject_server_request(
                 client,

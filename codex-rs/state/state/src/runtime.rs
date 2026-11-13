@@ -66,6 +66,7 @@ mod logs;
 mod memories;
 mod recovery;
 mod remote_control;
+mod strategy_state;
 #[cfg(test)]
 mod test_support;
 mod threads;
@@ -87,6 +88,7 @@ pub use recovery::runtime_db_path_for_corruption_error;
 pub use recovery::sqlite_error_detail_is_corruption;
 pub use recovery::sqlite_error_detail_is_lock;
 pub use remote_control::RemoteControlEnrollmentRecord;
+pub use strategy_state::StrategyStateRecord;
 pub use threads::ThreadFilterOptions;
 pub use turn_usage::TurnUsageByModel;
 pub use turn_usage::TurnUsageRecord;

@@ -6,14 +6,21 @@
 //! guidance fragment injected into the model context on step changes.
 
 use codex_config::types::PlanStrategiesConfig;
+use codex_protocol::protocol::RolloutItem;
+use codex_protocol::protocol::StrategyFeedbackChoice;
+use codex_protocol::protocol::StrategyFeedbackRequest;
+use codex_protocol::protocol::StrategyStateSnapshot;
 use codex_protocol::protocol::StrategyStepEvent;
 use codex_strategy::AdvanceOutcome;
 use codex_strategy::BacktrackTarget;
 use codex_strategy::StrategyModel;
 use codex_strategy::StrategyTuning;
+use codex_strategy::TurnFeedback;
 use codex_strategy::parse_strategy;
+use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
+use tracing::warn;
 
 use crate::session::session::Session;
 use crate::session::turn_context::TurnContext;
@@ -120,7 +127,7 @@ pub(crate) fn parse_strategy_command(value: &str) -> Option<StrategyCommand> {
                 .filter(|tool| !tool.is_empty())
                 .map(str::to_string)
                 .collect();
-            (!tools.is_empty()).then(|| StrategyCommand::Prefer(tools))
+            (!tools.is_empty()).then_some(StrategyCommand::Prefer(tools))
         }
         _ => None,
     }
@@ -136,6 +143,8 @@ pub(crate) struct StrategyRuntime {
     /// fragment is re-emitted only when this changes.
     last_injected_node: Option<String>,
     max_guidance_bytes: usize,
+    /// Current turn ID for snapshots.
+    current_turn_id: String,
 }
 
 impl StrategyRuntime {
@@ -158,9 +167,55 @@ impl StrategyRuntime {
             max_guidance_bytes: config
                 .max_guidance_bytes
                 .unwrap_or(DEFAULT_MAX_GUIDANCE_BYTES),
+            current_turn_id: String::new(),
         };
         runtime.model.enter();
         Ok(runtime)
+    }
+
+    /// Try to load a strategy from a persisted snapshot.
+    pub(crate) fn try_load_from_snapshot(snapshot: &StrategyStateSnapshot) -> Result<Self, String> {
+        let model: StrategyModel = serde_json::from_value(snapshot.model.clone())
+            .map_err(|e| format!("failed to deserialize model: {e}"))?;
+
+        // Verify the model matches the strategy name
+        if model.doc().meta.name != snapshot.strategy_name {
+            return Err(format!(
+                "snapshot strategy name mismatch: {} vs {}",
+                model.doc().meta.name,
+                snapshot.strategy_name
+            ));
+        }
+
+        Ok(Self {
+            model,
+            source: format!("restored:{}", snapshot.strategy_name),
+            last_injected_node: None,
+            max_guidance_bytes: DEFAULT_MAX_GUIDANCE_BYTES,
+            current_turn_id: snapshot.turn_id.clone(),
+        })
+    }
+
+    /// Capture current strategy state for persistence.
+    pub(crate) fn snapshot(&self) -> StrategyStateSnapshot {
+        let model = match serde_json::to_value(&self.model) {
+            Ok(model) => model,
+            Err(err) => {
+                warn!(%err, "failed to serialize strategy model for snapshot");
+                serde_json::Value::Null
+            }
+        };
+        StrategyStateSnapshot {
+            strategy_name: self.model.doc().meta.name.clone(),
+            model,
+            captured_at: chrono::Utc::now().timestamp(),
+            turn_id: self.current_turn_id.clone(),
+        }
+    }
+
+    /// Set the current turn ID for snapshots.
+    pub(crate) fn set_turn_id(&mut self, turn_id: &str) {
+        self.current_turn_id = turn_id.to_string();
     }
 
     pub(crate) fn model(&self) -> &StrategyModel {
@@ -270,7 +325,7 @@ pub(crate) fn discover_strategy_source(
     if let Ok(text) = std::fs::read_to_string(&user_candidate) {
         return Some((user_candidate.display().to_string(), text));
     }
-    codex_strategy::builtin_strategy_source(&sanitized)
+    codex_strategy::builtin_strategy_source(sanitized)
         .map(|text| (format!("builtin:{sanitized}"), text.to_string()))
 }
 
@@ -370,7 +425,7 @@ pub(crate) struct StrategyTurnContext {
     pub(crate) name: String,
     pub(crate) node: String,
     pub(crate) guidance: String,
-    pub(crate) tool_weights: std::collections::BTreeMap<String, f32>,
+    pub(crate) tool_weights: HashMap<String, f32>,
     pub(crate) strong_prior_tools: Vec<String>,
 }
 
@@ -408,21 +463,10 @@ pub(crate) async fn apply_strategy_command(
     }
     match command {
         StrategyCommand::Activate(name) => {
-            let cwd = turn_context
-                .environments
-                .primary()
-                .and_then(|environment| environment.cwd().to_abs_path().ok());
+            let config = &turn_context.config.plan_strategies;
+            let cwd = turn_context.config.cwd.as_path();
             let codex_home = turn_context.config.codex_home.to_path_buf();
-            let result = match cwd {
-                Some(cwd) => StrategyRuntime::activate(
-                    &name,
-                    &turn_context.config.plan_strategies,
-                    cwd.as_path(),
-                    &codex_home,
-                ),
-                None => Err("no working directory available".into()),
-            };
-            match result {
+            match StrategyRuntime::activate(&name, config, cwd, &codex_home) {
                 Ok(runtime) => {
                     let event = strategy_step_event(
                         runtime.model(),
@@ -432,56 +476,70 @@ pub(crate) async fn apply_strategy_command(
                             reason: codex_strategy::TransitionReason::StartBranch,
                         },
                     );
-                    sess.state.lock().await.strategy = Some(runtime);
-                    tracing::info!(strategy = %name, "strategy harness activated");
+                    let mut state = sess.state.lock().await;
+                    state.strategy = Some(runtime);
                     Some(event)
                 }
-                Err(err) => Some(StrategyStepEvent {
-                    strategy: name,
-                    node: None,
-                    phase: "stuck".into(),
-                    detail: Some(err),
-                }),
+                Err(e) => {
+                    warn!("failed to activate strategy `{name}`: {e}");
+                    Some(StrategyStepEvent {
+                        strategy: name,
+                        node: None,
+                        phase: "stuck".to_string(),
+                        detail: Some(e),
+                    })
+                }
             }
         }
-        StrategyCommand::Back(target) => {
+        StrategyCommand::Back(node) => {
             let mut state = sess.state.lock().await;
-            let Some(runtime) = state.strategy.as_mut() else {
-                return None;
-            };
-            let outcome = runtime
-                .model_mut()
-                .manual_backtrack(&backtrack_target(target));
+            let runtime = state.strategy.as_mut()?;
+            let target = backtrack_target(node);
+            let outcome = runtime.model_mut().manual_backtrack(&target);
             Some(strategy_step_event(runtime.model(), &outcome))
         }
         StrategyCommand::Prefer(tools) => {
             let mut state = sess.state.lock().await;
-            let Some(runtime) = state.strategy.as_mut() else {
-                return None;
-            };
+            let runtime = state.strategy.as_mut()?;
             runtime.model_mut().prefer_tools(&tools);
-            let joined = tools.join(", ");
-            let mut event = strategy_step_event(
-                runtime.model(),
-                &AdvanceOutcome::Stayed {
-                    node: runtime.model().current_node().unwrap_or_default().into(),
-                },
-            );
-            event.detail = Some(format!("preferred tools: {joined}"));
+            let event = StrategyStepEvent {
+                strategy: runtime.model().doc().meta.name.clone(),
+                node: runtime.model().current_node().map(str::to_string),
+                phase: "active".to_string(),
+                detail: Some(format!("preferred tools: {}", tools.join(", "))),
+            };
             Some(event)
         }
     }
 }
 
+/// Outcome of observing a completed turn: the step event to surface, the
+/// state snapshot to persist, and the feedback request to emit, if the turn
+/// actually called tools under an active node.
+pub(crate) struct StrategyTurnCompletion {
+    pub(crate) step_event: StrategyStepEvent,
+    pub(crate) snapshot: StrategyStateSnapshot,
+    pub(crate) feedback_request: Option<StrategyFeedbackRequest>,
+}
+
+/// Outstanding strategy feedback prompt stored on the session (not the turn,
+/// which is torn down on completion).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct PendingStrategyFeedback {
+    pub(crate) id: String,
+    pub(crate) tools_called: Vec<String>,
+}
+
 /// Observes a completed turn and advances the strategy walk, returning the
-/// step event to surface.
+/// step event to surface along with the state snapshot to persist.
 pub(crate) async fn observe_turn_completion(
     sess: &Session,
     scratch: StrategyTurnScratch,
+    turn_id: &str,
     tokens_used: u64,
     duration_ms: u64,
     last_agent_message: Option<&str>,
-) -> Option<StrategyStepEvent> {
+) -> Option<StrategyTurnCompletion> {
     let mut observation = scratch.into_observation();
     observation.tokens_used = tokens_used;
     observation.duration_ms = duration_ms;
@@ -490,8 +548,67 @@ pub(crate) async fn observe_turn_completion(
     }
     let mut state = sess.state.lock().await;
     let runtime = state.strategy.as_mut()?;
+    // Capture the node the turn ran under before the walk advances; feedback
+    // rates that node's tool preferences.
+    let node = runtime.model().current_node().map(str::to_string);
+    let feedback_tools = if node.is_some() {
+        observation.tools_called.clone()
+    } else {
+        Vec::new()
+    };
     let outcome = runtime.model_mut().observe_turn(&observation);
-    Some(strategy_step_event(runtime.model(), &outcome))
+    runtime.set_turn_id(turn_id);
+    let snapshot = runtime.snapshot();
+    let step_event = strategy_step_event(runtime.model(), &outcome);
+    let strategy_name = runtime.model().doc().meta.name.clone();
+    // Register the feedback prompt on the session; only the newest one is
+    // kept and answers are matched by id.
+    let feedback_request = if feedback_tools.is_empty() {
+        None
+    } else {
+        state.pending_strategy_feedback = Some(PendingStrategyFeedback {
+            id: turn_id.to_string(),
+            tools_called: feedback_tools,
+        });
+        Some(StrategyFeedbackRequest {
+            id: turn_id.to_string(),
+            strategy_name,
+            node,
+        })
+    };
+
+    Some(StrategyTurnCompletion {
+        step_event,
+        snapshot,
+        feedback_request,
+    })
+}
+
+/// Applies an answered strategy feedback prompt and re-persists the updated
+/// model. Unknown or stale ids, `Skip`, and inactive harnesses are no-ops.
+pub(crate) async fn apply_strategy_feedback(
+    sess: &Session,
+    id: String,
+    choice: StrategyFeedbackChoice,
+) {
+    let mut state = sess.state.lock().await;
+    let Some(pending) = state.pending_strategy_feedback.take() else {
+        return;
+    };
+    if pending.id != id || matches!(choice, StrategyFeedbackChoice::Skip) {
+        // Stale answer or no opinion: drop the prompt untouched.
+        return;
+    }
+    let Some(runtime) = state.strategy.as_mut() else {
+        return;
+    };
+    runtime.model_mut().apply_feedback(&TurnFeedback {
+        tools_called: pending.tools_called,
+        helpful: choice == StrategyFeedbackChoice::Helpful,
+    });
+    let snapshot = runtime.snapshot();
+    sess.persist_rollout_items(&[RolloutItem::StrategyState(snapshot)])
+        .await;
 }
 
 /// Frames the model state as a surfaceable step event.

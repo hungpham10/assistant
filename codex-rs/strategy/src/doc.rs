@@ -16,6 +16,7 @@ use crate::update::normalize_in_place;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
 
 /// Parses and validates a strategy from its TOML source.
@@ -70,7 +71,7 @@ pub struct StrategyNode {
     pub guidance: String,
     /// Tool-preference weights (B row). Not probabilities: values around 1.0
     /// are neutral, above boost, below suppress.
-    pub tools: BTreeMap<String, f32>,
+    pub tools: HashMap<String, f32>,
     /// Turns allowed in this node before the auto-backtrack fires.
     pub budget: u32,
     /// Soft token budget for the node, used by the reward function.
@@ -155,7 +156,7 @@ struct StrategyNodeRaw {
     #[serde(default)]
     guidance: String,
     #[serde(default)]
-    tools: BTreeMap<String, f32>,
+    tools: HashMap<String, f32>,
     #[serde(default = "default_budget")]
     budget: u32,
     #[serde(default)]

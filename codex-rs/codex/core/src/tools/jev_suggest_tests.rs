@@ -394,11 +394,11 @@ fn build_planning_state_truncates_strategy_guidance() {
 fn strategy_weights_boost_favored_tools() {
     use super::apply_strategy_weights;
     use crate::session::strategy_runtime::StrategyTurnContext;
-    use std::collections::BTreeMap;
+    use std::collections::HashMap;
 
     let pool_keys = vec!["srv/flow".to_string(), "srv/edit".to_string()];
     let ranking = vec![(0u64, 0.5f32), (1u64, 0.5f32)];
-    let mut weights = BTreeMap::new();
+    let mut weights = HashMap::new();
     weights.insert("srv/flow".to_string(), 3.0f32);
     weights.insert("srv/edit".to_string(), 1.0f32);
     let strategy = StrategyTurnContext {
@@ -427,7 +427,7 @@ fn strategy_weights_without_match_keep_ranking() {
 
     let pool_keys = vec!["srv/other".to_string()];
     let ranking = vec![(0u64, 0.7f32)];
-    let mut weights = std::collections::BTreeMap::new();
+    let mut weights = std::collections::HashMap::new();
     weights.insert("srv/flow".to_string(), 3.0f32);
     let strategy = StrategyTurnContext {
         name: "s".into(),

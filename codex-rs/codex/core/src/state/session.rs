@@ -45,6 +45,10 @@ pub(crate) struct SessionState {
     pub(crate) tool_selection: crate::tools::selection::SessionToolSelection,
     /// Active `/plan <strategy>` harness runtime, when one is activated.
     pub(crate) strategy: Option<crate::session::strategy_runtime::StrategyRuntime>,
+    /// Outstanding strategy feedback prompt awaiting an `Op::StrategyFeedback`;
+    /// only the newest prompt is kept.
+    pub(crate) pending_strategy_feedback:
+        Option<crate::session::strategy_runtime::PendingStrategyFeedback>,
     pub(crate) tool_inventory: Vec<ToolInventoryEntry>,
     pub(crate) pending_session_start_sources: VecDeque<codex_hooks::SessionStartSource>,
     granted_permissions_by_environment_id: HashMap<String, AdditionalPermissionProfile>,
@@ -80,6 +84,7 @@ impl SessionState {
             active_connector_selection: HashSet::new(),
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
             strategy: None,
+            pending_strategy_feedback: None,
             tool_inventory: Vec::new(),
             pending_session_start_sources: VecDeque::new(),
             granted_permissions_by_environment_id: HashMap::new(),

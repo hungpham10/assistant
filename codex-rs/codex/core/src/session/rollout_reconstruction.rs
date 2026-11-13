@@ -2,6 +2,7 @@ use super::*;
 use crate::context::world_state::WorldStateSnapshot;
 use crate::context_manager::is_user_turn_boundary;
 use codex_protocol::protocol::SessionContextWindow;
+use codex_protocol::protocol::StrategyStateSnapshot;
 use uuid::Uuid;
 
 // Return value of `Session::reconstruct_history_from_rollout`, bundling the rebuilt history with
@@ -16,6 +17,7 @@ pub(super) struct RolloutReconstruction {
     pub(super) first_window_id: Option<Uuid>,
     pub(super) previous_window_id: Option<Uuid>,
     pub(super) window_id: Option<Uuid>,
+    pub(super) strategy_snapshot: Option<StrategyStateSnapshot>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -280,7 +282,8 @@ impl Session {
                 }
                 RolloutItem::EventMsg(_)
                 | RolloutItem::SessionMeta(_)
-                | RolloutItem::InterAgentCommunicationMetadata { .. } => {}
+                | RolloutItem::InterAgentCommunicationMetadata { .. }
+                | RolloutItem::StrategyState(_) => {}
             }
 
             if base_replacement_history.is_some()
@@ -368,7 +371,8 @@ impl Session {
                 RolloutItem::EventMsg(_)
                 | RolloutItem::TurnContext(_)
                 | RolloutItem::WorldState(_)
-                | RolloutItem::SessionMeta(_) => {}
+                | RolloutItem::SessionMeta(_)
+                | RolloutItem::StrategyState(_) => {}
             }
         }
 
@@ -415,7 +419,8 @@ impl Session {
                 | RolloutItem::InterAgentCommunication(_)
                 | RolloutItem::InterAgentCommunicationMetadata { .. }
                 | RolloutItem::TurnContext(_)
-                | RolloutItem::EventMsg(_) => {
+                | RolloutItem::EventMsg(_)
+                | RolloutItem::StrategyState(_) => {
                     unreachable!("only world-state replay items are collected")
                 }
             }
@@ -436,6 +441,10 @@ impl Session {
             first_window_id: window.first_id,
             previous_window_id: window.previous_id,
             window_id: window.id,
+            strategy_snapshot: rollout_items.iter().rev().find_map(|item| match item {
+                RolloutItem::StrategyState(snapshot) => Some(snapshot.clone()),
+                _ => None,
+            }),
         }
     }
 }

@@ -19,6 +19,7 @@ use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::models::PermissionProfile;
 use codex_protocol::openai_models::ReasoningEffort as ReasoningEffortConfig;
+use codex_protocol::protocol::StrategyFeedbackChoice;
 use codex_protocol::request_permissions::RequestPermissionsResponse;
 use serde::Serialize;
 use serde_json::Value;
@@ -82,6 +83,10 @@ pub(crate) enum AppCommand {
     UserInputAnswer {
         id: String,
         response: ToolRequestUserInputResponse,
+    },
+    StrategyFeedback {
+        id: String,
+        choice: StrategyFeedbackChoice,
     },
     RequestPermissionsResponse {
         id: String,

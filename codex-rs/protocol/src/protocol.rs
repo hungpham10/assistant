@@ -635,6 +635,14 @@ pub enum Op {
         response: RequestUserInputResponse,
     },
 
+    /// Answer a strategy feedback prompt.
+    StrategyFeedback {
+        /// Id of the feedback request being answered.
+        id: String,
+        /// The user's choice.
+        choice: StrategyFeedbackChoice,
+    },
+
     /// Resolve a request_permissions tool call.
     RequestPermissionsResponse {
         /// Call id for the in-flight request.
@@ -892,6 +900,7 @@ impl Op {
             Self::PatchApproval { .. } => "patch_approval",
             Self::ResolveElicitation { .. } => "resolve_elicitation",
             Self::UserInputAnswer { .. } => "user_input_answer",
+            Self::StrategyFeedback { .. } => "strategy_feedback",
             Self::RequestPermissionsResponse { .. } => "request_permissions_response",
             Self::DynamicToolResponse { .. } => "dynamic_tool_response",
             Self::RefreshMcpServers { .. } => "refresh_mcp_servers",
@@ -1407,6 +1416,12 @@ pub enum EventMsg {
     /// Strategy-harness step transition for `/plan <strategy>` sessions.
     StrategyStep(StrategyStepEvent),
 
+    /// Strategy harness state snapshot for persistence and resume.
+    StrategyStateSnapshot(StrategyStateSnapshot),
+
+    /// Ask the user to rate a finished strategy-steered turn.
+    StrategyFeedbackRequest(StrategyFeedbackRequest),
+
     /// Notification that the agent attached a local image via the view_image tool.
     ViewImageToolCall(ViewImageToolCallEvent),
 
@@ -1886,13 +1901,10 @@ pub struct ReasoningRawContentDeltaEvent {
 pub struct EnteredReviewModeEvent {
     pub target: ReviewTarget,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub user_facing_hint: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub turn_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub item_id: Option<String>,
 }
 
@@ -2214,6 +2226,49 @@ pub struct SpendControlLimitSnapshot {
     pub used: String,
     pub remaining_percent: i32,
     pub resets_at: i64,
+}
+
+/// Strategy harness state snapshot for persistence and resume.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct StrategyStateSnapshot {
+    /// Name of the strategy (e.g., "explore-code", "write-code").
+    pub strategy_name: String,
+    /// The serialized strategy model containing π, A, B matrices and runtime state.
+    #[ts(type = "unknown")]
+    pub model: Value,
+    /// Unix timestamp when this snapshot was captured.
+    pub captured_at: i64,
+    /// ID of the turn when this snapshot was captured.
+    pub turn_id: String,
+}
+
+/// Ask the user to rate a finished strategy-steered turn.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct StrategyFeedbackRequest {
+    /// Unique id matching the answering `Op::StrategyFeedback`.
+    pub id: String,
+    /// Name of the active strategy the turn ran under.
+    pub strategy_name: String,
+    /// Strategy node that was active for the rated turn.
+    pub node: Option<String>,
+}
+
+/// User's answer to a [`StrategyFeedbackRequest`].
+#[derive(
+    Debug, Default, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, Display, JsonSchema, TS,
+)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum StrategyFeedbackChoice {
+    /// The turn's results were helpful; boost the used tools.
+    #[default]
+    Helpful,
+    /// The turn's results were not helpful; shrink the used tools.
+    NotHelpful,
+    /// No opinion; leave the model unchanged.
+    Skip,
 }
 
 // Includes prompts, tools and space to call compact.
@@ -2694,7 +2749,8 @@ impl InitialHistory {
                 | RolloutItem::InterAgentCommunicationMetadata { .. }
                 | RolloutItem::Compacted(_)
                 | RolloutItem::WorldState(_)
-                | RolloutItem::EventMsg(_) => None,
+                | RolloutItem::EventMsg(_)
+                | RolloutItem::StrategyState(_) => None,
             })
             .and_then(|turn_context| turn_context.multi_agent_mode.clone())
     }
@@ -3030,7 +3086,8 @@ fn multi_agent_version_from_items(
             | RolloutItem::InterAgentCommunicationMetadata { .. }
             | RolloutItem::Compacted(_)
             | RolloutItem::WorldState(_)
-            | RolloutItem::EventMsg(_) => None,
+            | RolloutItem::EventMsg(_)
+            | RolloutItem::StrategyState(_) => None,
         })
     })
 }
@@ -3193,6 +3250,8 @@ pub enum RolloutItem {
     TurnContext(TurnContextItem),
     WorldState(WorldStateItem),
     EventMsg(EventMsg),
+    /// Strategy harness state snapshot for persistence and resume.
+    StrategyState(StrategyStateSnapshot),
 }
 
 /// Persisted comparison state used to resume model-visible world-state diffing.
@@ -3432,7 +3491,6 @@ pub enum ReviewTarget {
 pub struct ReviewRequest {
     pub target: ReviewTarget,
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub user_facing_hint: Option<String>,
 }
 
@@ -3894,7 +3952,6 @@ pub struct SessionConfiguredEvent {
 
     /// Optional user-facing thread name (may be unset).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub thread_name: Option<String>,
 
     /// Tell the client what model is being queried.
@@ -3920,7 +3977,6 @@ pub struct SessionConfiguredEvent {
     /// Named or implicit built-in profile that produced `permission_profile`,
     /// when known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub active_permission_profile: Option<ActivePermissionProfile>,
 
     /// Working directory that should be treated as the *root* of the
@@ -3938,7 +3994,6 @@ pub struct SessionConfiguredEvent {
 
     /// Runtime proxy bind addresses, when the managed proxy was started for this session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
     pub network_proxy: Option<SessionNetworkProxyRuntime>,
 
     /// Path in which the rollout is stored. Can be `None` for ephemeral threads

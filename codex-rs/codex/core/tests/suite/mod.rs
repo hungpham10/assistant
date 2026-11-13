@@ -122,6 +122,7 @@ mod skill_mcp_dependency_startup;
 mod skills;
 mod spawn_agent_description;
 mod sqlite_state;
+mod strategy_harness;
 mod stream_error_allows_next_turn;
 mod stream_no_completed;
 mod subagent_notifications;

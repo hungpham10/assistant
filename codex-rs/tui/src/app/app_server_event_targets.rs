@@ -21,6 +21,9 @@ pub(super) fn server_request_thread_id(request: &ServerRequest) -> Option<Thread
         ServerRequest::PermissionsRequestApproval { params, .. } => {
             ThreadId::from_string(&params.thread_id).ok()
         }
+        ServerRequest::StrategyFeedbackRequest { params, .. } => {
+            ThreadId::from_string(&params.thread_id).ok()
+        }
         ServerRequest::DynamicToolCall { params, .. } => {
             ThreadId::from_string(&params.thread_id).ok()
         }

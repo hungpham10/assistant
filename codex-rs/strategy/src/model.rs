@@ -13,6 +13,7 @@ use crate::doc::BacktrackTarget;
 use crate::doc::StrategyDoc;
 use crate::observe::MarkerStatus;
 use crate::observe::StepMarker;
+use crate::observe::TurnFeedback;
 use crate::observe::TurnObservation;
 use crate::observe::tool_key_matches;
 use crate::update::clamp_a_weight;
@@ -20,10 +21,12 @@ use crate::update::clamp_b_weight;
 use crate::update::ema;
 use crate::update::normalize_in_place;
 use crate::update::observation_reward;
-use std::collections::BTreeMap;
+use serde::Deserialize;
+use serde::Serialize;
+use std::collections::HashMap;
 
 /// Runtime tuning knobs, independent of the authored document.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StrategyTuning {
     /// EMA learning rate α for likelihood updates.
     pub learning_rate: f32,
@@ -54,7 +57,7 @@ impl Default for StrategyTuning {
 }
 
 /// Lifecycle of the harness within a session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Phase {
     /// Steering is active.
     Active,
@@ -65,7 +68,7 @@ pub enum Phase {
 }
 
 /// Result of one harness step (activation, observation, or manual backtrack).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AdvanceOutcome {
     Stayed {
         node: String,
@@ -86,7 +89,7 @@ pub enum AdvanceOutcome {
     Stuck,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TransitionReason {
     /// The start branch was picked from π.
     StartBranch,
@@ -98,7 +101,7 @@ pub enum TransitionReason {
     Weighted,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BacktrackReason {
     /// A `Wrong` marker requested the backtrack.
     MarkerWrong,
@@ -109,7 +112,7 @@ pub enum BacktrackReason {
 }
 
 /// Accumulated usage statistics per node.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NodeStats {
     pub turns: u32,
     pub tokens: u64,
@@ -124,29 +127,31 @@ enum NodeEntry {
 }
 
 /// Live strategy model over a validated [`StrategyDoc`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct StrategyModel {
     doc: StrategyDoc,
     tuning: StrategyTuning,
     /// Live start distribution, normalized.
     pi: Vec<(String, f32)>,
     /// Live transition rows per node, aggregated by target and normalized.
-    rows: BTreeMap<String, Vec<(String, f32)>>,
+    rows: HashMap<String, Vec<(String, f32)>>,
     /// Live tool-preference rows per node.
-    b: BTreeMap<String, BTreeMap<String, f32>>,
+    b: HashMap<String, HashMap<String, f32>>,
     current: Option<String>,
     phase: Phase,
-    visits: BTreeMap<String, u32>,
+    visits: HashMap<String, u32>,
     turns_in_node: u32,
     total_transitions: u32,
+    /// Persisted so a restored model continues the same exploration
+    /// trajectory; a zero seed would trap xorshift64* at 0 forever.
     rng: u64,
-    stats: BTreeMap<String, NodeStats>,
+    stats: HashMap<String, NodeStats>,
 }
 
 impl StrategyModel {
     pub fn new(doc: StrategyDoc, tuning: StrategyTuning) -> Self {
-        let mut rows = BTreeMap::new();
-        let mut b = BTreeMap::new();
+        let mut rows = HashMap::new();
+        let mut b = HashMap::new();
         for (id, node) in &doc.nodes {
             let mut aggregated: Vec<(String, f32)> = Vec::new();
             for edge in &node.edges {
@@ -160,10 +165,9 @@ impl StrategyModel {
             rows.insert(id.clone(), aggregated);
             b.insert(id.clone(), node.tools.clone());
         }
-        let mut pi = doc.origin.clone();
-        normalize_in_place(&mut pi);
-        let mut model = Self {
-            rng: seed_from_name(&doc.meta.name),
+        let pi = doc.origin.clone();
+        let rng = seed_from_name(&doc.meta.name);
+        Self {
             doc,
             tuning,
             pi,
@@ -171,27 +175,17 @@ impl StrategyModel {
             b,
             current: None,
             phase: Phase::Active,
-            visits: BTreeMap::new(),
+            visits: HashMap::new(),
             turns_in_node: 0,
             total_transitions: 0,
-            stats: BTreeMap::new(),
-        };
-        model.stats = model
-            .doc
-            .nodes
-            .keys()
-            .map(|id| (id.clone(), NodeStats::default()))
-            .collect();
-        model
+            rng,
+            stats: HashMap::new(),
+        }
     }
 
-    /// Re-seeds the pseudo-random source (useful for reproducible runs).
+    /// Set RNG seed for testing.
     pub fn set_seed(&mut self, seed: u64) {
-        self.rng = if seed == 0 {
-            0x9E37_79B9_7F4A_7C15
-        } else {
-            seed
-        };
+        self.rng = seed;
     }
 
     pub fn doc(&self) -> &StrategyDoc {
@@ -210,87 +204,70 @@ impl StrategyModel {
         self.current.as_deref()
     }
 
-    pub fn stats(&self) -> &BTreeMap<String, NodeStats> {
-        &self.stats
+    pub fn guidance(&self) -> Option<&str> {
+        self.current
+            .as_ref()
+            .and_then(|n| self.doc.node(n))
+            .map(|n| n.guidance.as_str())
     }
 
-    pub fn visits(&self) -> &BTreeMap<String, u32> {
+    pub fn tool_weights(&self) -> Option<&HashMap<String, f32>> {
+        self.current.as_ref().and_then(|n| self.b.get(n))
+    }
+
+    pub fn strong_prior_tools(&self) -> Vec<String> {
+        self.tool_weights()
+            .map(|weights| {
+                weights
+                    .iter()
+                    .filter(|(_, w)| **w >= self.tuning.strong_prior_weight)
+                    .map(|(k, _)| k.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Returns visit count for a specific node.
+    pub fn visits(&self, node: &str) -> u32 {
+        self.visits.get(node).copied().unwrap_or(0)
+    }
+
+    /// Returns all visit counts (for backward compat with tests).
+    pub fn all_visits(&self) -> &HashMap<String, u32> {
         &self.visits
     }
 
-    /// Guidance text of the current node, if the harness is active.
-    pub fn guidance(&self) -> Option<&str> {
-        let node = self.current_node()?;
-        self.doc.node(node).map(|n| n.guidance.as_str())
+    pub fn turns_in_node(&self) -> u32 {
+        self.turns_in_node
     }
 
-    /// Tool-preference row (B) of the current node.
-    pub fn tool_weights(&self) -> Option<&BTreeMap<String, f32>> {
-        let node = self.current_node()?;
+    pub fn stats(&self, node: &str) -> Option<NodeStats> {
+        self.stats.get(node).copied()
+    }
+
+    /// Returns the A-row (transition likelihoods) for a node.
+    pub fn row(&self, node: &str) -> Option<&Vec<(String, f32)>> {
+        self.rows.get(node)
+    }
+
+    /// Returns the B-row (tool preferences) for a node.
+    pub fn b_row(&self, node: &str) -> Option<&HashMap<String, f32>> {
         self.b.get(node)
     }
 
-    /// Tools of the current node whose weight reaches the strong-prior
-    /// threshold; candidates for force-advertising.
-    pub fn strong_prior_tools(&self) -> Vec<String> {
-        let Some(weights) = self.tool_weights() else {
-            return Vec::new();
-        };
-        weights
-            .iter()
-            .filter(|(_, w)| **w >= self.tuning.strong_prior_weight)
-            .map(|(tool, _)| tool.clone())
-            .collect()
-    }
-
-    // Live parameter views (test-only).
-    #[cfg(test)]
-    pub(crate) fn row(&self, node: &str) -> &[(String, f32)] {
-        self.rows.get(node).map(Vec::as_slice).unwrap_or(&[])
-    }
-
-    #[cfg(test)]
-    pub(crate) fn b_row(&self, node: &str) -> Option<&BTreeMap<String, f32>> {
-        self.b.get(node)
-    }
-
-    /// Picks the start branch from π and activates the harness.
-    pub fn enter(&mut self) -> AdvanceOutcome {
-        if self.current.is_some() {
-            return self.stayed();
-        }
-        let (branch, entry) = self.enter_from_origin();
-        entry.frame_from_origin(&branch)
-    }
-
-    /// Resets the walk and picks a fresh branch from π.
-    fn enter_from_origin(&mut self) -> (String, NodeEntry) {
-        let branch = if self.next_rand() < self.tuning.explore_epsilon {
-            let idx = uniform_pick(&mut self.rng, self.pi.len());
-            self.pi[idx].0.clone()
-        } else {
-            let idx = weighted_pick(&mut self.rng, &self.pi);
-            self.pi[idx].0.clone()
-        };
-        let entry = self.enter_node(&branch);
-        (branch, entry)
-    }
-
-    /// Runs one harness step for the observed turn: updates statistics,
-    /// decides the next transition, and applies the reward update.
+    /// Observe a completed turn and advance the model.
     pub fn observe_turn(&mut self, obs: &TurnObservation) -> AdvanceOutcome {
+        // If not active, return appropriate outcome.
         if self.phase != Phase::Active {
             return match self.phase {
                 Phase::Stuck => AdvanceOutcome::Stuck,
                 _ => self.stayed(),
             };
         }
-        if self.current.is_none() {
+
+        // If no current node, pick start branch.
+        let Some(node_id) = self.current.clone() else {
             return self.enter();
-        }
-        let node_id = match self.current.clone() {
-            Some(id) => id,
-            None => return self.enter(),
         };
         self.turns_in_node += 1;
         let stats = self.stats.entry(node_id.clone()).or_default();
@@ -341,6 +318,15 @@ impl StrategyModel {
         self.transition(&node_id, &target, TransitionReason::Weighted, reward, obs)
     }
 
+    /// Explicitly pick the start branch from π (used for first turn).
+    pub fn enter(&mut self) -> AdvanceOutcome {
+        if self.current.is_some() {
+            return self.stayed();
+        }
+        let (branch, entry) = self.enter_from_origin();
+        entry.frame_from_origin(&branch)
+    }
+
     /// Manual backtrack requested by the user (`/plan back <node|origin>`).
     pub fn manual_backtrack(&mut self, target: &BacktrackTarget) -> AdvanceOutcome {
         if self.phase != Phase::Active {
@@ -376,9 +362,8 @@ impl StrategyModel {
         outcome.frame_backtracked(from, resolved, BacktrackReason::Manual)
     }
 
-    /// Strong observation from the feedback popup: boost the preferred tools
-    /// in the current node's B row (inserting them when absent).
-    pub fn prefer_tools(&mut self, preferred: &[String]) {
+    /// Boost tool weights for the current node (used for `/plan prefer`).
+    pub fn prefer_tools(&mut self, tools: &[String]) {
         if self.phase != Phase::Active {
             return;
         }
@@ -389,9 +374,39 @@ impl StrategyModel {
         let Some(row) = self.b.get_mut(&node_id) else {
             return;
         };
-        for tool in preferred {
+        for tool in tools {
             let entry = row.entry(tool.clone()).or_insert(1.0);
             *entry = clamp_b_weight(*entry * boost);
+        }
+    }
+
+    /// Applies explicit user feedback on a finished turn by nudging the
+    /// current node's B-row weights for the tools the turn used. Missing
+    /// entries enter at the neutral weight `1.0` before the nudge, matching
+    /// [`StrategyModel::prefer_tools`].
+    pub fn apply_feedback(&mut self, feedback: &TurnFeedback) {
+        if self.phase != Phase::Active {
+            return;
+        }
+        let Some(node_id) = self.current.clone() else {
+            return;
+        };
+        let Some(row) = self.b.get_mut(&node_id) else {
+            return;
+        };
+        let step = self.tuning.learning_rate;
+        for tool in &feedback.tools_called {
+            let matched = row
+                .keys()
+                .find(|authored| tool_key_matches(tool, authored))
+                .cloned()
+                .unwrap_or_else(|| tool.clone());
+            let entry = row.entry(matched).or_insert(1.0);
+            *entry = if feedback.helpful {
+                clamp_b_weight(*entry * (1.0 + step))
+            } else {
+                clamp_b_weight(*entry * (1.0 - step))
+            };
         }
     }
 
@@ -450,11 +465,9 @@ impl StrategyModel {
                 let (branch, entry) = self.enter_from_origin();
                 entry.frame_from_origin(&branch)
             }
-            BacktrackTarget::Node(node) => {
-                self.apply_tool_nudges(&from, obs);
-                self.enter_node(node)
-                    .frame_advanced(&from, TransitionReason::Weighted)
-            }
+            BacktrackTarget::Node(node) => self
+                .enter_node(node)
+                .frame_advanced(&from, TransitionReason::Weighted),
         };
         outcome.frame_backtracked(from, target, BacktrackReason::MarkerWrong)
     }
@@ -506,6 +519,18 @@ impl StrategyModel {
                 .frame_advanced(&from, TransitionReason::Weighted),
         };
         outcome.frame_backtracked(from, to, reason)
+    }
+
+    fn enter_from_origin(&mut self) -> (String, NodeEntry) {
+        let branch = if self.next_rand() < self.tuning.explore_epsilon {
+            let idx = uniform_pick(&mut self.rng, self.pi.len());
+            self.pi[idx].0.clone()
+        } else {
+            let idx = weighted_pick(&mut self.rng, &self.pi);
+            self.pi[idx].0.clone()
+        };
+        let entry = self.enter_node(&branch);
+        (branch, entry)
     }
 
     fn enter_node(&mut self, node: &str) -> NodeEntry {
