@@ -87,6 +87,7 @@ pub(super) async fn run_remote_compact_v2_attempt(
         base_instructions,
         output_schema: None,
         output_schema_strict: true,
+        jev_hint: None,
     };
 
     let window_id = sess.current_window_id().await;

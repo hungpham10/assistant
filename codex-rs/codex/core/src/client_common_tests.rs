@@ -264,3 +264,63 @@ fn serializes_flex_service_tier_when_set() {
         Some("flex")
     );
 }
+
+#[test]
+fn jev_hint_appends_to_last_user_message_only() {
+    let mut prompt = Prompt::default();
+    prompt.input = vec![
+        ResponseItem::Message {
+            id: None,
+            role: "user".into(),
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+            content: vec![ContentItem::InputText {
+                text: "old question".into(),
+            }],
+        },
+        ResponseItem::Message {
+            id: None,
+            role: "assistant".into(),
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+            content: vec![ContentItem::InputText {
+                text: "answer".into(),
+            }],
+        },
+        ResponseItem::Message {
+            id: None,
+            role: "user".into(),
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+            content: vec![ContentItem::InputText {
+                text: "current question".into(),
+            }],
+        },
+    ];
+    prompt.jev_hint = Some("<jev_tool_priority>1. `tool_a`</jev_tool_priority>".into());
+
+    let input = prompt.get_formatted_input_for_request(false);
+    let last = input.last().expect("last item");
+    let ResponseItem::Message { role, content, .. } = last else {
+        panic!("expected message");
+    };
+    assert_eq!(role, "user");
+    assert_eq!(content.len(), 2);
+    let ContentItem::InputText { text } = &content[1] else {
+        panic!("expected text");
+    };
+    assert!(text.contains("<jev_tool_priority>"));
+
+    // Older messages are untouched and Prompt.input stays clean.
+    let ResponseItem::Message { content, .. } = &input[0] else {
+        panic!("expected message");
+    };
+    assert_eq!(content.len(), 1);
+    let ResponseItem::Message {
+        content: original, ..
+    } = prompt.input.last().expect("orig")
+    else {
+        panic!("expected message");
+    };
+    assert_eq!(original.len(), 1);
+}

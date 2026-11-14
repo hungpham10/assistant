@@ -189,6 +189,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
     exposure: McpToolExposure,
     cfg: &ToolSuggestJevConfig,
     strategy: Option<&StrategyTurnContext>,
+    recent_usage: Option<&str>,
 ) -> JevDecision<(McpToolExposure, JevSuggestedTools)> {
     if !cfg.enabled {
         return JevDecision::Disabled;
@@ -239,7 +240,8 @@ pub(crate) async fn suggest_direct_mcp_tools(
         repo.as_deref(),
         &candidates,
         &jev_cfg,
-        strategy.map(|ctx| (ctx.name.as_str(), ctx.guidance.as_str())),
+        strategy,
+        recent_usage,
     )
     .await;
     if !outcome.used {
@@ -331,13 +333,14 @@ pub(crate) async fn suggest_direct_mcp_tools(
 }
 
 /// Calls Jev with a planning prompt for tool selection. The optional
-/// strategy pair (name, guidance) biases the planning state.
+/// strategy HMM context and recent tool usage bias the planning state.
 pub(crate) async fn call_jev_planning(
     question: &str,
     repo: Option<&str>,
     candidates: &[(u64, String)],
     cfg: &JevConfig,
-    strategy: Option<(&str, &str)>,
+    strategy: Option<&StrategyTurnContext>,
+    recent_usage: Option<&str>,
 ) -> JevOutcome {
     let api_key = match cfg.api_key() {
         Some(key) => key,
@@ -363,7 +366,7 @@ pub(crate) async fn call_jev_planning(
     );
 
     // Build planning state prompt
-    let state = build_planning_state(question, repo, candidates.len(), strategy);
+    let state = build_planning_state(question, repo, candidates.len(), strategy, recent_usage);
 
     // Build Jev request
     let ask = JevAsk {
@@ -448,25 +451,28 @@ pub(crate) async fn call_jev_planning(
     parse_jev_reply(&text, candidates)
 }
 
-/// Builds the planning state prompt for Jev. The optional strategy pair
-/// (name, guidance) injects the active `/plan <strategy>` step so Jev's
-/// probability distribution leans toward the step's tools.
+/// Builds the planning state prompt for Jev. The optional strategy context
+/// injects the active `/plan <strategy>` HMM state (current step, guidance,
+/// favored tools) and the optional recent tool usage snippet makes the
+/// ranking sequence-aware, so Jev's probability distribution leans toward
+/// tools that continue the workflow.
 pub(crate) fn build_planning_state(
     question: &str,
     repo: Option<&str>,
     num_candidates: usize,
-    strategy: Option<(&str, &str)>,
+    strategy: Option<&StrategyTurnContext>,
+    recent_usage: Option<&str>,
 ) -> String {
     let repo_part = repo
         .filter(|r| !r.trim().is_empty())
         .map(|r| format!("Repo: {r}. "))
         .unwrap_or_default();
-    let strategy_part = strategy
-        .map(|(name, guidance)| {
+    let strategy_part = strategy.map(strategy_hints).unwrap_or_default();
+    let recent_part = recent_usage
+        .map(|usage| {
             format!(
-                "Active strategy `{name}` — current step guidance (a suggestion, not a mandate): {}\n\
-                 Prefer the candidates that fit this step of the strategy.\n",
-                truncate_chars(guidance.trim(), MAX_STRATEGY_GUIDANCE_CHARS)
+                "Recent tool usage (most recent last): {}\n",
+                truncate_chars(usage.trim(), MAX_RECENT_TOOL_USAGE_CHARS)
             )
         })
         .unwrap_or_default();
@@ -474,18 +480,55 @@ pub(crate) fn build_planning_state(
     format!(
         "{repo_part}Request: {question}
 
-{strategy_part}Your task: Select the tools needed to accomplish the user's request.
+{recent_part}{strategy_part}Your task: Select the tools needed to accomplish the user's request.
 - Choose AT LEAST 2 tools, up to 6
 - Consider the full workflow (search → edit → test, etc.)
 - Tools should form a complete chain to fulfill the request
+- Prefer tools that continue the workflow suggested by the recent tool usage and the current strategy step
 - If no tools are relevant, choose 'none_of_the_above'
 
 Available tools ({num_candidates} candidates) are listed in the criteria below."
     )
 }
 
+/// Renders the strategy HMM hints (step node, guidance, favored tools) for
+/// the planning state.
+fn strategy_hints(strategy: &StrategyTurnContext) -> String {
+    let mut text = format!(
+        "Active strategy `{}` — current step: {}\n\
+         Step guidance (a suggestion, not a mandate): {}\n",
+        strategy.name,
+        truncate_chars(strategy.node.trim(), MAX_STRATEGY_NODE_CHARS),
+        truncate_chars(strategy.guidance.trim(), MAX_STRATEGY_GUIDANCE_CHARS)
+    );
+    let mut favored: Vec<String> = strategy
+        .tool_weights
+        .iter()
+        .filter(|(_, weight)| **weight > 1.0)
+        .map(|(tool, weight)| format!("{tool} ({weight:.1}x)"))
+        .collect();
+    for tool in &strategy.strong_prior_tools {
+        if !favored.iter().any(|entry| entry.starts_with(tool.as_str())) {
+            favored.push(tool.clone());
+        }
+    }
+    favored.truncate(MAX_STRATEGY_FAVORED_TOOLS);
+    if !favored.is_empty() {
+        text.push_str(&format!("Strategy-favored tools: {}\n", favored.join(", ")));
+    }
+    text.push_str("Prefer the candidates that fit this step of the strategy.\n");
+    text
+}
+
 /// Cap on the strategy guidance snippet injected into the Jev state.
 pub(crate) const MAX_STRATEGY_GUIDANCE_CHARS: usize = 300;
+/// Cap on the strategy step node name injected into the Jev state.
+const MAX_STRATEGY_NODE_CHARS: usize = 60;
+/// Cap on the number of strategy-favored tools listed in the Jev state.
+const MAX_STRATEGY_FAVORED_TOOLS: usize = 5;
+/// Cap on the recent tool usage snippet injected into the Jev state — the
+/// Jev model is small, so the sequence hint stays bounded.
+const MAX_RECENT_TOOL_USAGE_CHARS: usize = 200;
 
 /// Multiplies Jev's returned percentiles by the active step's tool weights
 /// and renormalizes, so strategy-favored tools compete for direct slots.
@@ -720,6 +763,7 @@ pub(crate) async fn suggest_direct_tools(
     all_tools: Vec<JevToolEntry>,
     cfg: &ToolSuggestJevConfig,
     strategy: Option<&StrategyTurnContext>,
+    recent_usage: Option<&str>,
 ) -> JevDecision<UniversalToolSuggestion> {
     if !cfg.enabled {
         return JevDecision::Disabled;
@@ -780,7 +824,8 @@ pub(crate) async fn suggest_direct_tools(
         repo.as_deref(),
         &candidates,
         &jev_cfg,
-        strategy.map(|ctx| (ctx.name.as_str(), ctx.guidance.as_str())),
+        strategy,
+        recent_usage,
     )
     .await;
     if !outcome.used {

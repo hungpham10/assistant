@@ -65,3 +65,79 @@ async fn plan_mode_uses_contributed_turn_item_for_last_agent_message() {
         Some("plan contributed assistant text")
     );
 }
+
+#[test]
+fn recent_tool_calls_keys_and_order() {
+    let items = vec![
+        ResponseItem::FunctionCall {
+            id: None,
+            name: "codegraph_flow".into(),
+            namespace: Some("codegraph".into()),
+            arguments: "{}".into(),
+            call_id: "c1".into(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::CustomToolCall {
+            id: None,
+            status: None,
+            call_id: "c2".into(),
+            name: "shell".into(),
+            namespace: None,
+            input: "{}".into(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::CustomToolCall {
+            id: None,
+            status: None,
+            call_id: "c3".into(),
+            name: "shell".into(),
+            namespace: None,
+            input: "{}".into(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+        ResponseItem::Message {
+            id: None,
+            role: "user".into(),
+            phase: None,
+            internal_chat_message_metadata_passthrough: None,
+            content: vec![],
+        },
+        ResponseItem::FunctionCall {
+            id: None,
+            name: "apply_patch".into(),
+            namespace: None,
+            arguments: "{}".into(),
+            call_id: "c4".into(),
+            internal_chat_message_metadata_passthrough: None,
+        },
+    ];
+
+    assert_eq!(
+        recent_tool_calls(&items),
+        vec![
+            "codegraph/codegraph_flow".to_string(),
+            "shell".to_string(),
+            "apply_patch".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn recent_tool_calls_caps_at_limit_most_recent_first() {
+    let items: Vec<ResponseItem> = (0..20)
+        .map(|i| ResponseItem::FunctionCall {
+            id: None,
+            name: format!("tool_{i}"),
+            namespace: None,
+            arguments: "{}".into(),
+            call_id: format!("c{i}"),
+            internal_chat_message_metadata_passthrough: None,
+        })
+        .collect();
+
+    let keys = recent_tool_calls(&items);
+    assert_eq!(keys.len(), super::MAX_RECENT_TOOL_CALLS);
+    // Most recent last.
+    assert_eq!(keys.last().map(String::as_str), Some("tool_19"));
+    assert_eq!(keys.first().map(String::as_str), Some("tool_12"));
+}

@@ -2987,8 +2987,16 @@ impl ModelClientSession {
                         }
                     }
                     if !parts.is_empty() {
+                        // generateContent only accepts `user`/`model` roles;
+                        // developer messages (contextual fragments) degrade
+                        // to user.
+                        let role = if role == "developer" {
+                            "user".to_string()
+                        } else {
+                            role.clone()
+                        };
                         contents.push(GoogleContent {
-                            role: Some(role.clone()),
+                            role: Some(role),
                             parts,
                         });
                     }

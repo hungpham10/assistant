@@ -1195,6 +1195,7 @@ pub(crate) fn build_prompt(
     router: &ToolRouter,
     turn_context: &TurnContext,
     base_instructions: BaseInstructions,
+    jev_hint: Option<String>,
 ) -> Prompt {
     Prompt {
         input,
@@ -1210,6 +1211,7 @@ pub(crate) fn build_prompt(
         output_schema_strict: !crate::guardian::is_guardian_reviewer_source(
             &turn_context.session_source,
         ),
+        jev_hint,
     }
 }
 
@@ -1234,19 +1236,17 @@ async fn run_sampling_request(
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
     let turn_context = Arc::clone(&step_context.turn);
-    let router = {
-        let (router, jev_hint) = built_tools(
-            sess.as_ref(),
-            step_context.as_ref(),
-            &cancellation_token,
-            Some(input.as_slice()),
-        )
-        .await?;
-        if let Some(hint) = jev_hint {
-            input.push(ContextualUserFragment::into(hint));
-        }
-        router
-    };
+    // The Jev hint is NOT pushed into `input`: it is injected transiently at
+    // request-format time (see `Prompt::get_formatted_input_for_request`) so
+    // conversation history and rollouts stay clean, and retried attempts
+    // (which rebuild input from `clone_history`) still carry it.
+    let (router, jev_hint) = built_tools(
+        sess.as_ref(),
+        step_context.as_ref(),
+        &cancellation_token,
+        Some(input.as_slice()),
+    )
+    .await?;
 
     let base_instructions = sess.get_base_instructions().await;
 
@@ -1279,6 +1279,7 @@ async fn run_sampling_request(
             router.as_ref(),
             turn_context.as_ref(),
             base_instructions.clone(),
+            jev_hint.clone().map(|hint| hint.render()),
         );
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
@@ -1347,6 +1348,12 @@ pub(crate) async fn built_tools(
     query: Option<&[ResponseItem]>,
 ) -> CodexResult<(Arc<ToolRouter>, Option<JevToolPriorityHint>)> {
     let turn_context = step_context.turn.as_ref();
+    // Bounded recent tool-call sequence for the Jev planning state (Jev + HMM).
+    let recent_usage = {
+        let state = sess.state.lock().await;
+        let keys = recent_tool_calls(state.history.raw_items());
+        (!keys.is_empty()).then(|| keys.join(", "))
+    };
     let mcp_connection_manager = step_context.mcp.manager();
     let has_mcp_servers = mcp_connection_manager.has_servers();
     let all_mcp_tools = step_context
@@ -1488,6 +1495,7 @@ pub(crate) async fn built_tools(
             mcp_tool_exposure,
             jev_cfg,
             strategy_context.as_ref(),
+            recent_usage.as_deref(),
         )
         .await;
         match outcome {
@@ -1567,6 +1575,7 @@ pub(crate) async fn built_tools(
                 repo: repo_name(turn_context),
                 strategy: strategy_context.clone(),
                 demote,
+                recent_usage: recent_usage.clone(),
             }),
         },
         &sess.services.tool_search_handler_cache,
@@ -1623,6 +1632,42 @@ fn hint_display_names(scores: &[(String, f32)]) -> Vec<String> {
                 .to_string()
         })
         .collect()
+}
+
+/// Maximum number of recent tool calls fed to the Jev planning state — the
+/// Jev model is small, so the sequence hint stays bounded.
+const MAX_RECENT_TOOL_CALLS: usize = 8;
+
+/// Bounded recent tool-call keys (most recent last) from the conversation
+/// history, in the Jev/TUI tracker format (`server/tool` for MCP tools, bare
+/// name for builtins). Consecutive repeats are deduplicated so a burst of
+/// calls to the same tool counts once.
+fn recent_tool_calls(history_items: &[ResponseItem]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for item in history_items.iter().rev() {
+        let key = match item {
+            ResponseItem::FunctionCall {
+                name, namespace, ..
+            }
+            | ResponseItem::CustomToolCall {
+                name, namespace, ..
+            } => Some(match namespace {
+                Some(namespace) => format!("{namespace}/{name}"),
+                None => name.clone(),
+            }),
+            _ => None,
+        };
+        let Some(key) = key else { continue };
+        if keys.last() == Some(&key) {
+            continue;
+        }
+        keys.push(key);
+        if keys.len() >= MAX_RECENT_TOOL_CALLS {
+            break;
+        }
+    }
+    keys.reverse();
+    keys
 }
 
 /// Emits a `JevToolSuggestion` event with no picks so the TUI can explain why
