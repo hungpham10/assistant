@@ -60,6 +60,9 @@ pub(crate) struct JevUniversalInput {
     /// tool keeps its exposure (used when the model has no search tool, so
     /// deferring tools would make them unreachable).
     pub(crate) demote: bool,
+    /// Bounded recent tool-call keys (most recent last) for sequence-aware
+    /// Jev planning.
+    pub(crate) recent_usage: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

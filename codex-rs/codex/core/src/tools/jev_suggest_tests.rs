@@ -83,6 +83,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         exposure.clone(),
         &ToolSuggestJevConfig::default(),
         /*strategy*/ None,
+        /*recent*/ None,
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -99,6 +100,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         exposure,
         &cfg,
         /*strategy*/ None,
+        /*recent*/ None,
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -116,13 +118,22 @@ async fn pool_rỗng_thì_trả_none() {
         deferred_tools: None,
     };
     // Pool rỗng → không có gì để rerank, coi như None dù enabled.
-    let out = suggest_direct_mcp_tools("anything", None, exposure, &cfg, /*strategy*/ None).await;
+    let out = suggest_direct_mcp_tools(
+        "anything", None, exposure, &cfg, /*strategy*/ None, /*recent*/ None,
+    )
+    .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
 }
 
 #[test]
 fn build_planning_state_includes_guidance() {
-    let state = build_planning_state("run tests", Some("my-repo"), 5, /*strategy*/ None);
+    let state = build_planning_state(
+        "run tests",
+        Some("my-repo"),
+        5,
+        /*strategy*/ None,
+        /*recent*/ None,
+    );
     assert!(state.contains("AT LEAST 2 tools"));
     assert!(state.contains("up to 6"));
     assert!(state.contains("search → edit → test"));
@@ -135,7 +146,13 @@ fn build_planning_state_includes_guidance() {
 
 #[test]
 fn build_planning_state_without_repo() {
-    let state = build_planning_state("run tests", None, 3, /*strategy*/ None);
+    let state = build_planning_state(
+        "run tests",
+        None,
+        3,
+        /*strategy*/ None,
+        /*recent*/ None,
+    );
     assert!(!state.contains("Repo:"));
     assert!(state.contains("Request: run tests"));
     assert!(state.contains("3 candidates"));
@@ -294,6 +311,7 @@ async fn suggest_direct_mcp_tools_with_min_direct_tools() {
         exposure,
         &cfg,
         /*strategy*/ None,
+        /*recent*/ None,
     )
     .await;
 
@@ -365,11 +383,13 @@ fn to_jev_config_maps_all_fields() {
 
 #[test]
 fn build_planning_state_includes_strategy_preamble() {
+    let strategy = test_strategy("explore-code", "explore", "Trace flows from entrypoints.");
     let state = build_planning_state(
         "trace the flow",
         Some("my-repo"),
         4,
-        Some(("explore-code", "Trace flows from entrypoints.")),
+        Some(&strategy),
+        /*recent*/ None,
     );
     assert!(state.contains("Active strategy `explore-code`"));
     assert!(state.contains("Trace flows from entrypoints."));
@@ -380,7 +400,8 @@ fn build_planning_state_includes_strategy_preamble() {
 #[test]
 fn build_planning_state_truncates_strategy_guidance() {
     let guidance = "x".repeat(500);
-    let state = build_planning_state("q", None, 2, Some(("s", &guidance)));
+    let strategy = test_strategy("s", "step", &guidance);
+    let state = build_planning_state("q", None, 2, Some(&strategy), /*recent*/ None);
     let injected = state
         .lines()
         .find(|line| line.starts_with("Active strategy"))
@@ -493,4 +514,59 @@ fn strategy_weights_move_tools_across_threshold() {
         std::collections::HashSet::from([1usize]),
         "selection uses the strategy-adjusted probabilities: {adjusted:?}"
     );
+}
+
+/// Builds a minimal `StrategyTurnContext` for planning-state tests.
+fn test_strategy(
+    name: &str,
+    node: &str,
+    guidance: &str,
+) -> crate::session::strategy_runtime::StrategyTurnContext {
+    crate::session::strategy_runtime::StrategyTurnContext {
+        name: name.to_string(),
+        node: node.to_string(),
+        guidance: guidance.to_string(),
+        tool_weights: std::collections::HashMap::new(),
+        strong_prior_tools: Vec::new(),
+    }
+}
+
+#[test]
+fn build_planning_state_includes_recent_usage() {
+    let state = build_planning_state(
+        "review the harness",
+        None,
+        3,
+        /*strategy*/ None,
+        Some("tool_search, codegraph/codegraph_flow, shell"),
+    );
+    assert!(state.contains(
+        "Recent tool usage (most recent last): tool_search, codegraph/codegraph_flow, shell"
+    ));
+    assert!(state.contains("continue the workflow suggested by the recent tool usage"));
+}
+
+#[test]
+fn build_planning_state_truncates_recent_usage() {
+    let usage = "y".repeat(500);
+    let state = build_planning_state("q", None, 2, /*strategy*/ None, Some(&usage));
+    let injected = state
+        .lines()
+        .find(|line| line.starts_with("Recent tool usage"))
+        .expect("recent line");
+    assert!(injected.len() < 500, "recent usage must be capped");
+}
+
+#[test]
+fn build_planning_state_lists_strategy_favored_tools() {
+    let mut strategy = test_strategy("explore-code", "explore", "Trace flows.");
+    strategy
+        .tool_weights
+        .insert("codegraph/codegraph_flow".to_string(), 1.8);
+    strategy.strong_prior_tools.push("shell".to_string());
+    let state = build_planning_state("q", None, 2, Some(&strategy), /*recent*/ None);
+    assert!(state.contains("current step: explore"));
+    assert!(state.contains("codegraph/codegraph_flow (1.8x)"));
+    assert!(state.contains("Strategy-favored tools:"));
+    assert!(state.contains("shell"));
 }

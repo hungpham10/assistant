@@ -36,6 +36,10 @@ pub struct Prompt {
 
     /// Whether the Responses API should strictly validate `output_schema`.
     pub output_schema_strict: bool,
+
+    /// Jev tool priority hint injected transiently into the latest user
+    /// message at request-format time. Never persisted in history.
+    pub jev_hint: Option<String>,
 }
 
 impl Default for Prompt {
@@ -48,6 +52,7 @@ impl Default for Prompt {
             base_instructions: BaseInstructions::default(),
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         }
     }
 }
@@ -65,8 +70,30 @@ impl Prompt {
         if use_responses_lite {
             strip_image_details(&mut input);
         }
+        if let Some(hint) = &self.jev_hint {
+            append_text_to_last_user_message(&mut input, hint);
+        }
         input
     }
+}
+
+/// Appends `text` as an extra input-text content item on the last user
+/// message so per-turn guidance (e.g. the Jev tool priority hint) rides on
+/// the newest turn without being persisted in conversation history.
+fn append_text_to_last_user_message(items: &mut [ResponseItem], text: &str) {
+    let Some(item) = items
+        .iter_mut()
+        .rev()
+        .find(|item| matches!(item, ResponseItem::Message { role, .. } if role == "user"))
+    else {
+        return;
+    };
+    let ResponseItem::Message { content, .. } = item else {
+        return;
+    };
+    content.push(ContentItem::InputText {
+        text: text.to_string(),
+    });
 }
 
 fn strip_image_details(items: &mut [ResponseItem]) {

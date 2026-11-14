@@ -2630,6 +2630,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -2800,6 +2801,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -2867,6 +2869,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -2925,6 +2928,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+        jev_hint: None,
         };
 
         let request = build_request(
@@ -2991,6 +2995,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         }
     }
 
@@ -3068,6 +3073,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3113,6 +3119,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3153,6 +3160,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3237,6 +3245,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3302,6 +3311,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3406,6 +3416,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3499,6 +3510,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3572,6 +3584,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3697,6 +3710,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3786,6 +3800,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -3850,6 +3865,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4159,6 +4175,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4220,6 +4237,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_title_request(
@@ -4299,6 +4317,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_title_request(
@@ -4389,6 +4408,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4432,6 +4452,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4475,6 +4496,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4518,6 +4540,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4561,6 +4584,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_request(
@@ -4626,6 +4650,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_claude_code_responses_shaped_request(
@@ -4681,6 +4706,7 @@ mod tests {
             },
             output_schema: None,
             output_schema_strict: true,
+            jev_hint: None,
         };
 
         let request = build_claude_code_responses_shaped_request(
