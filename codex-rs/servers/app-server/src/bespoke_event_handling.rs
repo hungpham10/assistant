@@ -248,6 +248,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                 no_match: suggestion_event.no_match,
                 strategy: suggestion_event.strategy,
                 node: suggestion_event.node,
+                skip_reason: suggestion_event.skip_reason,
             };
             outgoing
                 .send_server_notification(ServerNotification::JevToolSuggestion(notification))

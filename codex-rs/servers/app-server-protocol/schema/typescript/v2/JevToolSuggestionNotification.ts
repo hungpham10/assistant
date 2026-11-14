@@ -29,4 +29,9 @@ strategy: string | null,
 /**
  * Strategy step (node) that was active for this turn.
  */
-node: string | null, };
+node: string | null,
+/**
+ * Human-readable reason Jev did not run this turn (fail-open skip).
+ * `None` when Jev produced a suggestion or is disabled in config.
+ */
+skipReason: string | null, };
