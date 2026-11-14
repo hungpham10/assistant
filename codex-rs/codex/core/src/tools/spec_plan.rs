@@ -167,25 +167,35 @@ struct CoreToolPlanContext<'a> {
 }
 
 #[instrument(level = "trace", skip_all)]
-pub(crate) fn build_tool_router(
+pub(crate) async fn build_tool_router(
     step_context: &StepContext,
     params: ToolRouterParams<'_>,
     tool_search_handler_cache: &ToolSearchHandlerCache,
-) -> (ToolRouter, Vec<ToolInventoryEntry>) {
-    let (model_visible_specs, registry, inventory) =
-        build_tool_specs_and_registry(step_context, params, tool_search_handler_cache);
+) -> (
+    ToolRouter,
+    Vec<ToolInventoryEntry>,
+    crate::tools::jev_suggest::JevRoutingOutcome,
+) {
+    let (model_visible_specs, registry, inventory, jev_outcome) =
+        build_tool_specs_and_registry(step_context, params, tool_search_handler_cache).await;
     (
         ToolRouter::from_parts(registry, model_visible_specs),
         inventory,
+        jev_outcome,
     )
 }
 
 #[instrument(level = "trace", skip_all)]
-fn build_tool_specs_and_registry(
+async fn build_tool_specs_and_registry(
     step_context: &StepContext,
     params: ToolRouterParams<'_>,
     tool_search_handler_cache: &ToolSearchHandlerCache,
-) -> (Vec<ToolSpec>, ToolRegistry, Vec<ToolInventoryEntry>) {
+) -> (
+    Vec<ToolSpec>,
+    ToolRegistry,
+    Vec<ToolInventoryEntry>,
+    crate::tools::jev_suggest::JevRoutingOutcome,
+) {
     let turn_context = step_context.turn.as_ref();
     let ToolRouterParams {
         tool_selection,
@@ -194,6 +204,7 @@ fn build_tool_specs_and_registry(
         tool_suggest_candidates,
         extension_tool_executors,
         dynamic_tools,
+        jev_universal,
     } = params;
     let default_agent_type_description =
         crate::agent::role::spawn_tool_spec::build(&std::collections::BTreeMap::new());
@@ -211,9 +222,121 @@ fn build_tool_specs_and_registry(
     let mut planned_tools = PlannedTools::default();
     add_tool_sources(&context, &mut planned_tools);
     apply_direct_model_only_namespace_overrides(turn_context, &mut planned_tools);
+    let jev_outcome =
+        apply_jev_universal_selection(turn_context, &mut planned_tools, jev_universal.as_ref())
+            .await;
     append_tool_search_executor(&context, &mut planned_tools);
     prepend_code_mode_executors(&context, &mut planned_tools);
-    build_model_visible_specs_and_registry(turn_context, planned_tools, &tool_selection)
+    let (specs, registry, inventory) =
+        build_model_visible_specs_and_registry(turn_context, planned_tools, &tool_selection);
+    (specs, registry, inventory, jev_outcome)
+}
+
+/// Universal Jev pass: reranks every planned tool (builtins included) against
+/// the turn's question and demotes non-picked, non-essential tools to
+/// `Deferred` so they stay discoverable through `tool_search`. Runs before
+/// `append_tool_search_executor` so demoted tools are indexed for search.
+#[instrument(level = "trace", skip_all)]
+async fn apply_jev_universal_selection(
+    turn_context: &TurnContext,
+    planned_tools: &mut PlannedTools,
+    jev_universal: Option<&crate::tools::router::JevUniversalInput>,
+) -> crate::tools::jev_suggest::JevRoutingOutcome {
+    use crate::tools::jev_suggest::JevDecision;
+    use crate::tools::jev_suggest::JevToolEntry;
+    use crate::tools::jev_suggest::ToolType;
+
+    let Some(jev) = jev_universal else {
+        return crate::tools::jev_suggest::JevRoutingOutcome::none();
+    };
+    let cfg = &turn_context.config.tool_suggest_jev;
+    if !cfg.enabled || !cfg.include_all_tools {
+        return crate::tools::jev_suggest::JevRoutingOutcome::none();
+    }
+
+    // Essential tools always stay direct: the search fallback itself and the
+    // collaboration-mode/approval flow tools.
+    let is_essential = |tool_name: &ToolName| -> bool {
+        tool_name.name == TOOL_SEARCH_TOOL_NAME
+            || (tool_name.namespace.is_none()
+                && crate::tools::selection::PROTECTED_TOOLS.contains(&tool_name.name.as_str()))
+    };
+
+    // Candidate pool: every tool the model could currently see (Direct) or
+    // discover (Deferred). Hidden and DirectModelOnly runtimes stay untouched.
+    let mut entries = Vec::new();
+    for runtime in planned_tools.runtimes.iter() {
+        let exposure = runtime.exposure();
+        if !matches!(exposure, ToolExposure::Direct | ToolExposure::Deferred) {
+            continue;
+        }
+        let tool_name = runtime.tool_name();
+        let tool_type = if tool_name.namespace.is_some() {
+            ToolType::Mcp
+        } else {
+            ToolType::Builtin
+        };
+        let description =
+            crate::tools::inventory::description_for_spec(&runtime.spec()).unwrap_or_default();
+        entries.push(JevToolEntry {
+            id: entries.len() as u64,
+            name: tool_name.name.clone(),
+            namespace: tool_name.namespace.clone(),
+            description,
+            tool_type,
+            essential: is_essential(&tool_name),
+        });
+    }
+    if entries.iter().all(|entry| entry.essential) {
+        return crate::tools::jev_suggest::JevRoutingOutcome::none();
+    }
+
+    let decision = crate::tools::jev_suggest::suggest_direct_tools(
+        &jev.question,
+        jev.repo.clone(),
+        entries,
+        cfg,
+        jev.strategy.as_ref(),
+    )
+    .await;
+    match decision {
+        JevDecision::Disabled => crate::tools::jev_suggest::JevRoutingOutcome::none(),
+        JevDecision::Skipped { reason } => crate::tools::jev_suggest::JevRoutingOutcome {
+            suggested: None,
+            skip_reason: Some(reason),
+        },
+        JevDecision::Suggested(suggestion) => {
+            let deferred_keys: HashSet<(Option<String>, String)> = suggestion
+                .deferred_tools
+                .iter()
+                .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+                .collect();
+            let direct_keys: HashSet<(Option<String>, String)> = suggestion
+                .direct_tools
+                .iter()
+                .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+                .collect();
+            for runtime in &mut planned_tools.runtimes {
+                let tool_name = runtime.tool_name();
+                let key = (tool_name.namespace.clone(), tool_name.name);
+                match runtime.exposure() {
+                    ToolExposure::Direct if deferred_keys.contains(&key) => {
+                        *runtime =
+                            override_tool_exposure(Arc::clone(runtime), ToolExposure::Deferred);
+                    }
+                    ToolExposure::Deferred if direct_keys.contains(&key) => {
+                        *runtime =
+                            override_tool_exposure(Arc::clone(runtime), ToolExposure::Direct);
+                    }
+                    _ => {}
+                }
+            }
+            crate::tools::jev_suggest::JevRoutingOutcome {
+                suggested: Some(suggestion),
+                skip_reason: None,
+            }
+        }
+    }
 }
 
 fn apply_direct_model_only_namespace_overrides(
@@ -1099,7 +1222,14 @@ fn append_tool_search_executor(
         .runtimes()
         .iter()
         .filter(|executor| executor.exposure() == ToolExposure::Deferred)
-        .filter_map(|executor| executor.search_info())
+        .filter_map(|executor| {
+            executor.search_info().or_else(|| {
+                // Handlers without a bespoke `search_info` (most builtins)
+                // are still indexed from their model spec so tools deferred
+                // by the universal Jev pass stay discoverable.
+                codex_tools::ToolSearchInfo::from_tool_spec(executor.spec(), None)
+            })
+        })
         .collect::<Vec<_>>();
     if search_infos.is_empty() {
         return;

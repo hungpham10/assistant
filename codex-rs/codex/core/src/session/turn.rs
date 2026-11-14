@@ -62,6 +62,7 @@ use crate::tasks::emit_compact_metric;
 use crate::tools::ToolRouter;
 use crate::tools::context::SharedTurnDiffTracker;
 use crate::tools::handlers::take_claude_code_bare_completed_task_notification;
+use crate::tools::jev_suggest::JevDecision;
 use crate::tools::jev_suggest::last_user_question;
 use crate::tools::jev_suggest::suggest_direct_mcp_tools;
 use crate::tools::parallel::ToolCallRuntime;
@@ -1466,26 +1467,34 @@ pub(crate) async fn built_tools(
     if let Some(question) = question.as_deref() {
         crate::session::strategy_runtime::record_turn_user_text(sess, turn_context, question).await;
     }
-    // Question-driven Jev suggestion: rerank the MCP pool against this turn's
-    // question and advertise only the top picks directly; the rest stay
-    // discoverable through `tool_search`. Only applies when the search-tool
-    // fallback exists; otherwise the previous exposure is kept (fail-open).
-    let mcp_tool_exposure = if search_tool_enabled(turn_context) {
-        if let Some(question) = question {
+    // Question-driven Jev suggestion: rerank the tool pool against this
+    // turn's question and advertise only the top picks directly; the rest
+    // stay discoverable through `tool_search`. Universal mode (builtins
+    // included) runs inside the spec planner; MCP-only mode reranks here.
+    // Both fail-open and report their skip reason for the TUI.
+    let jev_cfg = &turn_context.config.tool_suggest_jev;
+    let universal_jev = search_tool_enabled(turn_context)
+        && jev_cfg.enabled
+        && jev_cfg.include_all_tools
+        && question.is_some();
+    let (mcp_tool_exposure, legacy_hint) = if universal_jev {
+        (mcp_tool_exposure, None)
+    } else if search_tool_enabled(turn_context) {
+        if let Some(question) = question.as_deref() {
             let repo = repo_name(turn_context);
             let original = mcp_tool_exposure.clone();
             let outcome = suggest_direct_mcp_tools(
-                &question,
+                question,
                 repo,
                 mcp_tool_exposure,
-                &turn_context.config.tool_suggest_jev,
+                jev_cfg,
                 strategy_context.as_ref(),
             )
             .await;
             match outcome {
-                Some((exposure, suggested)) => {
+                JevDecision::Suggested((exposure, suggested)) => {
                     let jev_hint = (!suggested.scores.is_empty())
-                        .then(|| JevToolPriorityHint::new(suggested.scores.clone()));
+                        .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
                     sess.send_event(
                         turn_context,
                         EventMsg::JevToolSuggestion(
@@ -1496,13 +1505,19 @@ pub(crate) async fn built_tools(
                                 no_match: suggested.no_match,
                                 strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                                 node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
+                                skip_reason: None,
                             },
                         ),
                     )
                     .await;
                     (exposure, jev_hint)
                 }
-                None => (original, None),
+                JevDecision::Skipped { reason } => {
+                    emit_jev_skip_event(sess, turn_context, &reason, strategy_context.as_ref())
+                        .await;
+                    (original, None)
+                }
+                JevDecision::Disabled => (original, None),
             }
         } else {
             (mcp_tool_exposure, None)
@@ -1512,15 +1527,15 @@ pub(crate) async fn built_tools(
     };
     // Strategy strong priors override the exposure split deterministically:
     // favored tools are always advertised directly (fail-open, order kept).
-    let (mcp_tool_exposure, jev_hint) = match strategy_context.as_ref() {
+    let (mcp_tool_exposure, strong_prior_hint) = match strategy_context.as_ref() {
         Some(ctx) if !ctx.strong_prior_tools.is_empty() => {
             let (exposure, hint) = (
-                force_direct_mcp_tools(mcp_tool_exposure.0, &ctx.strong_prior_tools),
-                mcp_tool_exposure.1,
+                force_direct_mcp_tools(mcp_tool_exposure, &ctx.strong_prior_tools),
+                legacy_hint,
             );
             (exposure, hint)
         }
-        _ => mcp_tool_exposure,
+        _ => (mcp_tool_exposure, legacy_hint),
     };
     let mcp_tools = has_mcp_servers.then_some(mcp_tool_exposure.direct_tools);
     let deferred_mcp_tools = mcp_tool_exposure.deferred_tools;
@@ -1528,7 +1543,7 @@ pub(crate) async fn built_tools(
         let state = sess.state.lock().await;
         state.tool_selection.clone()
     };
-    let (router, inventory) = ToolRouter::from_context(
+    let (router, inventory, universal_outcome) = ToolRouter::from_context(
         step_context,
         ToolRouterParams {
             tool_selection,
@@ -1537,14 +1552,89 @@ pub(crate) async fn built_tools(
             tool_suggest_candidates,
             extension_tool_executors: extension_tool_executors(sess),
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
+            jev_universal: universal_jev.then(|| crate::tools::router::JevUniversalInput {
+                question: question.expect("checked by universal_jev"),
+                repo: repo_name(turn_context),
+                strategy: strategy_context.clone(),
+            }),
         },
         &sess.services.tool_search_handler_cache,
-    );
+    )
+    .await;
+    let jev_hint = if universal_jev {
+        match universal_outcome.suggested {
+            Some(suggested) => {
+                let hint = (!suggested.scores.is_empty())
+                    .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
+                sess.send_event(
+                    turn_context,
+                    EventMsg::JevToolSuggestion(codex_protocol::protocol::JevToolSuggestionEvent {
+                        turn_id: turn_context.sub_id.to_string(),
+                        tools: suggested.suggested_names,
+                        scores: suggested.scores,
+                        no_match: suggested.no_match,
+                        strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
+                        node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
+                        skip_reason: None,
+                    }),
+                )
+                .await;
+                hint
+            }
+            None => {
+                if let Some(reason) = universal_outcome.skip_reason.as_deref() {
+                    emit_jev_skip_event(sess, turn_context, reason, strategy_context.as_ref())
+                        .await;
+                }
+                None
+            }
+        }
+    } else {
+        strong_prior_hint
+    };
     {
         let mut state = sess.state.lock().await;
         state.tool_inventory = inventory;
     }
     Ok((Arc::new(router), jev_hint))
+}
+
+/// Model-visible names for the priority hint: strip the `namespace/` prefix
+/// from TUI tracker keys so the hint names match the tool specs the model
+/// actually sees (builtins are bare names; MCP tools use their callable name).
+fn hint_display_names(scores: &[(String, f32)]) -> Vec<String> {
+    scores
+        .iter()
+        .map(|(key, _)| {
+            key.split_once('/')
+                .map(|(_, name)| name)
+                .unwrap_or(key)
+                .to_string()
+        })
+        .collect()
+}
+
+/// Emits a `JevToolSuggestion` event with no picks so the TUI can explain why
+/// Jev did not run for this turn.
+async fn emit_jev_skip_event(
+    sess: &Session,
+    turn_context: &TurnContext,
+    reason: &str,
+    strategy_context: Option<&crate::session::strategy_runtime::StrategyTurnContext>,
+) {
+    sess.send_event(
+        turn_context,
+        EventMsg::JevToolSuggestion(codex_protocol::protocol::JevToolSuggestionEvent {
+            turn_id: turn_context.sub_id.to_string(),
+            tools: Vec::new(),
+            scores: Vec::new(),
+            no_match: false,
+            strategy: strategy_context.map(|ctx| ctx.name.clone()),
+            node: strategy_context.map(|ctx| ctx.node.clone()),
+            skip_reason: Some(reason.to_string()),
+        }),
+    )
+    .await;
 }
 
 /// Moves strategy strong-prior tools into the direct list regardless of the

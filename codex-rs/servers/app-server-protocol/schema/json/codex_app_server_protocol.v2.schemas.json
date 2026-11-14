@@ -8270,6 +8270,13 @@
           },
           "type": "array"
         },
+        "skipReason": {
+          "description": "Human-readable reason Jev did not run this turn (fail-open skip). `None` when Jev produced a suggestion or is disabled in config.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "strategy": {
           "description": "Strategy name when a `/plan <strategy>` harness tuned the ranking.",
           "type": [

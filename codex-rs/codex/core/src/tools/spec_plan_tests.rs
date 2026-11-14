@@ -185,7 +185,7 @@ async fn probe_with(
     configure_turn(&mut turn);
     let turn = Arc::new(turn);
     let step_context = StepContext::for_test(Arc::clone(&turn));
-    let (router, _inventory) = ToolRouter::from_context(
+    let (router, _inventory, _jev_outcome) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -194,9 +194,11 @@ async fn probe_with(
             deferred_mcp_tools: inputs.deferred_mcp_tools,
             extension_tool_executors: inputs.extension_tool_executors,
             dynamic_tools: inputs.dynamic_tools.as_slice(),
+            jev_universal: None,
         },
         &Default::default(),
-    );
+    )
+    .await;
     ToolPlanProbe::from_router(router)
 }
 
@@ -701,7 +703,7 @@ async fn environment_tools_follow_the_step_context() {
         /*loaded_agents_md*/ None,
     ));
 
-    let (router, _inventory) = ToolRouter::from_context(
+    let (router, _inventory, _jev_outcome) = ToolRouter::from_context(
         step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -710,9 +712,11 @@ async fn environment_tools_follow_the_step_context() {
             tool_suggest_candidates: None,
             extension_tool_executors: Vec::new(),
             dynamic_tools: &[],
+            jev_universal: None,
         },
         &Default::default(),
-    );
+    )
+    .await;
     let plan = ToolPlanProbe::from_router(router);
 
     plan.assert_visible_contains(&["exec_command", "apply_patch", "view_image"]);
@@ -863,7 +867,7 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
     first_turn.model_info.supports_search_tool = true;
     let first_turn = Arc::new(first_turn);
     let first_step_context = StepContext::for_test(Arc::clone(&first_turn));
-    let first_router = ToolRouter::from_context(
+    let (first_router, _inv, _jev1) = ToolRouter::from_context(
         first_step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -872,16 +876,18 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
             tool_suggest_candidates: None,
             extension_tool_executors: Vec::new(),
             dynamic_tools: &[],
+            jev_universal: None,
         },
         &cache,
-    );
-    let first_plan = ToolPlanProbe::from_router(first_router.0);
+    )
+    .await;
+    let first_plan = ToolPlanProbe::from_router(first_router);
 
     let (_session, mut second_turn) = make_session_and_context().await;
     second_turn.model_info.supports_search_tool = true;
     let second_turn = Arc::new(second_turn);
     let second_step_context = StepContext::for_test(Arc::clone(&second_turn));
-    let second_router = ToolRouter::from_context(
+    let (second_router, _inv2, _jev2) = ToolRouter::from_context(
         second_step_context.as_ref(),
         ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -890,10 +896,12 @@ async fn tool_search_cache_rebuilds_when_deferred_sources_change() {
             tool_suggest_candidates: None,
             extension_tool_executors: Vec::new(),
             dynamic_tools: &[],
+            jev_universal: None,
         },
         &cache,
-    );
-    let second_plan = ToolPlanProbe::from_router(second_router.0);
+    )
+    .await;
+    let second_plan = ToolPlanProbe::from_router(second_router);
 
     let ToolSpec::ToolSearch {
         description: first_description,

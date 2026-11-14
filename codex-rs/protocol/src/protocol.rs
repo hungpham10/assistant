@@ -1971,6 +1971,9 @@ pub struct JevToolSuggestionEvent {
     pub strategy: Option<String>,
     /// Strategy step (node) that was active for this turn.
     pub node: Option<String>,
+    /// Human-readable reason Jev did not run this turn (fail-open skip).
+    /// `None` when Jev produced a suggestion or is disabled in config.
+    pub skip_reason: Option<String>,
 }
 
 /// Strategy-harness step transition emitted by `/plan <strategy>` sessions.
