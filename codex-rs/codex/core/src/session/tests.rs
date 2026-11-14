@@ -7995,7 +7995,8 @@ async fn built_tools_uses_the_step_mcp_runtime() -> anyhow::Result<()> {
         &CancellationToken::new(),
         None,
     )
-    .await?;
+    .await?
+    .0;
     assert!(
         !router
             .registered_tool_names_for_test()

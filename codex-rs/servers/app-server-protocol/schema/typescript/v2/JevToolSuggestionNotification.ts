@@ -15,6 +15,10 @@ threadId: string | null, turnId: string,
  */
 tools: Array<string>,
 /**
+ * Strategy-adjusted probability per advertised tool, sorted descending.
+ */
+scores: Array<[string, number]>,
+/**
  * `true` when Jev found no relevant tools.
  */
 noMatch: boolean,

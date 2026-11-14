@@ -607,7 +607,7 @@ fn tool_usage_lines(tool_usage: &StatusToolUsageData) -> Vec<Line<'static>> {
         for row in &tool_usage.top {
             let mut spans = vec![
                 "        ".into(),
-                Span::from("└ ".dim()),
+                "└ ".dim(),
                 Span::from(format!("{} ", row.calls)).bold(),
                 Span::from(row.name.clone()),
             ];
@@ -629,7 +629,7 @@ fn tool_usage_lines(tool_usage: &StatusToolUsageData) -> Vec<Line<'static>> {
         for row in &tool_usage.suggested_unused {
             lines.push(Line::from(vec![
                 "        ".into(),
-                Span::from("└ ".dim()),
+                "└ ".dim(),
                 Span::from(format!("{} ", row.jev_suggestions)).bold(),
                 Span::from(row.name.clone()),
                 Span::from(" ⇢ Jev, never called").dim(),

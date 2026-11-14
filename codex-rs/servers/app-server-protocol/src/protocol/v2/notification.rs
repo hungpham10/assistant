@@ -45,6 +45,8 @@ pub struct JevToolSuggestionNotification {
     pub turn_id: String,
     /// Tools advertised directly for this turn, as `server/tool`.
     pub tools: Vec<String>,
+    /// Strategy-adjusted probability per advertised tool, sorted descending.
+    pub scores: Vec<(String, f32)>,
     /// `true` when Jev found no relevant tools.
     pub no_match: bool,
     /// Strategy name when a `/plan <strategy>` harness tuned the ranking.

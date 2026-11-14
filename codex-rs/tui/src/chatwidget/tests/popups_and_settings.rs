@@ -51,6 +51,7 @@ async fn experimental_mode_plan_is_ignored_on_startup() {
         initial_plan_type: None,
         model: Some(resolved_model.clone()),
         startup_tooltip_override: None,
+        debug: false,
         status_line_invalid_items_warned: Arc::new(AtomicBool::new(false)),
         terminal_title_invalid_items_warned: Arc::new(AtomicBool::new(false)),
         session_telemetry,

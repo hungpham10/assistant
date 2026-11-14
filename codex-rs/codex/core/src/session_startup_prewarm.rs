@@ -276,7 +276,8 @@ async fn schedule_startup_prewarm_inner(
         &startup_cancellation_token,
         None,
     )
-    .await?;
+    .await?
+    .0;
     startup_turn_context.session_telemetry.record_startup_phase(
         "startup_prewarm_build_tools",
         built_tools_started_at.elapsed(),

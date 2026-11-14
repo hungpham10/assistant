@@ -1963,6 +1963,8 @@ pub struct JevToolSuggestionEvent {
     /// MCP tools Jev advertised directly for this turn, as `server/tool`
     /// (matching the TUI tracker keys).
     pub tools: Vec<String>,
+    /// Strategy-adjusted probability per advertised tool, sorted descending.
+    pub scores: Vec<(String, f32)>,
     /// `true` when Jev found no relevant tools and everything stayed deferred.
     pub no_match: bool,
     /// Strategy name when a `/plan <strategy>` harness tuned the ranking.
