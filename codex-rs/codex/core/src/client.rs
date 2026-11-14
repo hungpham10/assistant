@@ -3008,7 +3008,9 @@ impl ModelClientSession {
                     function_declarations.push(GoogleFunctionDeclaration {
                         name: tool.name.clone(),
                         description: Some(tool.description.clone()),
-                        parameters: serde_json::to_value(&tool.parameters).ok(),
+                        parameters: serde_json::to_value(&tool.parameters)
+                            .ok()
+                            .map(codex_tools::strip_unsupported_keys_for_google),
                     });
                 }
             }
