@@ -1468,61 +1468,71 @@ pub(crate) async fn built_tools(
         crate::session::strategy_runtime::record_turn_user_text(sess, turn_context, question).await;
     }
     // Question-driven Jev suggestion: rerank the tool pool against this
-    // turn's question and advertise only the top picks directly; the rest
-    // stay discoverable through `tool_search`. Universal mode (builtins
-    // included) runs inside the spec planner; MCP-only mode reranks here.
-    // Both fail-open and report their skip reason for the TUI.
+    // turn's question. With the search tool available, non-picked tools are
+    // demoted and stay discoverable through `tool_search`; without it, Jev
+    // runs hint-only (every tool stays advertised, the hint only sets
+    // preference order). Universal mode (builtins included) runs inside the
+    // spec planner; MCP-only mode reranks here. Both fail-open and report
+    // their skip reason for the TUI.
     let jev_cfg = &turn_context.config.tool_suggest_jev;
-    let universal_jev = search_tool_enabled(turn_context)
-        && jev_cfg.enabled
-        && jev_cfg.include_all_tools
-        && question.is_some();
+    let demote = search_tool_enabled(turn_context);
+    let universal_jev = jev_cfg.enabled && jev_cfg.include_all_tools && question.is_some();
     let (mcp_tool_exposure, legacy_hint) = if universal_jev {
         (mcp_tool_exposure, None)
-    } else if search_tool_enabled(turn_context) {
-        if let Some(question) = question.as_deref() {
-            let repo = repo_name(turn_context);
-            let original = mcp_tool_exposure.clone();
-            let outcome = suggest_direct_mcp_tools(
-                question,
-                repo,
-                mcp_tool_exposure,
-                jev_cfg,
-                strategy_context.as_ref(),
-            )
-            .await;
-            match outcome {
-                JevDecision::Suggested((exposure, suggested)) => {
-                    let jev_hint = (!suggested.scores.is_empty())
-                        .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
-                    sess.send_event(
-                        turn_context,
-                        EventMsg::JevToolSuggestion(
-                            codex_protocol::protocol::JevToolSuggestionEvent {
-                                turn_id: turn_context.sub_id.to_string(),
-                                tools: suggested.names,
-                                scores: suggested.scores,
-                                no_match: suggested.no_match,
-                                strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
-                                node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
-                                skip_reason: None,
-                            },
-                        ),
-                    )
-                    .await;
+    } else if let Some(question) = question.as_deref() {
+        let repo = repo_name(turn_context);
+        let original = mcp_tool_exposure.clone();
+        let outcome = suggest_direct_mcp_tools(
+            question,
+            repo,
+            mcp_tool_exposure,
+            jev_cfg,
+            strategy_context.as_ref(),
+        )
+        .await;
+        match outcome {
+            JevDecision::Suggested((exposure, suggested)) => {
+                let jev_hint = (!suggested.scores.is_empty())
+                    .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
+                sess.send_event(
+                    turn_context,
+                    EventMsg::JevToolSuggestion(codex_protocol::protocol::JevToolSuggestionEvent {
+                        turn_id: turn_context.sub_id.to_string(),
+                        tools: suggested.names,
+                        scores: suggested.scores,
+                        no_match: suggested.no_match,
+                        strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
+                        node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
+                        skip_reason: None,
+                    }),
+                )
+                .await;
+                // Hint-only without the search tool: keeping the exposure
+                // untouched means deferred MCP tools would be unreachable.
+                if demote {
                     (exposure, jev_hint)
+                } else {
+                    (original, jev_hint)
                 }
-                JevDecision::Skipped { reason } => {
-                    emit_jev_skip_event(sess, turn_context, &reason, strategy_context.as_ref())
-                        .await;
-                    (original, None)
-                }
-                JevDecision::Disabled => (original, None),
             }
-        } else {
-            (mcp_tool_exposure, None)
+            JevDecision::Skipped { reason } => {
+                emit_jev_skip_event(sess, turn_context, &reason, strategy_context.as_ref()).await;
+                (original, None)
+            }
+            JevDecision::Disabled => (original, None),
         }
     } else {
+        emit_jev_skip_event(
+            sess,
+            turn_context,
+            if jev_cfg.enabled {
+                "no user question this turn"
+            } else {
+                "tool_suggest_jev disabled in config"
+            },
+            strategy_context.as_ref(),
+        )
+        .await;
         (mcp_tool_exposure, None)
     };
     // Strategy strong priors override the exposure split deterministically:
@@ -1556,6 +1566,7 @@ pub(crate) async fn built_tools(
                 question: question.expect("checked by universal_jev"),
                 repo: repo_name(turn_context),
                 strategy: strategy_context.clone(),
+                demote,
             }),
         },
         &sess.services.tool_search_handler_cache,

@@ -233,9 +233,11 @@ async fn build_tool_specs_and_registry(
 }
 
 /// Universal Jev pass: reranks every planned tool (builtins included) against
-/// the turn's question and demotes non-picked, non-essential tools to
-/// `Deferred` so they stay discoverable through `tool_search`. Runs before
-/// `append_tool_search_executor` so demoted tools are indexed for search.
+/// the turn's question. With demotion enabled, non-picked non-essential tools
+/// are demoted to `Deferred` so they stay discoverable through `tool_search`
+/// (runs before `append_tool_search_executor` so demoted tools are indexed).
+/// In hint-only mode (`demote == false`) suggestions are surfaced for the
+/// priority hint but every tool keeps its exposure.
 #[instrument(level = "trace", skip_all)]
 async fn apply_jev_universal_selection(
     turn_context: &TurnContext,
@@ -288,7 +290,10 @@ async fn apply_jev_universal_selection(
         });
     }
     if entries.iter().all(|entry| entry.essential) {
-        return crate::tools::jev_suggest::JevRoutingOutcome::none();
+        return crate::tools::jev_suggest::JevRoutingOutcome {
+            suggested: None,
+            skip_reason: Some("all tools essential — nothing to rerank".into()),
+        };
     }
 
     let decision = crate::tools::jev_suggest::suggest_direct_tools(
@@ -306,29 +311,31 @@ async fn apply_jev_universal_selection(
             skip_reason: Some(reason),
         },
         JevDecision::Suggested(suggestion) => {
-            let deferred_keys: HashSet<(Option<String>, String)> = suggestion
-                .deferred_tools
-                .iter()
-                .map(|tool| (tool.namespace.clone(), tool.name.clone()))
-                .collect();
-            let direct_keys: HashSet<(Option<String>, String)> = suggestion
-                .direct_tools
-                .iter()
-                .map(|tool| (tool.namespace.clone(), tool.name.clone()))
-                .collect();
-            for runtime in &mut planned_tools.runtimes {
-                let tool_name = runtime.tool_name();
-                let key = (tool_name.namespace.clone(), tool_name.name);
-                match runtime.exposure() {
-                    ToolExposure::Direct if deferred_keys.contains(&key) => {
-                        *runtime =
-                            override_tool_exposure(Arc::clone(runtime), ToolExposure::Deferred);
+            if jev.demote {
+                let deferred_keys: HashSet<(Option<String>, String)> = suggestion
+                    .deferred_tools
+                    .iter()
+                    .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+                    .collect();
+                let direct_keys: HashSet<(Option<String>, String)> = suggestion
+                    .direct_tools
+                    .iter()
+                    .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+                    .collect();
+                for runtime in &mut planned_tools.runtimes {
+                    let tool_name = runtime.tool_name();
+                    let key = (tool_name.namespace.clone(), tool_name.name);
+                    match runtime.exposure() {
+                        ToolExposure::Direct if deferred_keys.contains(&key) => {
+                            *runtime =
+                                override_tool_exposure(Arc::clone(runtime), ToolExposure::Deferred);
+                        }
+                        ToolExposure::Deferred if direct_keys.contains(&key) => {
+                            *runtime =
+                                override_tool_exposure(Arc::clone(runtime), ToolExposure::Direct);
+                        }
+                        _ => {}
                     }
-                    ToolExposure::Deferred if direct_keys.contains(&key) => {
-                        *runtime =
-                            override_tool_exposure(Arc::clone(runtime), ToolExposure::Direct);
-                    }
-                    _ => {}
                 }
             }
             crate::tools::jev_suggest::JevRoutingOutcome {

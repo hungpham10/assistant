@@ -56,6 +56,10 @@ pub(crate) struct JevUniversalInput {
     pub(crate) question: String,
     pub(crate) repo: Option<String>,
     pub(crate) strategy: Option<crate::session::strategy_runtime::StrategyTurnContext>,
+    /// When false, Jev runs hint-only: suggestions are surfaced but every
+    /// tool keeps its exposure (used when the model has no search tool, so
+    /// deferring tools would make them unreachable).
+    pub(crate) demote: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
