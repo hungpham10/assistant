@@ -2375,6 +2375,24 @@
             "null"
           ]
         },
+        "scores": {
+          "description": "Strategy-adjusted probability per advertised tool, sorted descending.",
+          "items": {
+            "items": [
+              {
+                "type": "string"
+              },
+              {
+                "format": "float",
+                "type": "number"
+              }
+            ],
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          },
+          "type": "array"
+        },
         "strategy": {
           "description": "Strategy name when a `/plan <strategy>` harness tuned the ranking.",
           "type": [
@@ -2402,6 +2420,7 @@
       },
       "required": [
         "noMatch",
+        "scores",
         "tools",
         "turnId"
       ],

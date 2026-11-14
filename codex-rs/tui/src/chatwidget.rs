@@ -524,6 +524,8 @@ pub(crate) struct ChatWidgetInit {
     pub(crate) initial_plan_type: Option<PlanType>,
     pub(crate) model: Option<String>,
     pub(crate) startup_tooltip_override: Option<String>,
+    /// `--debug` CLI flag: show internal details such as Jev tool selection.
+    pub(crate) debug: bool,
     // Shared latch so we only warn once about invalid status-line item IDs.
     pub(crate) status_line_invalid_items_warned: Arc<AtomicBool>,
     // Shared latch so we only warn once about invalid terminal-title item IDs.
@@ -581,6 +583,8 @@ pub(crate) struct ChatWidget {
     next_status_refresh_request_id: u64,
     /// Per-tool usage statistics fed by completed tool calls and Jev suggestions.
     tool_usage: ToolUsageTracker,
+    /// `--debug` CLI flag: show internal details such as Jev tool selection.
+    pub(crate) debug: bool,
     /// Latest `/plan <strategy>` step notification for `/status`.
     pub(crate) strategy_step: Option<StrategyStepNotification>,
     /// One-shot `strategy` context entries staged by `/plan <strategy>` and

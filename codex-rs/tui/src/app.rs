@@ -751,6 +751,7 @@ impl App {
             initial_plan_type: self.chat_widget.current_plan_type(),
             model: Some(self.chat_widget.current_model().to_string()),
             startup_tooltip_override: None,
+            debug: self.chat_widget.debug,
             status_line_invalid_items_warned: self.status_line_invalid_items_warned.clone(),
             terminal_title_invalid_items_warned: self.terminal_title_invalid_items_warned.clone(),
             session_telemetry: self.session_telemetry.clone(),
@@ -778,6 +779,7 @@ impl App {
         startup_elapsed_before_app: Duration,
         startup_bootstrap: Option<AppServerBootstrap>,
         startup_hooks_browser: Option<HooksListEntry>,
+        debug: bool,
     ) -> Result<AppExitInfo> {
         use tokio_stream::StreamExt;
         let startup_started_at = Instant::now();
@@ -917,6 +919,7 @@ impl App {
                     initial_plan_type,
                     model: Some(model.clone()),
                     startup_tooltip_override,
+                    debug,
                     status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
                     terminal_title_invalid_items_warned: terminal_title_invalid_items_warned
                         .clone(),
@@ -957,6 +960,7 @@ impl App {
                     initial_plan_type,
                     model: config.model.clone(),
                     startup_tooltip_override: None,
+                    debug,
                     status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
                     terminal_title_invalid_items_warned: terminal_title_invalid_items_warned
                         .clone(),
@@ -996,6 +1000,7 @@ impl App {
                     initial_plan_type,
                     model: config.model.clone(),
                     startup_tooltip_override: None,
+                    debug,
                     status_line_invalid_items_warned: status_line_invalid_items_warned.clone(),
                     terminal_title_invalid_items_warned: terminal_title_invalid_items_warned
                         .clone(),

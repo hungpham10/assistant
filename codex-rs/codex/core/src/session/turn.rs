@@ -18,6 +18,7 @@ use crate::compact_remote::run_inline_remote_auto_compact_task;
 use crate::compact_remote_v2::run_inline_remote_auto_compact_task as run_inline_remote_auto_compact_task_v2;
 use crate::connectors;
 use crate::context::ContextualUserFragment;
+use crate::context::JevToolPriorityHint;
 use crate::feedback_tags;
 use crate::hook_runtime::inspect_pending_input;
 use crate::hook_runtime::record_additional_contexts;
@@ -1228,17 +1229,23 @@ async fn run_sampling_request(
     turn_diff_tracker: SharedTurnDiffTracker,
     client_session: &mut ModelClientSession,
     responses_metadata: &CodexResponsesMetadata,
-    input: Vec<ResponseItem>,
+    mut input: Vec<ResponseItem>,
     cancellation_token: CancellationToken,
 ) -> CodexResult<(SamplingRequestResult, Vec<ResponseItem>)> {
     let turn_context = Arc::clone(&step_context.turn);
-    let router = built_tools(
-        sess.as_ref(),
-        step_context.as_ref(),
-        &cancellation_token,
-        Some(input.as_slice()),
-    )
-    .await?;
+    let router = {
+        let (router, jev_hint) = built_tools(
+            sess.as_ref(),
+            step_context.as_ref(),
+            &cancellation_token,
+            Some(input.as_slice()),
+        )
+        .await?;
+        if let Some(hint) = jev_hint {
+            input.push(ContextualUserFragment::into(hint));
+        }
+        router
+    };
 
     let base_instructions = sess.get_base_instructions().await;
 
@@ -1337,7 +1344,7 @@ pub(crate) async fn built_tools(
     step_context: &StepContext,
     cancellation_token: &CancellationToken,
     query: Option<&[ResponseItem]>,
-) -> CodexResult<Arc<ToolRouter>> {
+) -> CodexResult<(Arc<ToolRouter>, Option<JevToolPriorityHint>)> {
     let turn_context = step_context.turn.as_ref();
     let mcp_connection_manager = step_context.mcp.manager();
     let has_mcp_servers = mcp_connection_manager.has_servers();
@@ -1477,12 +1484,15 @@ pub(crate) async fn built_tools(
             .await;
             match outcome {
                 Some((exposure, suggested)) => {
+                    let jev_hint = (!suggested.scores.is_empty())
+                        .then(|| JevToolPriorityHint::new(suggested.scores.clone()));
                     sess.send_event(
                         turn_context,
                         EventMsg::JevToolSuggestion(
                             codex_protocol::protocol::JevToolSuggestionEvent {
                                 turn_id: turn_context.sub_id.to_string(),
                                 tools: suggested.names,
+                                scores: suggested.scores,
                                 no_match: suggested.no_match,
                                 strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                                 node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
@@ -1490,21 +1500,25 @@ pub(crate) async fn built_tools(
                         ),
                     )
                     .await;
-                    exposure
+                    (exposure, jev_hint)
                 }
-                None => original,
+                None => (original, None),
             }
         } else {
-            mcp_tool_exposure
+            (mcp_tool_exposure, None)
         }
     } else {
-        mcp_tool_exposure
+        (mcp_tool_exposure, None)
     };
     // Strategy strong priors override the exposure split deterministically:
     // favored tools are always advertised directly (fail-open, order kept).
-    let mcp_tool_exposure = match strategy_context.as_ref() {
+    let (mcp_tool_exposure, jev_hint) = match strategy_context.as_ref() {
         Some(ctx) if !ctx.strong_prior_tools.is_empty() => {
-            force_direct_mcp_tools(mcp_tool_exposure, &ctx.strong_prior_tools)
+            let (exposure, hint) = (
+                force_direct_mcp_tools(mcp_tool_exposure.0, &ctx.strong_prior_tools),
+                mcp_tool_exposure.1,
+            );
+            (exposure, hint)
         }
         _ => mcp_tool_exposure,
     };
@@ -1530,7 +1544,7 @@ pub(crate) async fn built_tools(
         let mut state = sess.state.lock().await;
         state.tool_inventory = inventory;
     }
-    Ok(Arc::new(router))
+    Ok((Arc::new(router), jev_hint))
 }
 
 /// Moves strategy strong-prior tools into the direct list regardless of the

@@ -1,15 +1,12 @@
 //! Tests cho `jev_suggest` — phần thuần (mapping, fail-open) chạy offline.
 
-use super::JevOutcome;
 use super::build_planning_state;
-use super::call_jev_planning;
 use super::last_user_question;
 use super::parse_jev_reply;
 use super::suggest_direct_mcp_tools;
 use super::tool_label;
 use super::truncate_chars;
 use crate::mcp_tool_exposure::McpToolExposure;
-use codegraph_core::JevConfig;
 use codex_config::types::ToolSuggestJevConfig;
 use codex_mcp::ToolInfo as McpToolInfo;
 use codex_protocol::models::ContentItem;
@@ -445,5 +442,54 @@ fn strategy_weights_without_match_keep_ranking() {
         apply_strategy_weights(ranking, &pool_keys, None),
         vec![(0u64, 0.7f32)],
         "no strategy leaves the ranking untouched"
+    );
+}
+
+#[test]
+fn select_direct_ids_threshold_then_fill() {
+    use super::select_direct_ids;
+
+    // Ranked: s1 (0.9), s0 (0.3). min_prob 0.5 picks only s1 first; the
+    // second pass fills s0 to reach min_tools = 2.
+    let ranking = vec![(1u64, 0.9f32), (0u64, 0.3f32)];
+    let picks = select_direct_ids(&ranking, 0.5, 2, 6);
+    assert_eq!(picks, std::collections::HashSet::from([0usize, 1usize]));
+
+    // Without the fill (min_tools = 1) only s1 clears the threshold.
+    let picks = select_direct_ids(&ranking, 0.5, 1, 6);
+    assert_eq!(picks, std::collections::HashSet::from([1usize]));
+
+    // max_tools caps the selection.
+    let ranking = vec![(0u64, 0.9f32), (1u64, 0.8f32), (2u64, 0.7f32)];
+    let picks = select_direct_ids(&ranking, 0.1, 1, 2);
+    assert_eq!(picks.len(), 2);
+}
+
+#[test]
+fn strategy_weights_move_tools_across_threshold() {
+    use super::apply_strategy_weights;
+    use super::select_direct_ids;
+    use crate::session::strategy_runtime::StrategyTurnContext;
+
+    // Jev ranks s0 (favored) at 0.9 and s1 at 0.1. With weight 0.1 on s0 the
+    // renormalized score drops below the 0.5 threshold, so only s1 is picked
+    // when min_tools = 1 — proving selection consumes the adjusted ranking.
+    let pool_keys = vec!["srv/favored".to_string(), "srv/plain".to_string()];
+    let ranking = vec![(0u64, 0.9f32), (1u64, 0.1f32)];
+    let mut weights = std::collections::HashMap::new();
+    weights.insert("srv/favored".to_string(), 0.1f32);
+    let strategy = StrategyTurnContext {
+        name: "s".into(),
+        node: "n".into(),
+        guidance: String::new(),
+        tool_weights: weights,
+        strong_prior_tools: Vec::new(),
+    };
+    let adjusted = apply_strategy_weights(ranking, &pool_keys, Some(&strategy));
+    let picks = select_direct_ids(&adjusted, 0.5, 1, 6);
+    assert_eq!(
+        picks,
+        std::collections::HashSet::from([1usize]),
+        "selection uses the strategy-adjusted probabilities: {adjusted:?}"
     );
 }

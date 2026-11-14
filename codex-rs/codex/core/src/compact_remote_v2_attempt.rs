@@ -71,7 +71,8 @@ pub(super) async fn run_remote_compact_v2_attempt(
         &CancellationToken::new(),
         /*query*/ None,
     )
-    .await?;
+    .await?
+    .0;
     let mut input = prompt_input.clone();
     input.push(ResponseItem::CompactionTrigger {});
     let prompt = Prompt {

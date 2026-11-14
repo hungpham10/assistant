@@ -95,6 +95,8 @@ pub(crate) fn last_user_question(input: &[ResponseItem]) -> Option<String> {
 #[derive(Debug, Clone)]
 pub(crate) struct JevSuggestedTools {
     pub(crate) names: Vec<String>,
+    /// Strategy-adjusted probability per advertised tool, sorted descending.
+    pub(crate) scores: Vec<(String, f32)>,
     pub(crate) no_match: bool,
 }
 
@@ -225,6 +227,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
             },
             JevSuggestedTools {
                 names: Vec::new(),
+                scores: Vec::new(),
                 no_match: true,
             },
         ));
@@ -232,34 +235,16 @@ pub(crate) async fn suggest_direct_mcp_tools(
 
     // Strategy matrix: multiply Jev's returned percentiles by the active
     // step's tool weights, then renormalize so favored tools compete.
-    let ranking = apply_strategy_weights(outcome.ranking.clone(), &pool_keys, strategy);
+    let ranking = apply_strategy_weights(outcome.ranking, &pool_keys, strategy);
 
-    // Select tools: first take those above min_probability, then fill up to min_direct_tools
-    let min_prob = jev_cfg.min_probability;
-    let min_tools = min_direct_tool_limit(cfg);
-    let max_tools = direct_tool_limit(cfg);
-
-    let mut picks: HashSet<usize> = HashSet::new();
-
-    // First pass: tools above probability threshold
-    for (id, prob) in &outcome.ranking {
-        if *prob >= min_prob && picks.len() < max_tools {
-            picks.insert(*id as usize);
-        }
-    }
-
-    // Second pass: fill up to min_direct_tools from ranked list regardless of probability
-    for (id, _) in &outcome.ranking {
-        if picks.len() >= min_tools {
-            break;
-        }
-        if picks.len() < max_tools {
-            picks.insert(*id as usize);
-        }
-    }
-
-    // Cap at max_tools
-    let picks: Vec<usize> = picks.into_iter().take(max_tools).collect();
+    // Select tools from the strategy-adjusted ranking so weights actually
+    // move tools across the `min_probability` threshold.
+    let picks = select_direct_ids(
+        &ranking,
+        jev_cfg.min_probability,
+        min_direct_tool_limit(cfg),
+        direct_tool_limit(cfg),
+    );
 
     let mut direct = Vec::new();
     let mut deferred = Vec::new();
@@ -275,6 +260,21 @@ pub(crate) async fn suggest_direct_mcp_tools(
     if direct.is_empty() {
         return None;
     }
+    // Scored view of the advertised tools: strategy-adjusted probability per
+    // pick, sorted descending so callers can surface a priority order.
+    let rank_by_id: std::collections::HashMap<u64, f32> = ranking.iter().copied().collect();
+    let mut scores: Vec<(String, f32)> = direct
+        .iter()
+        .filter_map(|tool| {
+            let key = format!("{}/{}", tool.server_name, tool.tool.name);
+            pool_keys
+                .iter()
+                .position(|candidate| *candidate == key)
+                .and_then(|index| rank_by_id.get(&(index as u64)).copied())
+                .map(|prob| (key, prob))
+        })
+        .collect();
+    scores.sort_by(|a, b| b.1.total_cmp(&a.1));
     tracing::info!(
         direct = %direct
             .iter()
@@ -290,6 +290,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
         },
         JevSuggestedTools {
             names: suggested,
+            scores,
             no_match: false,
         },
     ))
@@ -498,6 +499,37 @@ pub(crate) fn apply_strategy_weights(
     adjusted
 }
 
+/// Picks the pool indices to advertise directly from the (strategy-adjusted)
+/// ranking: first pass takes tools at or above `min_prob` in rank order,
+/// second pass fills up to `min_tools` regardless of probability, capped at
+/// `max_tools` overall.
+fn select_direct_ids(
+    ranking: &[(u64, f32)],
+    min_prob: f32,
+    min_tools: usize,
+    max_tools: usize,
+) -> HashSet<usize> {
+    let mut picks: HashSet<usize> = HashSet::new();
+
+    // First pass: tools above probability threshold
+    for (id, prob) in ranking {
+        if *prob >= min_prob && picks.len() < max_tools {
+            picks.insert(*id as usize);
+        }
+    }
+
+    // Second pass: fill up to min_direct_tools from ranked list regardless of probability
+    for (id, _) in ranking {
+        if picks.len() >= min_tools {
+            break;
+        }
+        if picks.len() < max_tools {
+            picks.insert(*id as usize);
+        }
+    }
+
+    picks.into_iter().take(max_tools).collect()
+}
 /// Parses Jev reply into outcome.
 pub(crate) fn parse_jev_reply(raw: &str, candidates: &[(u64, String)]) -> JevOutcome {
     let reply: JevReply = match serde_json::from_str(raw) {

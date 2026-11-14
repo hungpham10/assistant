@@ -134,7 +134,7 @@ async fn strategy_turn_persists_snapshot_and_feedback_updates_model() -> Result<
 
     let server = start_mock_server().await;
     let test = test_codex().build(&server).await?;
-    write_strategy_file(&test.cwd.path())?;
+    write_strategy_file(test.cwd.path())?;
 
     let request = submit_lookup_turn(&test, &server).await?;
 
@@ -172,7 +172,7 @@ async fn strategy_state_is_restored_on_resume() -> Result<()> {
 
     let server = start_mock_server().await;
     let test = test_codex().build(&server).await?;
-    write_strategy_file(&test.cwd.path())?;
+    write_strategy_file(test.cwd.path())?;
     let home = Arc::clone(&test.home);
 
     // Activate the strategy and advance the walk with a failed tool call.

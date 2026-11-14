@@ -71,6 +71,11 @@ pub struct Cli {
     #[arg(long = "no-alt-screen", default_value_t = false)]
     pub no_alt_screen: bool,
 
+    /// Show internal debug details in the TUI, such as which tools Jev
+    /// selected for each turn with their ranking scores.
+    #[arg(long = "debug", default_value_t = false)]
+    pub debug: bool,
+
     #[clap(skip)]
     pub config_overrides: CliConfigOverrides,
 }

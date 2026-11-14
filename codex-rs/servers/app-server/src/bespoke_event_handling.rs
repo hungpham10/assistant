@@ -244,6 +244,7 @@ pub(crate) async fn apply_bespoke_event_handling(
                 thread_id: Some(conversation_id.to_string()),
                 turn_id: suggestion_event.turn_id,
                 tools: suggestion_event.tools,
+                scores: suggestion_event.scores,
                 no_match: suggestion_event.no_match,
                 strategy: suggestion_event.strategy,
                 node: suggestion_event.node,

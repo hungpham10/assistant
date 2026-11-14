@@ -65,7 +65,8 @@ pub(super) async fn run_remote_compact_attempt(
         &CancellationToken::new(),
         None,
     )
-    .await?;
+    .await?
+    .0;
     let prompt = Prompt {
         input: prompt_input,
         tools: tool_router.model_visible_specs(),
