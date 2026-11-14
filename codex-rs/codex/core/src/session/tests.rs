@@ -648,23 +648,26 @@ async fn preview_session_start_hooks(
     )
 }
 
-fn test_tool_runtime(session: Arc<Session>, turn_context: Arc<TurnContext>) -> ToolCallRuntime {
+async fn test_tool_runtime(
+    session: Arc<Session>,
+    turn_context: Arc<TurnContext>,
+) -> ToolCallRuntime {
     let step_context = StepContext::for_test(Arc::clone(&turn_context));
-    let router = Arc::new(
-        ToolRouter::from_context(
-            step_context.as_ref(),
-            crate::tools::router::ToolRouterParams {
-                tool_selection: crate::tools::selection::SessionToolSelection::default(),
-                tool_suggest_candidates: None,
-                mcp_tools: None,
-                deferred_mcp_tools: None,
-                extension_tool_executors: Vec::new(),
-                dynamic_tools: turn_context.dynamic_tools.as_slice(),
-            },
-            &Default::default(),
-        )
-        .0,
-    );
+    let (router, _inventory, _jev_outcome) = ToolRouter::from_context(
+        step_context.as_ref(),
+        crate::tools::router::ToolRouterParams {
+            tool_selection: crate::tools::selection::SessionToolSelection::default(),
+            tool_suggest_candidates: None,
+            mcp_tools: None,
+            deferred_mcp_tools: None,
+            extension_tool_executors: Vec::new(),
+            dynamic_tools: turn_context.dynamic_tools.as_slice(),
+            jev_universal: None,
+        },
+        &Default::default(),
+    )
+    .await;
+    let router = Arc::new(router);
     let tracker = Arc::new(tokio::sync::Mutex::new(TurnDiffTracker::new()));
     ToolCallRuntime::new(router, session, step_context, tracker)
 }
@@ -10435,7 +10438,7 @@ async fn tool_calls_reopen_mailbox_delivery_for_current_turn() {
         sess: Arc::clone(&sess),
         turn_context: Arc::clone(&tc),
         turn_store: Arc::new(codex_extension_api::ExtensionData::new(tc.sub_id.clone())),
-        tool_runtime: test_tool_runtime(Arc::clone(&sess), Arc::clone(&tc)),
+        tool_runtime: test_tool_runtime(Arc::clone(&sess), Arc::clone(&tc)).await,
         cancellation_token: CancellationToken::new(),
     };
 
@@ -10541,7 +10544,7 @@ async fn fatal_tool_error_stops_turn_and_reports_error() {
     };
     let deferred_mcp_tools = Some(tools.clone());
     let step_context = StepContext::for_test(Arc::clone(&turn_context));
-    let (router, _inventory) = ToolRouter::from_context(
+    let (router, _inventory, _jev_outcome) = ToolRouter::from_context(
         step_context.as_ref(),
         crate::tools::router::ToolRouterParams {
             tool_selection: crate::tools::selection::SessionToolSelection::default(),
@@ -10550,9 +10553,11 @@ async fn fatal_tool_error_stops_turn_and_reports_error() {
             mcp_tools: Some(tools),
             extension_tool_executors: Vec::new(),
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
+            jev_universal: None,
         },
         &Default::default(),
-    );
+    )
+    .await;
     let item = ResponseItem::CustomToolCall {
         id: None,
         status: None,
@@ -10908,6 +10913,7 @@ while :; do sleep 1; done"#,
     let cancellation_tx = cancellation_token.clone();
     let handle = tokio::spawn(
         test_tool_runtime(Arc::clone(&session), Arc::clone(&turn_context))
+            .await
             .handle_tool_call(call, cancellation_token),
     );
 

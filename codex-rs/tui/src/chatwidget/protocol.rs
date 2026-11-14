@@ -117,17 +117,31 @@ impl ChatWidget {
             }
             ServerNotification::JevToolSuggestion(notification) => {
                 self.tool_usage.record_jev_suggestions(&notification.tools);
-                if self.debug && !notification.no_match && !notification.scores.is_empty() {
-                    let detail = notification
-                        .scores
-                        .iter()
-                        .map(|(name, prob)| format!("{name} {}%", (prob * 100.0).round() as i64))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    self.add_to_history(history_cell::new_info_event(
-                        format!("Jev selected tools: {detail}"),
-                        None,
-                    ));
+                if self.debug {
+                    if let Some(reason) = notification.skip_reason.as_deref() {
+                        self.add_to_history(history_cell::new_info_event(
+                            format!("Jev skipped: {reason}"),
+                            None,
+                        ));
+                    } else if !notification.no_match && !notification.scores.is_empty() {
+                        let detail = notification
+                            .scores
+                            .iter()
+                            .map(|(name, prob)| {
+                                format!("{name} {}%", (prob * 100.0).round() as i64)
+                            })
+                            .collect::<Vec<_>>()
+                            .join(", ");
+                        self.add_to_history(history_cell::new_info_event(
+                            format!("Jev selected tools: {detail}"),
+                            None,
+                        ));
+                    } else if notification.no_match {
+                        self.add_to_history(history_cell::new_info_event(
+                            "Jev: no tools matched this request".to_string(),
+                            None,
+                        ));
+                    }
                 }
             }
             ServerNotification::StrategyStep(notification) => {

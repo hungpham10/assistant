@@ -45,6 +45,17 @@ pub(crate) struct ToolRouterParams<'a> {
     pub(crate) tool_suggest_candidates: Option<ToolSuggestCandidates>,
     pub(crate) extension_tool_executors: Vec<Arc<dyn ToolExecutor<ExtensionToolCall>>>,
     pub(crate) dynamic_tools: &'a [DynamicToolSpec],
+    /// Universal Jev input: when present, the spec planner reranks every tool
+    /// (builtins included) against this question and demotes non-picked tools.
+    pub(crate) jev_universal: Option<JevUniversalInput>,
+}
+
+/// Inputs for the universal Jev pass in the spec planner.
+#[derive(Clone)]
+pub(crate) struct JevUniversalInput {
+    pub(crate) question: String,
+    pub(crate) repo: Option<String>,
+    pub(crate) strategy: Option<crate::session::strategy_runtime::StrategyTurnContext>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -60,14 +71,18 @@ pub(crate) struct ToolSuggestCandidates {
 }
 
 impl ToolRouter {
-    pub(crate) fn from_context(
+    pub(crate) async fn from_context(
         step_context: &StepContext,
         params: ToolRouterParams<'_>,
         tool_search_handler_cache: &ToolSearchHandlerCache,
-    ) -> (Self, Vec<ToolInventoryEntry>) {
-        let (router, inventory) =
-            build_tool_router(step_context, params, tool_search_handler_cache);
-        (router, inventory)
+    ) -> (
+        Self,
+        Vec<ToolInventoryEntry>,
+        crate::tools::jev_suggest::JevRoutingOutcome,
+    ) {
+        let (router, inventory, jev_outcome) =
+            build_tool_router(step_context, params, tool_search_handler_cache).await;
+        (router, inventory, jev_outcome)
     }
 
     pub(crate) fn from_parts(registry: ToolRegistry, model_visible_specs: Vec<ToolSpec>) -> Self {

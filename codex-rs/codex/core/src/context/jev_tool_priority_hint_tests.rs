@@ -5,24 +5,27 @@ use crate::context::ContextualUserFragment;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn body_lists_tools_with_percentages_in_order() {
-    let hint = JevToolPriorityHint::new(vec![
-        ("srv/tool_a".to_string(), 0.852f32),
-        ("srv/tool_b".to_string(), 0.61f32),
-    ]);
+fn body_lists_tools_as_ranked_preferences() {
+    let hint = JevToolPriorityHint::new(vec!["tool_a".to_string(), "tool_b".to_string()]);
     let body = hint.body();
     assert_eq!(
         body,
-        "\nJev tool selection for this turn — prefer these tools when calling:\n\
-         - `srv/tool_a` — 85%\n\
-         - `srv/tool_b` — 61%\n\
-         Other MCP tools remain available via tool_search.\n"
+        "\nTool routing for this turn — call these tools first, in this order of preference:\n\
+         1. `tool_a`\n\
+         2. `tool_b`\n\
+         Every other tool is NOT attached this turn; to use another tool, first call `tool_search`.\n"
     );
 }
 
 #[test]
+fn body_does_not_render_scores() {
+    let hint = JevToolPriorityHint::new(vec!["tool".to_string()]);
+    assert!(!hint.body().contains('%'));
+}
+
+#[test]
 fn render_wraps_body_in_markers() {
-    let hint = JevToolPriorityHint::new(vec![("srv/tool".to_string(), 0.5f32)]);
+    let hint = JevToolPriorityHint::new(vec!["tool".to_string()]);
     let rendered = hint.render();
     assert!(rendered.starts_with("<jev_tool_priority>"));
     assert!(rendered.trim_end().ends_with("</jev_tool_priority>"));
@@ -30,10 +33,9 @@ fn render_wraps_body_in_markers() {
 }
 
 #[test]
-fn body_stops_before_exceeding_cap() {
-    let long_name = "srv/".to_string() + &"x".repeat(200);
-    let hint =
-        JevToolPriorityHint::new(std::iter::repeat_n((long_name, 0.5f32), 30).collect::<Vec<_>>());
+fn body_marks_truncation_and_stays_bounded() {
+    let long_name = "x".repeat(200);
+    let hint = JevToolPriorityHint::new(std::iter::repeat_n(long_name, 30).collect::<Vec<_>>());
     let rendered = hint.render();
     assert!(
         rendered.len()
@@ -41,6 +43,6 @@ fn body_stops_before_exceeding_cap() {
         "rendered hint must stay bounded: {}",
         rendered.len()
     );
-    // At least one tool line survived the cap.
-    assert!(rendered.contains("— 50%"));
+    // At least one tool line survived the cap and the truncation is visible.
+    assert!(rendered.contains("(list truncated)"));
 }

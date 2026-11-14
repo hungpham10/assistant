@@ -90,6 +90,25 @@ pub(crate) fn last_user_question(input: &[ResponseItem]) -> Option<String> {
     Some(truncate_chars(&text, MAX_QUESTION_CHARS))
 }
 
+/// Outcome of a Jev suggestion pass. `Disabled` means Jev is turned off in
+/// config (no event is emitted); `Skipped` carries a human-readable reason so
+/// the TUI can explain why Jev did not run this turn (fail-open).
+#[derive(Debug, Clone)]
+pub(crate) enum JevDecision<S> {
+    Disabled,
+    Skipped { reason: String },
+    Suggested(S),
+}
+
+impl<S> JevDecision<S> {
+    pub(crate) fn skip_reason(&self) -> Option<&str> {
+        match self {
+            JevDecision::Disabled | JevDecision::Suggested(_) => None,
+            JevDecision::Skipped { reason } => Some(reason),
+        }
+    }
+}
+
 /// Tools Jev advertised directly for one turn, for `/status` tool-usage stats.
 /// Names use the TUI tracker format `server/tool`.
 #[derive(Debug, Clone)]
@@ -170,9 +189,9 @@ pub(crate) async fn suggest_direct_mcp_tools(
     exposure: McpToolExposure,
     cfg: &ToolSuggestJevConfig,
     strategy: Option<&StrategyTurnContext>,
-) -> Option<(McpToolExposure, JevSuggestedTools)> {
+) -> JevDecision<(McpToolExposure, JevSuggestedTools)> {
     if !cfg.enabled {
-        return None;
+        return JevDecision::Disabled;
     }
     let pool: Vec<McpToolInfo> = exposure
         .direct_tools
@@ -181,7 +200,9 @@ pub(crate) async fn suggest_direct_mcp_tools(
         .chain(exposure.deferred_tools.iter().flatten().cloned())
         .collect();
     if pool.is_empty() {
-        return None;
+        return JevDecision::Skipped {
+            reason: "no MCP tools in pool".into(),
+        };
     }
 
     let jev_cfg = to_jev_config(cfg);
@@ -190,7 +211,14 @@ pub(crate) async fn suggest_direct_mcp_tools(
             api_key_env = %cfg.api_key_env.clone().unwrap_or_else(|| "OPENCODE_API_KEY".into()),
             "tool_suggest_jev skipped — missing token (fail-open)"
         );
-        return None;
+        return JevDecision::Skipped {
+            reason: format!(
+                "missing {} token",
+                cfg.api_key_env
+                    .clone()
+                    .unwrap_or_else(|| "OPENCODE_API_KEY".into())
+            ),
+        };
     }
 
     // Build candidates with labels for Jev; keys mirror the TUI tracker
@@ -216,11 +244,15 @@ pub(crate) async fn suggest_direct_mcp_tools(
     .await;
     if !outcome.used {
         tracing::info!(reason = ?outcome.reason, "tool_suggest_jev skipped — fail-open");
-        return None;
+        return JevDecision::Skipped {
+            reason: outcome
+                .reason
+                .unwrap_or_else(|| "Jev ranking unavailable".into()),
+        };
     }
     if outcome.no_match {
         tracing::info!("tool_suggest_jev found no relevant MCP tools — everything stays deferred");
-        return Some((
+        return JevDecision::Suggested((
             McpToolExposure {
                 direct_tools: Vec::new(),
                 deferred_tools: Some(pool),
@@ -258,7 +290,9 @@ pub(crate) async fn suggest_direct_mcp_tools(
         }
     }
     if direct.is_empty() {
-        return None;
+        return JevDecision::Skipped {
+            reason: "Jev selected no MCP tools".into(),
+        };
     }
     // Scored view of the advertised tools: strategy-adjusted probability per
     // pick, sorted descending so callers can surface a priority order.
@@ -283,7 +317,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
             .join(","),
         "tool_suggest_jev advertised tools directly for this question"
     );
-    Some((
+    JevDecision::Suggested((
         McpToolExposure {
             direct_tools: direct,
             deferred_tools: (!deferred.is_empty()).then_some(deferred),
@@ -654,27 +688,46 @@ pub(crate) struct UniversalToolSuggestion {
     pub direct_tools: Vec<JevToolEntry>,
     pub deferred_tools: Vec<JevToolEntry>,
     pub suggested_names: Vec<String>,
+    /// Strategy-adjusted probability per advertised tool, sorted descending.
+    /// Keys use the `namespace/name` form (namespace defaults to `builtin`).
+    pub scores: Vec<(String, f32)>,
     pub no_match: bool,
+}
+
+/// Result of the universal Jev routing pass performed while planning tools.
+pub(crate) struct JevRoutingOutcome {
+    pub(crate) suggested: Option<UniversalToolSuggestion>,
+    pub(crate) skip_reason: Option<String>,
+}
+
+impl JevRoutingOutcome {
+    pub(crate) fn none() -> Self {
+        Self {
+            suggested: None,
+            skip_reason: None,
+        }
+    }
 }
 
 /// Universal tool suggestion entry point.
 /// Reranks the FULL tool pool against `question` and returns selected tools.
-/// `None` means "keep original exposure": Jev disabled, missing token, ranking failure.
+/// Fail-open: any skip keeps the caller's original exposure untouched and the
+/// reason is surfaced so the TUI can explain why Jev did not run.
 #[instrument(level = "trace", skip_all)]
 pub(crate) async fn suggest_direct_tools(
     question: &str,
     repo: Option<String>,
     all_tools: Vec<JevToolEntry>,
     cfg: &ToolSuggestJevConfig,
-) -> Option<UniversalToolSuggestion> {
+    strategy: Option<&StrategyTurnContext>,
+) -> JevDecision<UniversalToolSuggestion> {
     if !cfg.enabled {
-        return None;
-    }
-    if !cfg.include_all_tools {
-        return None; // MCP-only mode handled elsewhere
+        return JevDecision::Disabled;
     }
     if all_tools.is_empty() {
-        return None;
+        return JevDecision::Skipped {
+            reason: "no tools in pool".into(),
+        };
     }
 
     let jev_cfg = to_jev_config(cfg);
@@ -683,7 +736,14 @@ pub(crate) async fn suggest_direct_tools(
             api_key_env = %cfg.api_key_env.clone().unwrap_or_else(|| "OPENCODE_API_KEY".into()),
             "tool_suggest_jev skipped — missing token (fail-open)"
         );
-        return None;
+        return JevDecision::Skipped {
+            reason: format!(
+                "missing {} token",
+                cfg.api_key_env
+                    .clone()
+                    .unwrap_or_else(|| "OPENCODE_API_KEY".into())
+            ),
+        };
     }
 
     // Separate essential tools (always direct) from selectable tools
@@ -705,10 +765,11 @@ pub(crate) async fn suggest_direct_tools(
 
     if candidates.is_empty() {
         // Only essential tools - return them as direct
-        return Some(UniversalToolSuggestion {
+        return JevDecision::Suggested(UniversalToolSuggestion {
             direct_tools: essential_tools,
             deferred_tools: Vec::new(),
             suggested_names: essential_names,
+            scores: Vec::new(),
             no_match: false,
         });
     }
@@ -719,72 +780,74 @@ pub(crate) async fn suggest_direct_tools(
         repo.as_deref(),
         &candidates,
         &jev_cfg,
-        /*strategy*/ None,
+        strategy.map(|ctx| (ctx.name.as_str(), ctx.guidance.as_str())),
     )
     .await;
     if !outcome.used {
         tracing::info!(reason = ?outcome.reason, "tool_suggest_jev skipped — fail-open");
-        return None;
+        return JevDecision::Skipped {
+            reason: outcome
+                .reason
+                .unwrap_or_else(|| "Jev ranking unavailable".into()),
+        };
     }
     if outcome.no_match {
         tracing::info!(
             "tool_suggest_jev found no relevant tools — essentials stay direct, rest deferred"
         );
-        return Some(UniversalToolSuggestion {
+        return JevDecision::Suggested(UniversalToolSuggestion {
             direct_tools: essential_tools,
             deferred_tools: selectable_tools,
             suggested_names: essential_names,
+            scores: Vec::new(),
             no_match: true,
         });
     }
+
+    // Strategy matrix: multiply Jev's returned percentiles by the active
+    // step's tool weights, then renormalize so favored tools compete.
+    let pool_keys: Vec<String> = candidates
+        .iter()
+        .zip(selectable_tools.iter())
+        .map(|(_, tool)| {
+            format!(
+                "{}/{}",
+                tool.namespace.as_deref().unwrap_or("builtin"),
+                tool.name
+            )
+        })
+        .collect();
+    let ranking = apply_strategy_weights(outcome.ranking, &pool_keys, strategy);
 
     // Select tools: first take those above min_probability, then fill up to min_direct_tools
     let min_prob = jev_cfg.min_probability;
     let min_tools = min_direct_tool_limit(cfg);
     let max_tools = direct_tool_limit(cfg);
-
-    let mut picked_indices: HashSet<usize> = HashSet::new();
-
-    // First pass: tools above probability threshold
-    for (id, prob) in &outcome.ranking {
-        if *prob >= min_prob && picked_indices.len() < max_tools {
-            picked_indices.insert(*id as usize);
-        }
-    }
-
-    // Second pass: fill up to min_direct_tools from ranked list regardless of probability
-    for (id, _) in &outcome.ranking {
-        if picked_indices.len() >= min_tools {
-            break;
-        }
-        if picked_indices.len() < max_tools {
-            picked_indices.insert(*id as usize);
-        }
-    }
-
-    // Cap at max_tools
-    let picked_indices: Vec<usize> = picked_indices.into_iter().take(max_tools).collect();
+    let picks = select_direct_ids(&ranking, min_prob, min_tools, max_tools);
 
     // Build direct and deferred lists
     let mut direct = essential_tools;
     let mut deferred = Vec::new();
     let mut suggested = essential_names;
+    let rank_by_id: std::collections::HashMap<u64, f32> = ranking.iter().copied().collect();
 
+    let mut scores: Vec<(String, f32)> = Vec::new();
     for (idx, tool) in selectable_tools.into_iter().enumerate() {
-        if picked_indices.contains(&idx) {
-            suggested.push(format!(
-                "{}/{}",
-                tool.namespace.as_deref().unwrap_or("builtin"),
-                tool.name
-            ));
+        let key = pool_keys[idx].clone();
+        if picks.contains(&idx) {
+            suggested.push(key.clone());
+            scores.push((key, rank_by_id.get(&(idx as u64)).copied().unwrap_or(0.0)));
             direct.push(tool);
         } else {
             deferred.push(tool);
         }
     }
+    scores.sort_by(|a, b| b.1.total_cmp(&a.1));
 
     if direct.is_empty() {
-        return None;
+        return JevDecision::Skipped {
+            reason: "Jev selected no tools".into(),
+        };
     }
     tracing::info!(
         direct = %direct
@@ -794,10 +857,11 @@ pub(crate) async fn suggest_direct_tools(
             .join(","),
         "tool_suggest_jev advertised tools directly for this question"
     );
-    Some(UniversalToolSuggestion {
+    JevDecision::Suggested(UniversalToolSuggestion {
         direct_tools: direct,
         deferred_tools: deferred,
         suggested_names: suggested,
+        scores,
         no_match: false,
     })
 }

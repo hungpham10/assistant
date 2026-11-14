@@ -1,5 +1,6 @@
 //! Tests cho `jev_suggest` — phần thuần (mapping, fail-open) chạy offline.
 
+use super::JevDecision;
 use super::build_planning_state;
 use super::last_user_question;
 use super::parse_jev_reply;
@@ -84,7 +85,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         /*strategy*/ None,
     )
     .await;
-    assert!(out.is_none());
+    assert!(matches!(out, JevDecision::Skipped { .. }));
 
     // Enabled nhưng thiếu token env → vẫn fail-open.
     let cfg = ToolSuggestJevConfig {
@@ -100,7 +101,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         /*strategy*/ None,
     )
     .await;
-    assert!(out.is_none());
+    assert!(matches!(out, JevDecision::Skipped { .. }));
 }
 
 #[tokio::test]
@@ -116,7 +117,7 @@ async fn pool_rỗng_thì_trả_none() {
     };
     // Pool rỗng → không có gì để rerank, coi như None dù enabled.
     let out = suggest_direct_mcp_tools("anything", None, exposure, &cfg, /*strategy*/ None).await;
-    assert!(out.is_none());
+    assert!(matches!(out, JevDecision::Skipped { .. }));
 }
 
 #[test]
@@ -297,7 +298,7 @@ async fn suggest_direct_mcp_tools_with_min_direct_tools() {
     .await;
 
     // Should fail-open because test key doesn't exist
-    assert!(result.is_none());
+    assert!(matches!(result, JevDecision::Skipped { .. }));
 }
 
 #[test]
