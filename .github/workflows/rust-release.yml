@@ -143,6 +143,14 @@ jobs:
       # submodules (it wedged a release build for 5+ hours on a macOS runner).
       # Use the system git CLI like the other cargo workflows.
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      # Embedded at compile time into the login crate so `codex login --google`
+      # works without local configuration. The secret is public-by-design for
+      # installed-app OAuth clients; it lives here only to keep it out of
+      # source (GitHub push protection blocks the literal).
+      CODEX_GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.CODEX_GOOGLE_OAUTH_CLIENT_SECRET }}
+      # Optional: embed a custom OAuth client ID (pair it with the secret).
+      # Falls back to the built-in Gemini CLI client ID when unset.
+      CODEX_GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.CODEX_GOOGLE_OAUTH_CLIENT_ID }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
