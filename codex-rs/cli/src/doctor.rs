@@ -3543,6 +3543,7 @@ mod tests {
             agent_identity: None,
             personal_access_token: None,
             bedrock_api_key: None,
+            google_oauth: None,
         };
 
         assert_eq!(
@@ -3562,6 +3563,7 @@ mod tests {
             agent_identity: None,
             personal_access_token: None,
             bedrock_api_key: None,
+            google_oauth: None,
         };
 
         assert_eq!(
@@ -3583,6 +3585,7 @@ mod tests {
             agent_identity: None,
             personal_access_token: Some("at-test".to_string()),
             bedrock_api_key: None,
+            google_oauth: None,
         };
 
         assert_eq!(stored_auth_mode(&auth), "personal_access_token");
@@ -3606,6 +3609,7 @@ mod tests {
             agent_identity: None,
             personal_access_token: None,
             bedrock_api_key: None,
+            google_oauth: None,
         };
 
         assert_eq!(
