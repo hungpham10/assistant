@@ -12,6 +12,7 @@ mod external_bearer;
 mod manager;
 mod revoke;
 
+pub use crate::google_oauth::GoogleTokenData;
 pub use auth_headers::AuthHeaders;
 pub use bedrock_api_key::BedrockApiKeyAuth;
 pub use bedrock_api_key::login_with_bedrock_api_key;

@@ -20,6 +20,7 @@ fn api_key_auth() -> AuthDotJson {
         agent_identity: None,
         personal_access_token: None,
         bedrock_api_key: None,
+        google_oauth: None,
     }
 }
 
@@ -32,6 +33,7 @@ fn bedrock_only_auth() -> AuthDotJson {
         agent_identity: None,
         personal_access_token: None,
         bedrock_api_key: Some(bedrock_auth()),
+        google_oauth: None,
     }
 }
 
@@ -76,6 +78,7 @@ async fn login_with_bedrock_api_key_replaces_openai_auth() -> anyhow::Result<()>
         agent_identity: None,
         personal_access_token: None,
         bedrock_api_key: Some(bedrock_auth()),
+        google_oauth: None,
     };
     assert_eq!(loaded, expected);
     assert_eq!(auth_manager.auth_mode(), Some(AuthMode::BedrockApiKey));

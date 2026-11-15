@@ -13,9 +13,12 @@ use codex_login::AuthKeyringBackendKind;
 use codex_login::AuthRouteConfig;
 use codex_login::CLIENT_ID;
 use codex_login::CodexAuth;
+use codex_login::GoogleLoginOptions;
 use codex_login::ServerOptions;
+use codex_login::load_google_oauth_tokens;
 use codex_login::login_with_access_token;
 use codex_login::login_with_api_key;
+use codex_login::login_with_google_oauth;
 use codex_login::logout_with_revoke;
 use codex_login::run_device_code_login;
 use codex_login::run_login_server;
@@ -190,6 +193,35 @@ pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) ->
         }
         Err(e) => {
             eprintln!("Error logging in: {e}");
+            std::process::exit(1);
+        }
+    }
+}
+
+/// Interactive Google OAuth login backing the Gemini provider.
+pub async fn run_login_with_google(
+    cli_config_overrides: CliConfigOverrides,
+    client_id: Option<String>,
+) -> ! {
+    let config = load_config_or_exit(cli_config_overrides).await;
+    let _login_log_guard = init_login_file_logging(&config);
+    tracing::info!("starting google oauth login flow");
+
+    let mut opts = GoogleLoginOptions::new(
+        config.codex_home.to_path_buf(),
+        config.cli_auth_credentials_store_mode,
+        config.auth_keyring_backend_kind(),
+    );
+    if let Some(client_id) = client_id {
+        opts.client_id = client_id;
+    }
+    match login_with_google_oauth(opts).await {
+        Ok(_) => {
+            eprintln!("{LOGIN_SUCCESS_MESSAGE}");
+            std::process::exit(0);
+        }
+        Err(e) => {
+            eprintln!("Error logging in with Google: {e}");
             std::process::exit(1);
         }
     }
@@ -466,6 +498,20 @@ pub async fn run_login_status(cli_config_overrides: CliConfigOverrides) -> ! {
             }
         },
         Ok(None) => {
+            if let Some(tokens) = load_google_oauth_tokens(
+                &config.codex_home,
+                config.cli_auth_credentials_store_mode,
+                config.auth_keyring_backend_kind(),
+            )
+            .ok()
+            .flatten()
+            {
+                match tokens.email.as_deref() {
+                    Some(email) => eprintln!("Logged in using Google OAuth for Gemini ({email})"),
+                    None => eprintln!("Logged in using Google OAuth for Gemini"),
+                }
+                std::process::exit(0);
+            }
             eprintln!("Not logged in");
             std::process::exit(1);
         }

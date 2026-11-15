@@ -712,6 +712,7 @@ impl CodexAuth {
             agent_identity: None,
             personal_access_token: None,
             bedrock_api_key: None,
+            google_oauth: None,
         };
 
         let state = ChatgptAuthState {
@@ -916,6 +917,7 @@ pub fn login_with_api_key(
         agent_identity: None,
         personal_access_token: None,
         bedrock_api_key: None,
+        google_oauth: None,
     };
     save_auth(
         codex_home,
@@ -949,6 +951,7 @@ pub async fn login_with_access_token(
                 agent_identity: None,
                 personal_access_token: Some(access_token.to_string()),
                 bedrock_api_key: None,
+                google_oauth: None,
             }
         }
         CodexAccessToken::AgentIdentityJwt(jwt) => {
@@ -965,6 +968,7 @@ pub async fn login_with_access_token(
                 agent_identity: Some(AgentIdentityStorage::Jwt(jwt.to_string())),
                 personal_access_token: None,
                 bedrock_api_key: None,
+                google_oauth: None,
             }
         }
     };
@@ -1005,6 +1009,11 @@ pub fn login_with_chatgpt_auth_tokens(
 }
 
 /// Persist the provided auth payload using the specified backend.
+///
+/// Google OAuth tokens are preserved across overwrites: when the incoming
+/// payload carries none but storage already holds some (e.g. an OpenAI login
+/// overwriting a Gemini OAuth setup), the stored tokens are carried over so
+/// `codex login` for one provider does not silently drop the other.
 pub fn save_auth(
     codex_home: &Path,
     auth: &AuthDotJson,
@@ -1016,7 +1025,19 @@ pub fn save_auth(
         auth_credentials_store_mode,
         keyring_backend_kind,
     );
-    storage.save(auth)
+    let auth = if auth.google_oauth.is_none() {
+        match storage.load() {
+            Ok(Some(existing)) if existing.google_oauth.is_some() => {
+                let mut merged = auth.clone();
+                merged.google_oauth = existing.google_oauth;
+                merged
+            }
+            _ => auth.clone(),
+        }
+    } else {
+        auth.clone()
+    };
+    storage.save(&auth)
 }
 
 /// Load the raw stored auth payload without applying environment overrides.
@@ -1485,6 +1506,7 @@ impl AuthDotJson {
             agent_identity: None,
             personal_access_token: None,
             bedrock_api_key: None,
+            google_oauth: None,
         })
     }
 
@@ -2496,6 +2518,27 @@ impl AuthManager {
     /// Returns the precise kind of credentials backing the current authentication.
     pub fn get_api_auth_mode(&self) -> Option<AuthMode> {
         self.auth_cached().as_ref().map(CodexAuth::api_auth_mode)
+    }
+
+    /// Returns stored Google OAuth tokens, refreshing and persisting them
+    /// when they are expired or about to expire.
+    ///
+    /// These tokens are independent of the primary auth snapshot: they back
+    /// the `google` model provider when no `GOOGLE_API_KEY` is configured.
+    pub async fn google_oauth_tokens(&self) -> Option<crate::google_oauth::GoogleTokenData> {
+        match crate::google_oauth::refresh_google_oauth_tokens_if_needed(
+            &self.codex_home,
+            self.auth_credentials_store_mode,
+            self.keyring_backend_kind,
+        )
+        .await
+        {
+            Ok(tokens) => tokens,
+            Err(err) => {
+                tracing::warn!("failed to load google oauth tokens: {err}");
+                None
+            }
+        }
     }
 
     /// Returns the effective backend auth mode for the current authentication.
