@@ -21,6 +21,7 @@ use futures::future::BoxFuture;
 use futures::future::Shared;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 use tracing::instrument;
 
@@ -150,6 +151,9 @@ pub struct TurnContext {
     pub(crate) terminal_error: Arc<Mutex<Option<String>>>,
     pub(crate) server_model_warning_emitted: AtomicBool,
     pub(crate) model_verification_emitted: AtomicBool,
+    /// Agentic-loop step counter for shadow-mode Jev events
+    /// (`[tool_suggest_jev] observe_per_step`): incremented once per step.
+    pub(crate) step_counter: AtomicU32,
 }
 
 enum TurnMultiAgentRuntime {
@@ -312,6 +316,7 @@ impl TurnContext {
             model_verification_emitted: AtomicBool::new(
                 self.model_verification_emitted.load(Ordering::Relaxed),
             ),
+            step_counter: AtomicU32::new(self.step_counter.load(Ordering::Relaxed)),
         }
     }
 
@@ -591,6 +596,7 @@ impl Session {
             terminal_error: Arc::new(Mutex::new(None)),
             server_model_warning_emitted: AtomicBool::new(false),
             model_verification_emitted: AtomicBool::new(false),
+            step_counter: AtomicU32::new(0),
         }
     }
 

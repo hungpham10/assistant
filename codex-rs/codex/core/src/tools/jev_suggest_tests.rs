@@ -273,6 +273,7 @@ fn create_test_jev_config(
     max_direct: Option<usize>,
 ) -> ToolSuggestJevConfig {
     ToolSuggestJevConfig {
+        observe_per_step: false,
         enabled,
         endpoint: Some("https://test.example.com".into()),
         model: Some("jev-1.13-free".into()),
@@ -358,6 +359,7 @@ fn min_direct_tool_limit_uses_config_or_default() {
 #[test]
 fn to_jev_config_maps_all_fields() {
     let cfg = ToolSuggestJevConfig {
+        observe_per_step: false,
         enabled: true,
         endpoint: Some("https://custom.example.com".into()),
         model: Some("jev-1.13".into()),
