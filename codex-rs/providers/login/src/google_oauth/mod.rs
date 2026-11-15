@@ -22,9 +22,9 @@ pub use login_server::run_google_login_server;
 
 /// Public OAuth client ID reused from the Gemini CLI (installed-app client).
 ///
-/// Google treats installed-app clients as public: the token endpoint accepts
-/// requests without a `client_secret`. A secret can optionally be supplied
-/// via `CODEX_GOOGLE_OAUTH_CLIENT_SECRET` for private clients.
+/// This client still requires a `client_secret` at the token endpoint. Set
+/// the `CODEX_GOOGLE_OAUTH_CLIENT_SECRET` environment variable (or provide
+/// your own client ID + secret pair) before running `codex login --google`.
 pub const GOOGLE_OAUTH_CLIENT_ID: &str =
     "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com";
 pub const GOOGLE_OAUTH_AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -170,6 +170,13 @@ pub(crate) async fn exchange_google_code(
     let status = resp.status();
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
+        if body.contains("client_secret is missing") && client_secret.is_none() {
+            return Err(io::Error::other(format!(
+                "Google token endpoint returned status {status}: {body}\n\
+                 This OAuth client requires a client secret. Set the {} environment variable and retry.",
+                GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR
+            )));
+        }
         return Err(io::Error::other(format!(
             "Google token endpoint returned status {status}: {body}"
         )));
