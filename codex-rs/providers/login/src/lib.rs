@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod auth_env_telemetry;
+pub mod google_oauth;
 pub mod kimi_code;
 pub mod token_data;
 
@@ -15,6 +16,12 @@ pub use device_code_auth::DeviceCode;
 pub use device_code_auth::complete_device_code_login;
 pub use device_code_auth::request_device_code;
 pub use device_code_auth::run_device_code_login;
+pub use google_oauth::GOOGLE_OAUTH_CLIENT_ID;
+pub use google_oauth::GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR;
+pub use google_oauth::GoogleLoginOptions;
+pub use google_oauth::GoogleTokenData;
+pub use google_oauth::load_google_oauth_tokens;
+pub use google_oauth::login_with_google_oauth;
 pub use server::LoginServer;
 pub use server::ServerOptions;
 pub use server::ShutdownHandle;

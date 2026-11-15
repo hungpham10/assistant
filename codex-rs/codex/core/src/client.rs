@@ -165,6 +165,7 @@ use codex_feedback::emit_feedback_request_tags_with_auth_env;
 use codex_login::auth::AgentIdentityAuthPolicy;
 use codex_login::auth_env_telemetry::AuthEnvTelemetry;
 use codex_login::auth_env_telemetry::collect_auth_env_telemetry;
+use codex_model_provider::BearerAuthProvider;
 use codex_model_provider::CoreAuthProvider;
 use codex_model_provider::SharedModelProvider;
 use codex_model_provider::create_model_provider;
@@ -2941,30 +2942,60 @@ impl ModelClientSession {
             let auth = self.client.state.provider.auth().await;
             let auth_mode = auth.as_ref().map(CodexAuth::auth_mode);
             let provider_info = self.client.state.provider.info();
-            let api_key = provider_info.api_key().and_then(|api_key| {
-                api_key
-                    .or_else(|| {
-                        auth.as_ref()
-                            .and_then(CodexAuth::api_key)
-                            .map(str::to_string)
-                    })
-                    .or(provider_info.experimental_bearer_token.clone())
-                    .ok_or_else(|| {
-                        CodexErr::InvalidRequest(
-                            "Google API key required for google wire_api".to_string(),
-                        )
-                    })
-            })?;
+            // Resolve Google credentials: an API key takes precedence, with
+            // stored Google OAuth tokens (via `codex login --google`) as the
+            // fallback so Gemini works without a configured key.
+            enum GoogleAuth {
+                ApiKey(String),
+                OAuth(String),
+            }
+            const GOOGLE_AUTH_REQUIRED_ERROR: &str = "Google API key required for google wire_api; run `codex login --google` to sign in with Google OAuth instead";
+            let api_key = provider_info
+                .api_key()?
+                .or_else(|| {
+                    auth.as_ref()
+                        .and_then(CodexAuth::api_key)
+                        .map(str::to_string)
+                })
+                .or(provider_info.experimental_bearer_token.clone());
+            let google_auth = if let Some(api_key) = api_key {
+                GoogleAuth::ApiKey(api_key)
+            } else if let Some(tokens) = match auth_manager.as_ref() {
+                Some(auth_manager) => auth_manager.google_oauth_tokens().await,
+                None => None,
+            } {
+                GoogleAuth::OAuth(tokens.access_token)
+            } else {
+                return Err(CodexErr::InvalidRequest(
+                    GOOGLE_AUTH_REQUIRED_ERROR.to_string(),
+                ));
+            };
+            let (google_auth_provider, google_telemetry_provider) = match &google_auth {
+                GoogleAuth::ApiKey(api_key) => {
+                    let provider = CoreAuthProvider {
+                        token: Some(api_key.clone()),
+                        account_id: None,
+                        is_fedramp_account: false,
+                        token_header_name: Some("x-goog-api-key"),
+                        use_bearer_prefix: false,
+                    };
+                    (provider.clone(), provider)
+                }
+                GoogleAuth::OAuth(access_token) => {
+                    let provider = BearerAuthProvider {
+                        token: Some(access_token.clone()),
+                        account_id: None,
+                        is_fedramp_account: false,
+                        token_header_name: None,
+                        use_bearer_prefix: true,
+                    };
+                    (provider.clone(), provider)
+                }
+            };
             let api_provider = self.client.state.provider.api_provider().await?;
             let request_auth_context = AuthRequestTelemetryContext::new(
                 auth_mode.or(Some(AuthMode::ApiKey)),
-                &CoreAuthProvider {
-                    token: Some(api_key.clone()),
-                    account_id: None,
-                    is_fedramp_account: false,
-                    token_header_name: Some("x-goog-api-key"),
-                    use_bearer_prefix: false,
-                },
+                &google_telemetry_provider,
                 /*agent_identity_telemetry*/ None,
                 pending_retry,
             );
@@ -3046,13 +3077,7 @@ impl ModelClientSession {
             let client = ApiGoogleGenerateContentClient::new(
                 transport,
                 api_provider.clone(),
-                Arc::new(CoreAuthProvider {
-                    token: Some(api_key),
-                    account_id: None,
-                    is_fedramp_account: false,
-                    token_header_name: Some("x-goog-api-key"),
-                    use_bearer_prefix: false,
-                }),
+                Arc::new(google_auth_provider),
             )
             .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
             match client
