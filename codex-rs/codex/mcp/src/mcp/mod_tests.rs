@@ -393,3 +393,36 @@ async fn effective_mcp_servers_preserve_runtime_servers() {
         other => panic!("expected streamable http transport, got {other:?}"),
     }
 }
+
+#[test]
+fn codegraph_mcp_server_config_uses_embedded_stdio_transport() {
+    let config = codegraph_mcp_server_config(Some("/workspace"));
+    let McpServerTransportConfig::Stdio {
+        command,
+        args,
+        env,
+        env_vars,
+        cwd,
+    } = config.transport
+    else {
+        panic!("codegraph server must be a stdio transport");
+    };
+    assert_eq!(command, CODEGRAPH_MCP_EMBEDDED_COMMAND);
+    assert!(args.is_empty());
+    assert_eq!(
+        env.expect("auto_init env")
+            .get(codex_codegraph_server::CODEGRAPH_MCP_AUTO_INIT_ENV_VAR),
+        Some(&"/workspace".to_string())
+    );
+    assert!(env_vars.is_empty());
+    assert!(cwd.is_none());
+    assert!(config.enabled);
+    assert!(!config.required);
+
+    // Empty auto_init must not set the env var.
+    let config = codegraph_mcp_server_config(None);
+    let McpServerTransportConfig::Stdio { env, .. } = config.transport else {
+        panic!("codegraph server must be a stdio transport");
+    };
+    assert!(env.is_none());
+}

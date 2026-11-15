@@ -2819,6 +2819,7 @@ dependencies = [
  "codex-arg0",
  "codex-chatgpt",
  "codex-cloud-tasks",
+ "codex-codegraph-server",
  "codex-config",
  "codex-core",
  "codex-core-plugins",
@@ -3001,6 +3002,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-codegraph-server"
+version = "0.0.55"
+dependencies = [
+ "anyhow",
+ "camino",
+ "codegraph-api",
+ "codegraph-context",
+ "codegraph-core",
+ "codegraph-docs",
+ "codegraph-extract",
+ "futures",
+ "pretty_assertions",
+ "rmcp",
+ "serde_json",
+ "serial_test",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "codex-config"
 version = "0.0.55"
 dependencies = [
@@ -3087,11 +3109,8 @@ dependencies = [
  "camino",
  "chrono",
  "clap",
- "codegraph-api",
  "codegraph-context",
  "codegraph-core",
- "codegraph-docs",
- "codegraph-extract",
  "codex-agent-graph-store",
  "codex-analytics",
  "codex-api",
@@ -3101,6 +3120,7 @@ dependencies = [
  "codex-async-utils",
  "codex-chat-wire-compat",
  "codex-code-mode",
+ "codex-codegraph-server",
  "codex-config",
  "codex-connectors",
  "codex-context-fragments",
@@ -3841,6 +3861,7 @@ dependencies = [
  "async-channel",
  "codex-api",
  "codex-async-utils",
+ "codex-codegraph-server",
  "codex-config",
  "codex-connectors",
  "codex-exec-server",

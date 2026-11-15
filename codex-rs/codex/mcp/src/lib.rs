@@ -23,6 +23,8 @@ pub use catalog::McpServerSource;
 pub use catalog::ResolvedMcpCatalog;
 pub use catalog::ResolvedMcpServer;
 
+pub use mcp::CODEGRAPH_MCP_EMBEDDED_COMMAND;
+pub use mcp::CODEGRAPH_MCP_SERVER_NAME;
 pub use mcp::CODEX_APPS_MCP_SERVER_NAME;
 pub use mcp::McpConfig;
 pub use mcp::ToolPluginProvenance;
@@ -40,6 +42,7 @@ pub use auth_elicitation::connector_auth_failure_from_tool_result;
 pub use codex_apps_cache::CodexAppsToolsCache;
 pub use codex_apps_cache::CodexAppsToolsCacheKey;
 pub use codex_apps_cache::codex_apps_tools_cache_key;
+pub use mcp::codegraph_mcp_server_config;
 pub use mcp::codex_apps_mcp_server_config;
 pub use mcp::configured_mcp_servers;
 pub use mcp::effective_mcp_servers;

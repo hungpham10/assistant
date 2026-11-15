@@ -51,6 +51,51 @@ use crate::runtime::McpRuntimeContext;
 use crate::server::EffectiveMcpServer;
 
 pub const CODEX_APPS_MCP_SERVER_NAME: &str = "codex_apps";
+
+/// Catalog name of the built-in codegraph compatibility server.
+pub const CODEGRAPH_MCP_SERVER_NAME: &str = "codegraph";
+
+/// Marker `command` that selects the in-process codegraph server instead of
+/// spawning a subprocess (see `rmcp_client::make_rmcp_client`).
+pub const CODEGRAPH_MCP_EMBEDDED_COMMAND: &str = "codegraph:embedded";
+
+/// Programmatic config for the built-in codegraph MCP server: an embedded
+/// stdio transport recognized by `CODEGRAPH_MCP_EMBEDDED_COMMAND`, carrying
+/// `[codegraph] auto_init` through the environment.
+pub fn codegraph_mcp_server_config(auto_init: Option<&str>) -> McpServerConfig {
+    let env = auto_init
+        .filter(|auto_init| !auto_init.is_empty())
+        .map(|auto_init| {
+            HashMap::from([(
+                codex_codegraph_server::CODEGRAPH_MCP_AUTO_INIT_ENV_VAR.to_string(),
+                auto_init.to_string(),
+            )])
+        });
+    McpServerConfig {
+        transport: McpServerTransportConfig::Stdio {
+            command: CODEGRAPH_MCP_EMBEDDED_COMMAND.to_string(),
+            args: Vec::new(),
+            env,
+            env_vars: Vec::new(),
+            cwd: None,
+        },
+        auth: McpServerAuth::default(),
+        environment_id: codex_config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
+        enabled: true,
+        required: false,
+        supports_parallel_tool_calls: false,
+        disabled_reason: None,
+        startup_timeout_sec: Some(Duration::from_secs(30)),
+        tool_timeout_sec: None,
+        default_tools_approval_mode: None,
+        enabled_tools: None,
+        disabled_tools: None,
+        scopes: None,
+        oauth: None,
+        oauth_resource: None,
+        tools: HashMap::new(),
+    }
+}
 const MCP_TOOL_NAME_PREFIX: &str = "mcp";
 const MCP_TOOL_NAME_DELIMITER: &str = "__";
 const CODEX_CONNECTORS_TOKEN_ENV_VAR: &str = "CODEX_CONNECTORS_TOKEN";

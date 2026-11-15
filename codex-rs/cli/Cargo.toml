@@ -52,7 +52,7 @@ internal-tools = [
     "dep:codex-uds",
     "dep:codex-memories-write",
 ]
-codegraph = ["codex-core/codegraph"]
+codegraph = ["dep:codex-codegraph-server"]
 # Các feature dưới đây chỉ gate code, không kéo crate riêng.
 plugins = []
 session-management = []
@@ -73,6 +73,7 @@ codex-chatgpt = { workspace = true, optional = true }
 codex-cloud-tasks = { workspace = true, optional = true }
 codex-utils-cli = { workspace = true }
 codex-config = { workspace = true }
+codex-codegraph-server = { workspace = true, optional = true }
 codex-core = { workspace = true }
 codex-core-plugins = { workspace = true }
 codex-home = { workspace = true }

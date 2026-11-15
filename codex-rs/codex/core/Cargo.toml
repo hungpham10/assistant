@@ -9,13 +9,6 @@ name = "codex_core"
 path = "src/lib.rs"
 
 [features]
-# Codegraph data layer: vendors codegraph-api (sqlite-only) for the
-# `codegraph.call` agent tool and the host `codex codegraph index` command.
-codegraph = [
-    "dep:codegraph-api",
-    "dep:codegraph-docs",
-    "dep:codegraph-extract",
-]
 
 [[bin]]
 name = "codex-write-config-schema"
@@ -43,11 +36,9 @@ codex-chat-wire-compat = { workspace = true }
 codex-code-mode = { workspace = true }
 codex-connectors = { workspace = true }
 codex-context-fragments = { workspace = true }
-codegraph-api = { workspace = true, optional = true }
 codegraph-context = { workspace = true }
 codegraph-core = { workspace = true }
-codegraph-docs = { workspace = true, optional = true }
-codegraph-extract = { workspace = true, optional = true }
+codex-codegraph-server = { workspace = true }
 camino = { workspace = true }
 codex-config = { workspace = true }
 codex-core-plugins = { workspace = true }

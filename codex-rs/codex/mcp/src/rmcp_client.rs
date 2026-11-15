@@ -25,6 +25,7 @@ use crate::codex_apps_cache::CodexAppsToolsCacheContext;
 use crate::codex_apps_cache::CodexAppsToolsFetchSource;
 use crate::codex_apps_cache::load_startup_cached_codex_apps_server_info;
 use crate::elicitation::ElicitationRequestManager;
+use crate::mcp::CODEGRAPH_MCP_EMBEDDED_COMMAND;
 use crate::mcp::CODEX_APPS_MCP_SERVER_NAME;
 use crate::mcp::ToolPluginProvenance;
 use crate::runtime::McpRuntimeContext;
@@ -41,6 +42,7 @@ use async_channel::Sender;
 use codex_api::SharedAuthProvider;
 use codex_async_utils::CancelErr;
 use codex_async_utils::OrCancelExt;
+use codex_codegraph_server::CODEGRAPH_MCP_AUTO_INIT_ENV_VAR;
 use codex_config::McpServerConfig;
 use codex_config::McpServerTransportConfig;
 use codex_config::types::AuthKeyringBackendKind;
@@ -53,6 +55,7 @@ use codex_protocol::protocol::EventMsg;
 use codex_protocol::protocol::McpStartupStatus;
 use codex_protocol::protocol::McpStartupUpdateEvent;
 use codex_rmcp_client::ExecutorStdioServerLauncher;
+use codex_rmcp_client::InProcessTransportFactory;
 use codex_rmcp_client::LocalStdioServerLauncher;
 use codex_rmcp_client::RmcpClient;
 use codex_rmcp_client::StdioServerLauncher;
@@ -937,6 +940,24 @@ struct StartServerTaskParams {
     supports_openai_form_elicitation: bool,
 }
 
+/// In-process factory for the built-in codegraph MCP server: serves the
+/// codegraph handler on one end of a duplex stream and hands the client end
+/// to `RmcpClient` — no subprocess is spawned (mirrors codex_apps placement).
+struct CodegraphEmbeddedServerFactory {
+    auto_init: Option<String>,
+}
+
+impl InProcessTransportFactory for CodegraphEmbeddedServerFactory {
+    fn open(&self) -> BoxFuture<'static, std::io::Result<tokio::io::DuplexStream>> {
+        let auto_init = self.auto_init.clone();
+        Box::pin(async move {
+            let (client_stream, server_stream) = tokio::io::duplex(64 * 1024);
+            tokio::spawn(codex_codegraph_server::serve_on(server_stream, auto_init));
+            Ok(client_stream)
+        })
+    }
+}
+
 #[instrument(level = "trace", skip_all, fields(server_name = %server_name))]
 async fn make_rmcp_client(
     server_name: &str,
@@ -954,6 +975,21 @@ async fn make_rmcp_client(
         .map_err(|err| StartupOutcomeError::from(anyhow!(err)))?;
     let is_local_environment = config.is_local_environment();
     let McpServerConfig { transport, .. } = config;
+
+    // Built-in embedded servers (e.g. codegraph) run in-process on a duplex
+    // stream — no subprocess is spawned (mirrors the codex_apps placement).
+    if let McpServerTransportConfig::Stdio { command, env, .. } = &transport
+        && command == CODEGRAPH_MCP_EMBEDDED_COMMAND
+    {
+        let auto_init = env
+            .as_ref()
+            .and_then(|env| env.get(CODEGRAPH_MCP_AUTO_INIT_ENV_VAR).cloned());
+        let factory: Arc<dyn InProcessTransportFactory> =
+            Arc::new(CodegraphEmbeddedServerFactory { auto_init });
+        return RmcpClient::new_in_process_client(factory)
+            .await
+            .map_err(|err| StartupOutcomeError::from(anyhow!(err)));
+    }
 
     match transport {
         McpServerTransportConfig::Stdio {

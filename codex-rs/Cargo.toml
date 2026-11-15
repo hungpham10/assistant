@@ -16,6 +16,7 @@ members = [
     "servers/app-server-client",
     "servers/app-server-protocol",
     "servers/app-server-test-client",
+    "servers/codegraph-server",
     "execution/apply-patch",
     "support/arg0",
     "observability/feedback",
@@ -148,6 +149,7 @@ codex-ansi-escape = { path = "platform/ansi-escape" }
 codex-api = { path = "codex/oapi/stable" }
 codex-aws-auth = { path = "providers/aws-auth" }
 codex-app-server = { path = "servers/app-server" }
+codex-codegraph-server = { path = "servers/codegraph-server" }
 codex-app-server-transport = { path = "servers/app-server-transport" }
 codex-app-server-daemon = { path = "servers/app-server-daemon" }
 codex-app-server-client = { path = "servers/app-server-client" }
