@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use clap::Args;
 use clap::Subcommand;
 use clap::ValueEnum;
-use codex_core::CodegraphService;
-use codex_core::IndexKind;
+use codex_codegraph_server::CodegraphService;
+use codex_codegraph_server::IndexKind;
 
 #[derive(Debug, Args)]
 pub struct CodegraphCli {

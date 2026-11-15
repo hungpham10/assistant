@@ -31,6 +31,7 @@ use codegraph_core::Symbol;
 use codegraph_core::SymbolKind;
 use codegraph_core::SymbolMatch;
 use codegraph_docs::DocToken;
+use codegraph_docs::parse_kind_label;
 use codegraph_extract::ExtractConfig;
 use codegraph_extract::SharedDocGraph;
 use codegraph_extract::open_doc_graph;
@@ -298,7 +299,16 @@ impl CodegraphService {
                 "error: no codegraph session bound — call begin(path=...) first, then search. (requested action: {action})"
             );
         }
-        if matches!(action, "doc_search" | "doc_list" | "doc_stats") {
+        if matches!(
+            action,
+            "doc_search"
+                | "doc_list"
+                | "doc_stats"
+                | "doc_hydrate"
+                | "doc_struct"
+                | "doc_mine_patterns"
+                | "doc_list_patterns"
+        ) {
             return match dispatch_doc_search(action, args).await {
                 Ok(out) => out,
                 Err(err) => format!("search({action}) failed: {err:#}"),
@@ -597,8 +607,122 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
                 "results": results, "total": results.len(),
             }))?)
         }
+        "doc_hydrate" => {
+            let node_id =
+                arg_u64(args, "node_id").ok_or_else(|| anyhow::anyhow!("missing `node_id`"))?;
+            let max_depth = arg_u32(args, "max_depth").map(|d| d as usize);
+            let payload = {
+                let guard = graph.read().await;
+                guard.hydrate_depth(node_id, max_depth).await
+            };
+            match payload {
+                Some(payload) => Ok(serde_json::to_string(&serde_json::to_value(&payload)?)?),
+                None => Ok(format!("no document node with id {node_id}")),
+            }
+        }
+        "doc_struct" => {
+            let pattern =
+                arg_str(args, "pattern").ok_or_else(|| anyhow::anyhow!("missing `pattern`"))?;
+            let tokens: Vec<DocToken> = pattern
+                .split(',')
+                .map(|label| parse_kind_label(label))
+                .collect();
+            if tokens.is_empty() {
+                anyhow::bail!("missing `pattern`");
+            }
+            let limit = limit_arg(args) as usize;
+            let entries = {
+                let guard = graph.read().await;
+                guard.search_patterns(&tokens).await?
+            };
+            let total = entries.len();
+            let results: Vec<JsonValue> = entries
+                .into_iter()
+                .take(limit)
+                .map(|entry| {
+                    json!({
+                        "pattern_id": format!("P#{}", entry.pattern_id),
+                        "tokens": entry.tokens,
+                        "node_count": entry.node_count,
+                        "doc_count": entry.doc_count,
+                        "doc_freq": (entry.doc_freq * 1000.0).round() / 1000.0,
+                    })
+                })
+                .collect();
+            Ok(serde_json::to_string(&json!({
+                "results": results, "total": total, "returned": results.len(),
+            }))?)
+        }
+        "doc_mine_patterns" => {
+            let top_k = arg_u32(args, "top_k").unwrap_or(20) as usize;
+            let min_count = arg_u32(args, "min_count").unwrap_or(3) as usize;
+            let max_depth = arg_u32(args, "max_depth").unwrap_or(4).clamp(1, 8) as usize;
+            let entries = {
+                let mut guard = graph.write().await;
+                guard.mine_patterns(top_k, min_count, max_depth).await?
+            };
+            let results: Vec<JsonValue> = entries
+                .iter()
+                .map(|entry| {
+                    json!({
+                        "pattern_id": format!("P#{}", entry.pattern_id),
+                        "tokens": entry.tokens,
+                        "node_count": entry.node_count,
+                        "doc_count": entry.doc_count,
+                        "doc_freq": (entry.doc_freq * 1000.0).round() / 1000.0,
+                    })
+                })
+                .collect();
+            Ok(serde_json::to_string(&json!({
+                "patterns": results, "returned": results.len(),
+            }))?)
+        }
+        "doc_list_patterns" => {
+            let entries = {
+                let guard = graph.read().await;
+                guard.list_patterns()
+            };
+            let results: Vec<JsonValue> = entries
+                .iter()
+                .map(|entry| {
+                    json!({
+                        "pattern_id": format!("P#{}", entry.pattern_id),
+                        "tokens": entry.tokens,
+                        "node_count": entry.node_count,
+                        "doc_count": entry.doc_count,
+                        "doc_freq": (entry.doc_freq * 1000.0).round() / 1000.0,
+                    })
+                })
+                .collect();
+            Ok(serde_json::to_string(&json!({
+                "patterns": results, "returned": results.len(),
+            }))?)
+        }
         other => anyhow::bail!("unknown document action: {other}"),
     }
+}
+
+/// Mermaid diagram verbs: `callers` (upstream), `callees` (downstream),
+/// `impact` (transitive upstream), `flow` (control flow) around one symbol.
+async fn dispatch_mermaid(api: &GraphApi, args: &JsonValue) -> Result<String> {
+    let id = arg_u64(args, "id").ok_or_else(|| anyhow::anyhow!("missing `id`"))?;
+    let depth = arg_u32(args, "depth")
+        .or_else(|| arg_u32(args, "max_depth"))
+        .unwrap_or(2)
+        .clamp(1, 5);
+    let diagram = match arg_str(args, "kind").unwrap_or("callers") {
+        "callers" => codegraph_api::mermaid::callers_mermaid(api, id, depth).await?,
+        "callees" => codegraph_api::mermaid::callees_mermaid(api, id, depth).await?,
+        "impact" => codegraph_api::mermaid::impact_mermaid(api, id, depth).await?,
+        "flow" => {
+            let flow = api.flow(id).await?;
+            codegraph_api::mermaid::control_flow(&flow)
+        }
+        other => anyhow::bail!(
+            "unknown mermaid kind: {other} (available: flow, callers, callees, impact)"
+        ),
+    };
+    Ok(diagram)
 }
 
 async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Result<String> {
@@ -723,8 +847,9 @@ async fn dispatch_search(api: &GraphApi, action: &str, args: &JsonValue) -> Resu
             let stats = api.stats_cached().await;
             Ok(serde_json::to_string(&serde_json::to_value(&stats)?)?)
         }
+        "mermaid" => dispatch_mermaid(api, args).await,
         other => anyhow::bail!(
-            "unknown search action: {other} (available: search_symbol, symbol, resolve, callers, callees, impact, flow, search_flow, references, list_by_kind, files, stats, doc_search, doc_list, doc_stats)"
+            "unknown search action: {other} (available: search_symbol, symbol, resolve, callers, callees, impact, flow, search_flow, references, list_by_kind, files, stats, mermaid, doc_search, doc_list, doc_stats, doc_hydrate, doc_struct, doc_mine_patterns, doc_list_patterns)"
         ),
     }
 }

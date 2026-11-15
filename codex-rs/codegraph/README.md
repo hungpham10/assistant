@@ -32,9 +32,31 @@ Sync is manual: re-copy, re-apply the local patches listed below, then run
 ## Usage in codex-rs
 
 - Host indexing (`codex codegraph index`, TUI `/index`) runs in the host
-  process; the agent only calls `codegraph.call` verbs
-  `begin` → `search` → `end` via `codegraph_api::Session`.
-- Cargo feature `codegraph` (in `codex-core` / `codex-cli`) gates the whole
-  surface; `CodegraphConfig.enabled` gates runtime registration.
-- Future cloud mode (`mode = "cloud"`) is a config marker only — today
-  everything routes through `Session` (dsn-based, `sqlite://`).
+  process via `codex_codegraph_server::CodegraphService::host_index`.
+- **Agent tool surface: built-in compatibility MCP server** (like
+  `codex_apps`). When `[codegraph] enabled`, `McpManager` registers a
+  `codegraph` MCP server that is served **in-process** on a duplex stream
+  (`servers/codegraph-server`, `codex-codegraph-server::serve_on`) — no
+  subprocess is spawned. Tools are flat MCP functions with rich
+  descriptions, so tool search and Jev see full per-tool signal.
+- Cargo feature `codegraph` (in `codex-cli`) gates the surface;
+  `CodegraphConfig.enabled` gates registration.
+
+## Tool surface coverage
+
+The embedded server exposes the query surface backed by the vendored
+crates: symbol/call-graph search, resolve, callers/callees, context, flow,
+`trace_full_flow`, impact, references, `search_flow`, files, stats,
+`mermaid` diagrams, session lifecycle (`begin`/`end`/`status`), and the
+docgraph verbs (`doc_search`, `doc_list`, `doc_stats`, `doc_hydrate`,
+`doc_struct`, `mine_patterns`, `list_patterns`).
+
+Some upstream MCP-server tools are **not available here** because they need
+crates that are not vendored:
+
+- `sandbox` / `diff_simulate` / `origin_simulate` — require the sboxes/Cranelift
+  JIT sandbox (`codegraph-sboxes` dep dropped, see patches above).
+- `graphbin` — binary graph needs the `binary` feature (cfg'd out).
+- `config_effects` writes and `usage_report` — upstream-server-side services.
+
+Use the standalone `codegraph-rs` MCP server when those are needed.

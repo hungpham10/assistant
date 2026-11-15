@@ -12,18 +12,21 @@ use codex_extension_api::ExtensionRegistry;
 use codex_extension_api::McpServerContribution;
 use codex_extension_api::McpServerContributionContext;
 use codex_login::CodexAuth;
+use codex_mcp::CODEGRAPH_MCP_SERVER_NAME;
 use codex_mcp::CODEX_APPS_MCP_SERVER_NAME;
 use codex_mcp::CodexAppsToolsCache;
 use codex_mcp::EffectiveMcpServer;
 use codex_mcp::McpConfig;
 use codex_mcp::McpPluginAttribution;
 use codex_mcp::McpServerRegistration;
+use codex_mcp::codegraph_mcp_server_config;
 use codex_mcp::codex_apps_mcp_server_config;
 use codex_mcp::configured_mcp_servers;
 use codex_mcp::effective_mcp_servers;
 use codex_plugin::AppConnectorId;
 
 const LEGACY_CODEX_APPS_REGISTRATION_ID: &str = "legacy_codex_apps";
+const LEGACY_CODEGRAPH_REGISTRATION_ID: &str = "legacy_codegraph";
 
 /// MCP configuration and capability availability derived from the same inputs.
 pub(crate) struct McpRuntimeProjection {
@@ -187,6 +190,21 @@ impl McpManager {
             catalog.remove_compatibility(
                 CODEX_APPS_MCP_SERVER_NAME.to_string(),
                 LEGACY_CODEX_APPS_REGISTRATION_ID,
+            );
+        }
+        // Built-in codegraph server (like codex_apps): served in-process when
+        // `[codegraph] enabled`, carrying auto_init through the environment.
+        let codegraph_config = &config.codegraph;
+        if codegraph_config.enabled {
+            catalog.register(McpServerRegistration::from_compatibility(
+                CODEGRAPH_MCP_SERVER_NAME.to_string(),
+                LEGACY_CODEGRAPH_REGISTRATION_ID,
+                codegraph_mcp_server_config(codegraph_config.auto_init.as_deref()),
+            ));
+        } else {
+            catalog.remove_compatibility(
+                CODEGRAPH_MCP_SERVER_NAME.to_string(),
+                LEGACY_CODEGRAPH_REGISTRATION_ID,
             );
         }
 

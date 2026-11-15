@@ -1,0 +1,30 @@
+[package]
+name = "codex-codegraph-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+camino = { workspace = true }
+codegraph-api = { workspace = true }
+codegraph-core = { workspace = true }
+codegraph-docs = { workspace = true }
+codegraph-extract = { workspace = true }
+codegraph-context = { workspace = true }
+futures = { workspace = true }
+rmcp = { workspace = true, default-features = false, features = [
+    "server",
+    "transport-async-rw",
+] }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "rt"] }
+tracing = { workspace = true, features = ["log"] }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+serial_test = { workspace = true }
+tempfile = { workspace = true }

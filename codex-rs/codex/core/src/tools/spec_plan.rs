@@ -273,7 +273,7 @@ async fn apply_jev_universal_selection(
             continue;
         }
         let tool_name = runtime.tool_name();
-        let tool_type = if tool_name.namespace.is_some() {
+        let tool_type = if runtime.inventory_source() == ToolInventorySource::Mcp {
             ToolType::Mcp
         } else {
             ToolType::Builtin
@@ -376,7 +376,6 @@ fn apply_direct_model_only_namespace_overrides(
     }
 }
 
-#[instrument(level = "trace", skip_all)]
 fn build_model_visible_specs_and_registry(
     turn_context: &TurnContext,
     planned_tools: PlannedTools,
@@ -770,7 +769,6 @@ fn add_tool_sources(context: &CoreToolPlanContext<'_>, planned_tools: &mut Plann
     add_harness_alias_tools(context, planned_tools);
     add_mcp_resource_tools(context, planned_tools);
     add_core_utility_tools(context, planned_tools);
-    add_code_graph_tools(context, planned_tools);
     add_collaboration_tools(context, planned_tools);
     add_mcp_runtime_tools(context, planned_tools);
     add_extension_tools(context, planned_tools);
@@ -1398,95 +1396,3 @@ fn code_mode_namespace_name<'a>(
 #[cfg(test)]
 #[path = "spec_plan_tests.rs"]
 mod tests;
-
-fn tool_exposure_from_config(config: &crate::config::Config, tool_key: &str) -> ToolExposure {
-    // Check per-tool override first
-    if let Some(direct) = config.tools.tool_direct.get(tool_key) {
-        return if *direct {
-            ToolExposure::Direct
-        } else {
-            ToolExposure::Deferred
-        };
-    }
-    // Also check by namespace (e.g., "codegraph")
-    if let Some(namespace) = tool_key.split(':').next()
-        && let Some(direct) = config.tools.tool_direct.get(namespace)
-    {
-        return if *direct {
-            ToolExposure::Direct
-        } else {
-            ToolExposure::Deferred
-        };
-    }
-    // Use default
-    if config.tools.default_direct {
-        ToolExposure::Direct
-    } else {
-        ToolExposure::Deferred
-    }
-}
-
-fn add_code_graph_tools(context: &CoreToolPlanContext<'_>, planned_tools: &mut PlannedTools) {
-    #[cfg(feature = "codegraph")]
-    {
-        let cfg = &context.step_context.turn.config.codegraph;
-        if cfg.enabled {
-            use std::sync::Arc;
-            let service = Arc::new(crate::tools::codegraph::service::CodegraphService);
-            let auto_init = crate::tools::codegraph::service::resolve_auto_init(
-                context.step_context.turn.config.cwd.as_path(),
-                cfg.auto_init.clone(),
-            );
-            crate::tools::codegraph::service::set_global_auto_init(auto_init);
-            let exposure =
-                tool_exposure_from_config(&context.step_context.turn.config, "codegraph");
-            // Add main call tool
-            planned_tools.add_with_exposure(
-                crate::tools::handlers::CodegraphHandler::new(Arc::clone(&service)),
-                exposure,
-            );
-            // Add individual tools similar to MCP codegraph
-            for name in [
-                "search_symbol",
-                "code_search",
-                "callers",
-                "callees",
-                "context",
-                "files",
-                "flow",
-                "trace_full_flow",
-                "impact",
-                "symbol",
-                "stats",
-                "code_stats",
-                "status",
-                "init",
-            ] {
-                let tool_exposure = tool_exposure_from_config(
-                    &context.step_context.turn.config,
-                    &format!("codegraph.{name}"),
-                );
-                planned_tools.add_with_exposure(
-                    crate::tools::handlers::CodegraphHandler::new_named(Arc::clone(&service), name),
-                    tool_exposure,
-                );
-            }
-            // Docgraph namespace
-            #[cfg(feature = "codegraph")]
-            for name in ["search", "list", "stats", "init"] {
-                let tool_exposure = tool_exposure_from_config(
-                    &context.step_context.turn.config,
-                    &format!("docgraph.{name}"),
-                );
-                planned_tools.add_with_exposure(
-                    crate::tools::handlers::DocgraphHandler::new_named(Arc::clone(&service), name),
-                    tool_exposure,
-                );
-            }
-        } else {
-            crate::tools::codegraph::service::set_global_auto_init(None);
-        }
-    }
-    #[cfg(not(feature = "codegraph"))]
-    let _ = (context, planned_tools);
-}

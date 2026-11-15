@@ -2,11 +2,7 @@ pub(crate) mod agent_jobs;
 pub(crate) mod agent_jobs_spec;
 pub(crate) mod apply_patch;
 pub(crate) mod apply_patch_spec;
-#[cfg(feature = "codegraph")]
-mod codegraph;
 mod current_time;
-#[cfg(feature = "codegraph")]
-pub(crate) mod docgraph;
 mod dynamic;
 pub(crate) mod extension_tools;
 pub(crate) mod family_verb;
@@ -69,13 +65,9 @@ use crate::session::turn_context::TurnEnvironment;
 pub(crate) use crate::tools::code_mode::CodeModeExecuteHandler;
 pub(crate) use crate::tools::code_mode::CodeModeWaitHandler;
 pub use apply_patch::ApplyPatchHandler;
-#[cfg(feature = "codegraph")]
-pub use codegraph::CodegraphHandler;
 use codex_protocol::models::AdditionalPermissionProfile;
 use codex_protocol::protocol::AskForApproval;
 pub use current_time::CurrentTimeHandler;
-#[cfg(feature = "codegraph")]
-pub use docgraph::DocgraphHandler;
 pub use dynamic::DynamicToolHandler;
 pub use get_context_remaining::GetContextRemainingHandler;
 pub(crate) use harness_aliases::HARNESS_NO_TRUNCATE_PREFIX;

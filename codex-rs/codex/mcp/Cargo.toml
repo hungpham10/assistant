@@ -27,6 +27,7 @@ codex-otel = { workspace = true }
 codex-plugin = { workspace = true }
 codex-product-info = { workspace = true }
 codex-protocol = { workspace = true }
+codex-codegraph-server = { workspace = true }
 codex-rmcp-client = { workspace = true }
 codex-path = { workspace = true }
 codex-utils-plugins = { workspace = true }
