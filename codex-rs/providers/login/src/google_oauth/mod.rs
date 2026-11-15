@@ -94,12 +94,24 @@ fn client_id() -> String {
         .unwrap_or_else(|| GOOGLE_OAUTH_CLIENT_ID.to_string())
 }
 
-/// Optional client secret; installed-app public clients omit it entirely.
+/// Optional client secret.
+///
+/// Resolution order: the runtime `CODEX_GOOGLE_OAUTH_CLIENT_SECRET`
+/// environment variable first, then a secret embedded at build time (CI
+/// release builds inject it from a GitHub Actions secret via
+/// `option_env!`). Installations of neither can still log in by exporting
+/// the runtime variable.
 pub(crate) fn client_secret() -> Option<String> {
     std::env::var(GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR)
         .ok()
         .map(|secret| secret.trim().to_string())
         .filter(|secret| !secret.is_empty())
+        .or_else(|| {
+            option_env!("CODEX_GOOGLE_OAUTH_CLIENT_SECRET")
+                .map(str::trim)
+                .filter(|secret| !secret.is_empty())
+                .map(str::to_string)
+        })
 }
 
 /// Appends the optional `client_secret` form parameter when configured.
@@ -173,8 +185,7 @@ pub(crate) async fn exchange_google_code(
         if body.contains("client_secret is missing") && client_secret.is_none() {
             return Err(io::Error::other(format!(
                 "Google token endpoint returned status {status}: {body}\n\
-                 This OAuth client requires a client secret. Set the {} environment variable and retry.",
-                GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR
+                 This OAuth client requires a client secret. Either set the {GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR} environment variable and retry, or create your own OAuth client (type \"Desktop app\") at https://console.cloud.google.com/apis/credentials and set {GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR}/{GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR}."
             )));
         }
         return Err(io::Error::other(format!(
