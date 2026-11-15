@@ -84,6 +84,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         &ToolSuggestJevConfig::default(),
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -101,6 +102,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         &cfg,
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -119,7 +121,13 @@ async fn pool_rỗng_thì_trả_none() {
     };
     // Pool rỗng → không có gì để rerank, coi như None dù enabled.
     let out = suggest_direct_mcp_tools(
-        "anything", None, exposure, &cfg, /*strategy*/ None, /*recent*/ None,
+        "anything",
+        None,
+        exposure,
+        &cfg,
+        /*strategy*/ None,
+        /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -313,6 +321,7 @@ async fn suggest_direct_mcp_tools_with_min_direct_tools() {
         &cfg,
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
 

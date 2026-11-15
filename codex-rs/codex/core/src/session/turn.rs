@@ -1508,6 +1508,7 @@ pub(crate) async fn built_tools(
             jev_cfg,
             strategy_context.as_ref(),
             recent_usage.as_deref(),
+            &turn_context.sub_id,
         )
         .await;
         match outcome {
