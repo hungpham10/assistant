@@ -176,7 +176,9 @@ pub fn run_google_login_server(opts: GoogleLoginOptions) -> io::Result<GoogleLog
                                     req.respond(response)
                                 })
                                 .await;
-                                None
+                                // A successful callback is terminal: the
+                                // tokens were persisted, so stop the loop.
+                                Some(Ok(()))
                             }
                             Err(err) => {
                                 let body = render_login_error_page(&err.to_string());
