@@ -221,6 +221,8 @@ fn print_google_login_setup_guide() {
            4. Copy the client ID and client secret and export them:\n\
              export {GOOGLE_CLIENT_ID_ENV_VAR}=<your-client-id>.apps.googleusercontent.com\n\
              export {GOOGLE_CLIENT_SECRET_ENV_VAR}=<your-client-secret>\n\
+           (CI release builds can embed both instead — set them as GitHub\n\
+            Actions repository secrets with the same names.)\n\
            5. If the OAuth consent screen is not configured yet, follow the\n\
               prompt at https://console.cloud.google.com/apis/consent (External\n\
               user type; add yourself as a test user while in testing).\n\

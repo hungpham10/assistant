@@ -87,10 +87,18 @@ struct GoogleTokenResponse {
     expires_in: Option<i64>,
 }
 
+/// Google OAuth client ID: runtime env override first, then a value
+/// embedded at build time (CI release builds), then the Gemini CLI client.
 fn client_id() -> String {
     std::env::var(GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR)
         .ok()
         .filter(|client_id| !client_id.trim().is_empty())
+        .or_else(|| {
+            option_env!("CODEX_GOOGLE_OAUTH_CLIENT_ID")
+                .map(str::trim)
+                .filter(|client_id| !client_id.is_empty())
+                .map(str::to_string)
+        })
         .unwrap_or_else(|| GOOGLE_OAUTH_CLIENT_ID.to_string())
 }
 
