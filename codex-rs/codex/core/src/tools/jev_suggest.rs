@@ -190,6 +190,7 @@ pub(crate) async fn suggest_direct_mcp_tools(
     cfg: &ToolSuggestJevConfig,
     strategy: Option<&StrategyTurnContext>,
     recent_usage: Option<&str>,
+    turn_id: &str,
 ) -> JevDecision<(McpToolExposure, JevSuggestedTools)> {
     if !cfg.enabled {
         return JevDecision::Disabled;
@@ -242,6 +243,8 @@ pub(crate) async fn suggest_direct_mcp_tools(
         &jev_cfg,
         strategy,
         recent_usage,
+        turn_id,
+        /*allow_memo*/ !cfg.observe_per_step,
     )
     .await;
     if !outcome.used {
@@ -332,8 +335,42 @@ pub(crate) async fn suggest_direct_mcp_tools(
     ))
 }
 
+/// Process-global memo of successful Jev planning replies, keyed by
+/// (turn id, question, candidate-labels hash). One turn usually reruns the
+/// same question on every step of its agentic loop; reusing the first reply
+/// keeps Jev cost at one call per turn (per distinct question on steer).
+/// Cleared when it grows past a few turns' worth of entries. Bypassed when
+/// `[tool_suggest_jev] observe_per_step` wants a live call every step.
+static JEV_PLANNING_MEMO: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<(String, String, u64), JevOutcome>>,
+> = std::sync::OnceLock::new();
+
+const JEV_PLANNING_MEMO_CAP: usize = 8;
+
+fn jev_planning_memo()
+-> &'static std::sync::Mutex<std::collections::HashMap<(String, String, u64), JevOutcome>> {
+    JEV_PLANNING_MEMO.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+fn jev_memo_key(
+    turn_id: &str,
+    question: &str,
+    candidates: &[(u64, String)],
+) -> (String, String, u64) {
+    use std::hash::Hash;
+    use std::hash::Hasher;
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    for (_, label) in candidates {
+        label.hash(&mut hasher);
+    }
+    (turn_id.to_string(), question.to_string(), hasher.finish())
+}
+
 /// Calls Jev with a planning prompt for tool selection. The optional
 /// strategy HMM context and recent tool usage bias the planning state.
+/// `turn_id` scopes the reply memo: within one turn, repeated steps with the
+/// same question and candidate pool reuse the first successful reply unless
+/// `allow_memo` is false (`observe_per_step` shadow mode asks every step).
 pub(crate) async fn call_jev_planning(
     question: &str,
     repo: Option<&str>,
@@ -341,7 +378,24 @@ pub(crate) async fn call_jev_planning(
     cfg: &JevConfig,
     strategy: Option<&StrategyTurnContext>,
     recent_usage: Option<&str>,
+    turn_id: &str,
+    allow_memo: bool,
 ) -> JevOutcome {
+    let key = jev_memo_key(turn_id, question, candidates);
+    if allow_memo
+        && let Some(outcome) = jev_planning_memo()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(&key)
+            .cloned()
+    {
+        tracing::info!(
+            turn_id,
+            "tool_suggest_jev reused memoized reply for this turn"
+        );
+        return outcome;
+    }
+
     let api_key = match cfg.api_key() {
         Some(key) => key,
         None => {
@@ -448,7 +502,19 @@ pub(crate) async fn call_jev_planning(
         }
     };
 
-    parse_jev_reply(&text, candidates)
+    let outcome = parse_jev_reply(&text, candidates);
+    // Only cache successful replies so a transient failure retries on the
+    // next step instead of poisoning the whole turn.
+    if outcome.used {
+        let mut memo = jev_planning_memo()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if memo.len() >= JEV_PLANNING_MEMO_CAP {
+            memo.clear();
+        }
+        memo.insert(key, outcome.clone());
+    }
+    outcome
 }
 
 /// Builds the planning state prompt for Jev. The optional strategy context
@@ -764,6 +830,7 @@ pub(crate) async fn suggest_direct_tools(
     cfg: &ToolSuggestJevConfig,
     strategy: Option<&StrategyTurnContext>,
     recent_usage: Option<&str>,
+    turn_id: &str,
 ) -> JevDecision<UniversalToolSuggestion> {
     if !cfg.enabled {
         return JevDecision::Disabled;
@@ -826,6 +893,8 @@ pub(crate) async fn suggest_direct_tools(
         &jev_cfg,
         strategy,
         recent_usage,
+        turn_id,
+        /*allow_memo*/ !cfg.observe_per_step,
     )
     .await;
     if !outcome.used {

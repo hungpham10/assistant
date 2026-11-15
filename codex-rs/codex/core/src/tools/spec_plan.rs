@@ -303,6 +303,7 @@ async fn apply_jev_universal_selection(
         cfg,
         jev.strategy.as_ref(),
         jev.recent_usage.as_deref(),
+        &turn_context.sub_id,
     )
     .await;
     match decision {

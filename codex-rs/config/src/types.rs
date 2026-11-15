@@ -327,6 +327,12 @@ pub struct ToolSuggestJevConfig {
     /// slots are filled from the ranked list regardless of probability.
     #[serde(default)]
     pub min_direct_tools: Option<usize>,
+    /// Shadow mode: Jev is still queried on every step of the turn's agentic
+    /// loop and the suggestion is emitted as `JevToolSuggestion` events (with
+    /// the step number), but tool exposure is never demoted and the priority
+    /// hint is never injected. Observation only.
+    #[serde(default)]
+    pub observe_per_step: bool,
 }
 
 /// Strategy-harness settings (`[plan_strategies]`).

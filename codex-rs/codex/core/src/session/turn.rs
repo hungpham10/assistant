@@ -1482,8 +1482,20 @@ pub(crate) async fn built_tools(
     // spec planner; MCP-only mode reranks here. Both fail-open and report
     // their skip reason for the TUI.
     let jev_cfg = &turn_context.config.tool_suggest_jev;
-    let demote = search_tool_enabled(turn_context);
+    // Shadow mode (`observe_per_step`): Jev still runs on every step of the
+    // turn's agentic loop, but observation only — no demotion, no priority
+    // hint; suggestions surface as step-tagged events and logs.
+    let jev_shadow = jev_cfg.observe_per_step;
+    let jev_step = jev_shadow.then(|| {
+        turn_context
+            .step_counter
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+    });
+    let demote = !jev_shadow && search_tool_enabled(turn_context);
     let universal_jev = jev_cfg.enabled && jev_cfg.include_all_tools && question.is_some();
+    if jev_shadow {
+        tracing::info!(step = ?jev_step, universal_jev, "tool_suggest_jev shadow step");
+    }
     let (mcp_tool_exposure, legacy_hint) = if universal_jev {
         (mcp_tool_exposure, None)
     } else if let Some(question) = question.as_deref() {
@@ -1496,6 +1508,7 @@ pub(crate) async fn built_tools(
             jev_cfg,
             strategy_context.as_ref(),
             recent_usage.as_deref(),
+            &turn_context.sub_id,
         )
         .await;
         match outcome {
@@ -1512,15 +1525,19 @@ pub(crate) async fn built_tools(
                         strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                         node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
                         skip_reason: None,
+                        step: jev_step,
                     }),
                 )
                 .await;
+                if jev_shadow {
+                    tracing::info!(step = ?jev_step, "tool_suggest_jev shadow suggestion (exposure unchanged)");
+                }
                 // Hint-only without the search tool: keeping the exposure
                 // untouched means deferred MCP tools would be unreachable.
                 if demote {
-                    (exposure, jev_hint)
+                    (exposure, if jev_shadow { None } else { jev_hint })
                 } else {
-                    (original, jev_hint)
+                    (original, if jev_shadow { None } else { jev_hint })
                 }
             }
             JevDecision::Skipped { reason } => {
@@ -1586,6 +1603,13 @@ pub(crate) async fn built_tools(
             Some(suggested) => {
                 let hint = (!suggested.scores.is_empty())
                     .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
+                if jev_shadow {
+                    tracing::info!(
+                        step = ?jev_step,
+                        tools = ?suggested.suggested_names,
+                        "tool_suggest_jev shadow suggestion (exposure unchanged)"
+                    );
+                }
                 sess.send_event(
                     turn_context,
                     EventMsg::JevToolSuggestion(codex_protocol::protocol::JevToolSuggestionEvent {
@@ -1596,10 +1620,11 @@ pub(crate) async fn built_tools(
                         strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                         node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
                         skip_reason: None,
+                        step: jev_step,
                     }),
                 )
                 .await;
-                hint
+                if jev_shadow { None } else { hint }
             }
             None => {
                 if let Some(reason) = universal_outcome.skip_reason.as_deref() {
@@ -1688,6 +1713,7 @@ async fn emit_jev_skip_event(
             strategy: strategy_context.map(|ctx| ctx.name.clone()),
             node: strategy_context.map(|ctx| ctx.node.clone()),
             skip_reason: Some(reason.to_string()),
+            step: None,
         }),
     )
     .await;

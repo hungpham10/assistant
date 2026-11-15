@@ -90,6 +90,23 @@ Every failure path preserves original exposure:
 - No match → all tools deferred
 - Empty pool → original
 
+## Frequency & Shadow Telemetry
+
+Jev is queried per step of the turn's agentic loop (`built_tools` reruns on
+every model-call step). Two mechanisms control the cost/observability:
+
+- **Reply memo (default on)**: successful planning replies are memoized per
+  `(turn_id, question, candidate-pool hash)` in a small process-global cache,
+  so one turn with a stable question costs **one Jev call** regardless of the
+  number of steps. Strategy HMM / recent-usage hints are only reflected in the
+  first call of a turn (the memo reuses its reply). Steer with a new user
+  message → new question → new call. Failed replies are never cached.
+- **`[tool_suggest_jev] observe_per_step` (default false)**: shadow mode.
+  Bypasses the memo (a live Jev call every step), never demotes tool exposure,
+  never injects the priority hint; each step emits a `JevToolSuggestion` event
+  tagged with `step` plus a tracing log — for measuring what per-step routing
+  would do.
+
 ## Future Improvements
 
 1. **Planning prompt** - Use task-decomposition prompt instead of similarity prompt

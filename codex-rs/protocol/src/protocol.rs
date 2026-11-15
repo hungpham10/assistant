@@ -1974,6 +1974,11 @@ pub struct JevToolSuggestionEvent {
     /// Human-readable reason Jev did not run this turn (fail-open skip).
     /// `None` when Jev produced a suggestion or is disabled in config.
     pub skip_reason: Option<String>,
+    /// Agentic-loop step number in shadow mode (`observe_per_step`): every
+    /// step of the turn emits its own event for observation. `None` in the
+    /// regular per-turn mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub step: Option<u32>,
 }
 
 /// Strategy-harness step transition emitted by `/plan <strategy>` sessions.

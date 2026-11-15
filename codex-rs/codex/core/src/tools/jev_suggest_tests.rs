@@ -84,6 +84,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         &ToolSuggestJevConfig::default(),
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -101,6 +102,7 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         &cfg,
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -119,7 +121,13 @@ async fn pool_rỗng_thì_trả_none() {
     };
     // Pool rỗng → không có gì để rerank, coi như None dù enabled.
     let out = suggest_direct_mcp_tools(
-        "anything", None, exposure, &cfg, /*strategy*/ None, /*recent*/ None,
+        "anything",
+        None,
+        exposure,
+        &cfg,
+        /*strategy*/ None,
+        /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
     assert!(matches!(out, JevDecision::Skipped { .. }));
@@ -273,6 +281,7 @@ fn create_test_jev_config(
     max_direct: Option<usize>,
 ) -> ToolSuggestJevConfig {
     ToolSuggestJevConfig {
+        observe_per_step: false,
         enabled,
         endpoint: Some("https://test.example.com".into()),
         model: Some("jev-1.13-free".into()),
@@ -312,6 +321,7 @@ async fn suggest_direct_mcp_tools_with_min_direct_tools() {
         &cfg,
         /*strategy*/ None,
         /*recent*/ None,
+        /*turn_id*/ "test-turn",
     )
     .await;
 
@@ -358,6 +368,7 @@ fn min_direct_tool_limit_uses_config_or_default() {
 #[test]
 fn to_jev_config_maps_all_fields() {
     let cfg = ToolSuggestJevConfig {
+        observe_per_step: false,
         enabled: true,
         endpoint: Some("https://custom.example.com".into()),
         model: Some("jev-1.13".into()),
