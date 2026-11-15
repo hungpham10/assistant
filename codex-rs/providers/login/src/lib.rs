@@ -22,6 +22,7 @@ pub use google_oauth::GoogleLoginOptions;
 pub use google_oauth::GoogleTokenData;
 pub use google_oauth::load_google_oauth_tokens;
 pub use google_oauth::login_with_google_oauth;
+pub use google_oauth::run_google_login_server;
 pub use server::LoginServer;
 pub use server::ServerOptions;
 pub use server::ShutdownHandle;
