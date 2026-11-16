@@ -96,6 +96,7 @@ pub use crate::endpoint::session_update_session_json;
 pub use crate::error::ApiError;
 pub use crate::files::OPENAI_FILE_UPLOAD_LIMIT_BYTES;
 pub use crate::files::upload_openai_file;
+pub use crate::google::CodeAssistGenerateContentRequest;
 pub use crate::google::GoogleContent;
 pub use crate::google::GoogleFunctionCall;
 pub use crate::google::GoogleFunctionDeclaration;

@@ -112,6 +112,7 @@ async fn end_to_end_google_login_flow_persists_google_oauth_tokens() -> Result<(
             expires_at: stored.expires_at,
             email: None,
             last_refresh: stored.last_refresh,
+            project_id: None,
         }
     );
     assert!(stored.expires_at > stored.last_refresh);

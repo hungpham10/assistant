@@ -35,6 +35,7 @@ use codex_api::AnthropicMessageRequest;
 use codex_api::AnthropicMessagesClient as ApiAnthropicMessagesClient;
 use codex_api::ApiError;
 use codex_api::AuthProvider;
+use codex_api::CodeAssistGenerateContentRequest;
 use codex_api::CompactClient as ApiCompactClient;
 use codex_api::CompactionInput as ApiCompactionInput;
 use codex_api::Compression;
@@ -80,6 +81,7 @@ use codex_login::CodexAuth;
 use codex_login::RefreshTokenError;
 use codex_login::UnauthorizedRecovery;
 use codex_login::default_client::build_default_reqwest_client_for_route;
+use codex_login::google_oauth::code_assist::code_assist_base_url;
 use codex_model_provider::AgentIdentitySessionFallback;
 use codex_model_provider::ProviderAuthScope;
 use codex_otel::SessionTelemetry;
@@ -121,6 +123,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::instrument;
 use tracing::trace;
 use tracing::warn;
+use uuid::Uuid;
 
 use crate::attestation::AttestationContext;
 use crate::attestation::AttestationProvider;
@@ -2974,6 +2977,31 @@ impl ModelClientSession {
                     GOOGLE_AUTH_REQUIRED_ERROR.to_string(),
                 ));
             };
+
+            // For the free "Login with Google" (OAuth) flow, resolve the Code
+            // Assist `cloudaicompanionProject` id (cached on the token data).
+            let code_assist_project = match &google_auth {
+                GoogleAuth::OAuth(_) => {
+                    if let Some(auth_manager) = auth_manager.as_ref() {
+                        auth_manager.code_assist_project().await.ok().flatten()
+                    } else {
+                        None
+                    }
+                }
+                GoogleAuth::ApiKey(_) => None,
+            };
+
+            let api_provider = self.client.state.provider.api_provider().await?;
+            // OAuth (free Login-with-Google) talks to the Code Assist backend;
+            // API key keeps the generativelanguage endpoint.
+            let google_provider = match &google_auth {
+                GoogleAuth::OAuth(_) => ApiProvider {
+                    base_url: code_assist_base_url(),
+                    ..api_provider.clone()
+                },
+                GoogleAuth::ApiKey(_) => api_provider.clone(),
+            };
+
             let (google_auth_provider, google_telemetry_provider) = match &google_auth {
                 GoogleAuth::ApiKey(api_key) => {
                     let provider = CoreAuthProvider {
@@ -3070,7 +3098,7 @@ impl ModelClientSession {
                 generation_config: None,
             };
 
-            let request_url = api_provider.url_for_path("");
+            let request_url = google_provider.url_for_path("");
             let client = build_default_reqwest_client_for_route(
                 &self.client.http_client_factory,
                 &request_url,
@@ -3080,14 +3108,32 @@ impl ModelClientSession {
             let transport = ReqwestTransport::new(client);
             let client = ApiGoogleGenerateContentClient::new(
                 transport,
-                api_provider.clone(),
+                google_provider,
                 Arc::new(google_auth_provider),
             )
             .with_telemetry(Some(request_telemetry), Some(sse_telemetry));
-            match client
-                .stream_request(&model_info.slug, request, ApiHeaderMap::new())
-                .await
-            {
+            let stream_result = match &google_auth {
+                GoogleAuth::ApiKey(_) => {
+                    client
+                        .stream_request(&model_info.slug, request, ApiHeaderMap::new())
+                        .await
+                }
+                GoogleAuth::OAuth(_) => {
+                    let project_id = code_assist_project
+                        .as_ref()
+                        .map(|project| project.project_id.clone());
+                    let envelope = CodeAssistGenerateContentRequest {
+                        model: format!("models/{}", model_info.slug),
+                        project: project_id,
+                        user_prompt_id: Some(Uuid::new_v4().to_string()),
+                        request,
+                    };
+                    client
+                        .stream_code_assist_request(envelope, ApiHeaderMap::new())
+                        .await
+                }
+            };
+            match stream_result {
                 Ok(stream) => {
                     let (stream, _) = map_response_stream(
                         stream,
