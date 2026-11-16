@@ -572,3 +572,21 @@ refresh_interval_ms = 0
     assert_eq!(auth.refresh_interval_ms, 0);
     assert_eq!(auth.refresh_interval(), None);
 }
+
+#[test]
+fn api_key_missing_env_var_errors_instead_of_returning_none() {
+    // Documents why the Google wire_api call site must map this error to
+    // `None` before trying the stored OAuth tokens fallback: `api_key`
+    // reports a missing env key as an error, not `Ok(None)`.
+    let provider = ModelProviderInfo {
+        env_key: Some("ASSISTANT_TEST_DEFINITELY_UNSET_API_KEY".to_string()),
+        ..ModelProviderInfo::create_openai_provider(/*base_url*/ None)
+    };
+
+    match provider.api_key() {
+        Err(CodexErr::EnvVar(err)) => {
+            assert_eq!(err.var, "ASSISTANT_TEST_DEFINITELY_UNSET_API_KEY");
+        }
+        other => panic!("expected EnvVar error, got {other:?}"),
+    }
+}

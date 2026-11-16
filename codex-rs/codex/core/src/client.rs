@@ -2951,7 +2951,11 @@ impl ModelClientSession {
             }
             const GOOGLE_AUTH_REQUIRED_ERROR: &str = "Google API key required for google wire_api; run `codex login --google` to sign in with Google OAuth instead";
             let api_key = provider_info
-                .api_key()?
+                // A missing env key is not fatal here: fall through to the
+                // stored Google OAuth tokens below.
+                .api_key()
+                .ok()
+                .flatten()
                 .or_else(|| {
                     auth.as_ref()
                         .and_then(CodexAuth::api_key)
