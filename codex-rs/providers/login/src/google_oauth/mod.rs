@@ -32,6 +32,9 @@ pub const GOOGLE_OAUTH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 pub const GOOGLE_OAUTH_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/cloud-platform",
     "https://www.googleapis.com/auth/userinfo.email",
+    // Required to call the Gemini API (generativelanguage.googleapis.com)
+    // with a user OAuth bearer token instead of an API key.
+    "https://www.googleapis.com/auth/generative-language",
 ];
 
 pub const GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_ID";
