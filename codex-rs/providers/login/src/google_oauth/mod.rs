@@ -32,14 +32,16 @@ pub const GOOGLE_OAUTH_TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 pub const GOOGLE_OAUTH_SCOPES: &[&str] = &[
     "https://www.googleapis.com/auth/cloud-platform",
     "https://www.googleapis.com/auth/userinfo.email",
-    // Required to call the Gemini API (generativelanguage.googleapis.com)
-    // with a user OAuth bearer token instead of an API key.
-    "https://www.googleapis.com/auth/generative-language",
 ];
 
 pub const GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_ID";
 pub const GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_SECRET";
 pub const GOOGLE_OAUTH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_TOKEN_URL";
+/// Comma- or space-separated scope list for the Google login consent screen.
+/// The built-in client ID is a Google restricted client that only permits its
+/// registered scopes, so requesting extra scopes (e.g. generative-language)
+/// requires a custom OAuth client configured alongside this override.
+pub const GOOGLE_OAUTH_SCOPES_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_SCOPES";
 
 /// Refresh the access token when it expires within this window (5 minutes).
 const GOOGLE_TOKEN_REFRESH_WINDOW_SECS: i64 = 300;
@@ -140,13 +142,37 @@ fn token_url() -> String {
         .unwrap_or_else(|| GOOGLE_OAUTH_TOKEN_URL.to_string())
 }
 
+/// Resolve the scopes to request on the consent screen: the runtime
+/// `CODEX_GOOGLE_OAUTH_SCOPES` override (comma- or space-separated) when set,
+/// otherwise the built-in scope list.
+pub(crate) fn google_scopes() -> Vec<String> {
+    if let Some(raw) = std::env::var(GOOGLE_OAUTH_SCOPES_OVERRIDE_ENV_VAR)
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+    {
+        let scopes: Vec<String> = raw
+            .split([',', ' '])
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string())
+            .collect();
+        if !scopes.is_empty() {
+            return scopes;
+        }
+    }
+    GOOGLE_OAUTH_SCOPES
+        .iter()
+        .map(|s| s.to_string())
+        .collect()
+}
+
 pub(crate) fn build_authorize_url(
     client_id: &str,
     redirect_uri: &str,
     code_challenge: &str,
     state: &str,
 ) -> String {
-    let scopes = GOOGLE_OAUTH_SCOPES.join(" ");
+    let scopes = google_scopes().join(" ");
     let query = [
         ("response_type", "code"),
         ("client_id", client_id),
