@@ -160,10 +160,7 @@ pub(crate) fn google_scopes() -> Vec<String> {
             return scopes;
         }
     }
-    GOOGLE_OAUTH_SCOPES
-        .iter()
-        .map(|s| s.to_string())
-        .collect()
+    GOOGLE_OAUTH_SCOPES.iter().map(|s| s.to_string()).collect()
 }
 
 pub(crate) fn build_authorize_url(
