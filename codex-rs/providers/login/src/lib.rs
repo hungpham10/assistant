@@ -3,6 +3,7 @@ pub mod auth_env_telemetry;
 pub mod google_oauth;
 pub mod kimi_code;
 pub mod token_data;
+pub mod zcode_oauth;
 
 mod device_code_auth;
 mod outbound_proxy;
@@ -30,6 +31,11 @@ pub use server::run_login_server;
 pub use success_page::CODEX_OPEN_APP_URL;
 pub use success_page::LoginSuccessPage;
 pub use success_page::LoginSuccessPageBrand;
+pub use zcode_oauth::ZcodeLoginOptions;
+pub use zcode_oauth::ZcodeTokenData;
+pub use zcode_oauth::load_zcode_oauth_tokens;
+pub use zcode_oauth::login_with_zcode_oauth;
+pub use zcode_oauth::resolve_zcode_bearer_token;
 
 pub use auth::AgentIdentityAuthPolicy;
 pub use auth::AuthConfig;

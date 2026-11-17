@@ -15,6 +15,7 @@ use codex_cli::run_login_with_api_key;
 use codex_cli::run_login_with_chatgpt;
 use codex_cli::run_login_with_device_code;
 use codex_cli::run_login_with_google;
+use codex_cli::run_login_with_zcode;
 use codex_cli::run_logout;
 use codex_exec::Cli as ExecCli;
 use codex_exec::Command as ExecCommand;
@@ -554,6 +555,12 @@ struct LoginCommand {
         help = "Sign in with Google OAuth so the Gemini provider works without an API key"
     )]
     google_login: bool,
+
+    #[arg(
+        long = "zcode",
+        help = "Sign in with ZCode (Z.AI) OAuth so the GLM Coding Plan provider works without an API key"
+    )]
+    zcode_login: bool,
 
     /// EXPERIMENTAL: Use a custom Google OAuth client ID (advanced)
     #[arg(long = "google-client-id", value_name = "CLIENT_ID", hide = true)]
@@ -1484,6 +1491,8 @@ async fn cli_main(
                             login_cli.google_client_id,
                         )
                         .await;
+                    } else if login_cli.zcode_login {
+                        run_login_with_zcode(login_cli.config_overrides).await;
                     } else if login_cli.use_device_code {
                         run_login_with_device_code(
                             login_cli.config_overrides,

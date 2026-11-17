@@ -36,6 +36,7 @@ pub fn login_with_bedrock_api_key(
             region: region.to_string(),
         }),
         google_oauth: None,
+        zcode_oauth: None,
     };
     save_auth(
         codex_home,
