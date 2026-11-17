@@ -517,6 +517,15 @@ impl ModelProviderInfo {
                 .is_some_and(|base_url| base_url.contains("api.anthropic.com"))
     }
 
+    pub fn is_google_provider(&self) -> bool {
+        self.wire_api == WireApi::Google
+            || self.name.eq_ignore_ascii_case("google")
+            || self
+                .base_url
+                .as_deref()
+                .is_some_and(|base_url| base_url.contains("generativelanguage.googleapis.com"))
+    }
+
     pub fn supports_remote_compaction(&self) -> bool {
         self.is_openai() || is_azure_responses_provider(&self.name, self.base_url.as_deref())
     }

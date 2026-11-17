@@ -4,13 +4,18 @@ use crate::client::RequestCompression;
 use crate::client::RequestTelemetry;
 use crate::common::ResponseStream;
 use crate::error::ApiError;
+use crate::google::CodeAssistGenerateContentRequest;
 use crate::google::GoogleGenerateContentRequest;
+use crate::google::GoogleListModelsRequest;
+use crate::google::GoogleListModelsResponse;
+use crate::google::GoogleModel;
 use crate::provider::Provider;
 use crate::sse::spawn_google_response_stream;
 use crate::telemetry::SseTelemetry;
 use http::HeaderMap;
 use http::HeaderValue;
 use http::Method;
+use serde_json::Value;
 use std::sync::Arc;
 use tracing::instrument;
 
@@ -53,18 +58,98 @@ impl<T: HttpTransport> GoogleGenerateContentClient<T> {
         request: GoogleGenerateContentRequest,
         extra_headers: HeaderMap,
     ) -> Result<ResponseStream, ApiError> {
-        self.stream(model, request, extra_headers).await
-    }
-
-    async fn stream(
-        &self,
-        model: &str,
-        request: GoogleGenerateContentRequest,
-        mut extra_headers: HeaderMap,
-    ) -> Result<ResponseStream, ApiError> {
         let body = serde_json::to_value(&request)
             .map_err(|err| ApiError::Stream(format!("failed to encode google request: {err}")))?;
         let path = format!("v1beta/models/{model}:streamGenerateContent?alt=sse");
+        self.stream_json(path, body, extra_headers).await
+    }
+
+    /// Stream a Code Assist (free "Login with Google") generate content request.
+    ///
+    /// Posts the Code Assist envelope to `v1internal:streamGenerateContent?alt=sse`
+    /// on the Code Assist backend (cloudcode-pa.googleapis.com).
+    #[instrument(
+        name = "google.code_assist_generate_content",
+        level = "info",
+        skip_all,
+        fields(
+            transport = "google_http",
+            http.method = "POST"
+        )
+    )]
+    pub async fn stream_code_assist_request(
+        &self,
+        request: CodeAssistGenerateContentRequest,
+        extra_headers: HeaderMap,
+    ) -> Result<ResponseStream, ApiError> {
+        let body = serde_json::to_value(&request).map_err(|err| {
+            ApiError::Stream(format!("failed to encode code assist request: {err}"))
+        })?;
+        let path = "v1internal:streamGenerateContent?alt=sse".to_string();
+        self.stream_json(path, body, extra_headers).await
+    }
+
+    /// List models from the Generative Language API (`GET v1beta/models`), one page.
+    #[instrument(
+        name = "google.list_models",
+        level = "info",
+        skip_all,
+        fields(transport = "google_http", http.method = "GET")
+    )]
+    pub async fn list_models(
+        &self,
+        request: GoogleListModelsRequest,
+        extra_headers: HeaderMap,
+    ) -> Result<GoogleListModelsResponse, ApiError> {
+        let path = crate::google::models_path(&request);
+        let response = self
+            .session
+            .execute(Method::GET, &path, extra_headers, None::<Value>)
+            .await?;
+        let body = String::from_utf8_lossy(&response.body).to_string();
+        serde_json::from_str(&body).map_err(|err| {
+            ApiError::Stream(format!(
+                "failed to decode google list models response: {err}: {body}"
+            ))
+        })
+    }
+
+    /// List all models, following `nextPageToken` until exhausted.
+    pub async fn list_all_models(
+        &self,
+        page_size: Option<i32>,
+        extra_headers: HeaderMap,
+    ) -> Result<Vec<GoogleModel>, ApiError> {
+        let mut models = Vec::new();
+        let mut page_token: Option<String> = None;
+        loop {
+            let page = self
+                .list_models(
+                    GoogleListModelsRequest {
+                        page_size,
+                        page_token: page_token.clone(),
+                    },
+                    extra_headers.clone(),
+                )
+                .await?;
+            if let Some(page_models) = page.models {
+                models.extend(page_models);
+            }
+            match page.next_page_token {
+                Some(token) if !token.is_empty() => page_token = Some(token),
+                _ => break,
+            }
+        }
+        Ok(models)
+    }
+
+    async fn stream_json(
+        &self,
+        path: String,
+        body: serde_json::Value,
+        extra_headers: HeaderMap,
+    ) -> Result<ResponseStream, ApiError> {
+        let mut extra_headers = extra_headers;
         extra_headers.insert(
             http::header::ACCEPT,
             HeaderValue::from_static("text/event-stream"),

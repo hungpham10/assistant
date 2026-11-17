@@ -146,8 +146,6 @@ pub fn run_google_login_server(opts: GoogleLoginOptions) -> io::Result<GoogleLog
 
     let shutdown_notify = Arc::new(tokio::sync::Notify::new());
     let server_handle = {
-        let opts = opts.clone();
-        let redirect_uri = redirect_uri.clone();
         let shutdown_notify = shutdown_notify.clone();
         tokio::spawn(async move {
             let result = loop {
@@ -286,12 +284,10 @@ async fn process_request(
         io::Error::other(format!("Persist error: {err}"))
     })?;
 
-    Ok(
-        Response::from_string(GOOGLE_LOGIN_SUCCESS_HTML).with_header(
-            Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])
-                .expect("content type header is valid"),
-        ),
-    )
+    let content_type =
+        Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=utf-8"[..])
+            .map_err(|err| io::Error::other(format!("invalid content type header: {err:?}")))?;
+    Ok(Response::from_string(GOOGLE_LOGIN_SUCCESS_HTML).with_header(content_type))
 }
 
 fn generate_state() -> String {

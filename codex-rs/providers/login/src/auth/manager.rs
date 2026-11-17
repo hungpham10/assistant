@@ -52,6 +52,7 @@ use crate::auth::storage::create_auth_storage;
 use crate::auth::util::try_parse_error_message;
 use crate::default_client::create_client;
 use crate::default_client::create_default_auth_client;
+use crate::google_oauth::code_assist;
 use crate::outbound_proxy::AuthRouteConfig;
 use crate::token_data::TokenData;
 use crate::token_data::parse_chatgpt_jwt_claims;
@@ -2539,6 +2540,48 @@ impl AuthManager {
                 None
             }
         }
+    }
+
+    /// Resolves (and caches) the Code Assist `cloudaicompanionProject` for the
+    /// current Google OAuth account, used by the free "Login with Google"
+    /// (oauth-personal) flow.
+    ///
+    /// Mirrors Gemini CLI's `setupUser`: `loadCodeAssist` then `onboardUser`.
+    /// Returns `None` when no Google OAuth tokens are available.
+    pub async fn code_assist_project(
+        &self,
+    ) -> std::io::Result<Option<code_assist::GoogleProjectResult>> {
+        let Some(tokens) = self.google_oauth_tokens().await else {
+            return Ok(None);
+        };
+        let (result, _tokens) = code_assist::ensure_code_assist_project(
+            tokens,
+            &self.codex_home,
+            self.auth_credentials_store_mode,
+            self.keyring_backend_kind,
+        )
+        .await?;
+        Ok(Some(result))
+    }
+
+    /// Returns the Code Assist user-quota model ids for the current Google
+    /// OAuth account (best-effort; resolves the onboarding project first).
+    ///
+    /// Returns `None` when no Google OAuth tokens are available.
+    pub async fn code_assist_quota_models(&self) -> std::io::Result<Option<Vec<String>>> {
+        let Some(tokens) = self.google_oauth_tokens().await else {
+            return Ok(None);
+        };
+        let (result, persisted) = code_assist::ensure_code_assist_project(
+            tokens,
+            &self.codex_home,
+            self.auth_credentials_store_mode,
+            self.keyring_backend_kind,
+        )
+        .await?;
+        let ids =
+            code_assist::fetch_quota_model_ids(&persisted.access_token, &result.project_id).await?;
+        Ok(Some(ids))
     }
 
     /// Returns the effective backend auth mode for the current authentication.

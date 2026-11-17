@@ -43,9 +43,17 @@ use wiremock::matchers::header;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
 use wiremock::matchers::path_regex;
+use wiremock::matchers::query_param;
 
 const TEST_INSTALLATION_ID: &str = "11111111-1111-4111-8111-111111111111";
 const TEST_WINDOW_ID: &str = "test-thread:0";
+
+// Serializes tests that override the global `CODE_ASSIST_ENDPOINT` env var.
+static CODE_ASSIST_ENDPOINT_LOCK: std::sync::OnceLock<std::sync::Mutex<()>> =
+    std::sync::OnceLock::new();
+fn code_assist_endpoint_lock() -> &'static std::sync::Mutex<()> {
+    CODE_ASSIST_ENDPOINT_LOCK.get_or_init(|| std::sync::Mutex::new(()))
+}
 
 fn google_sse_body(text: &str) -> String {
     format!(
@@ -60,6 +68,7 @@ fn google_tokens(access_token: &str, refresh_token: &str, expires_at: i64) -> Go
         expires_at,
         email: None,
         last_refresh: 0,
+        project_id: None,
     }
 }
 
@@ -236,25 +245,53 @@ async fn run_one_turn(test_client: TestClient) {
     panic!("expected a Completed event from the google stream");
 }
 
-/// Mounts the google generateContent endpoint expecting the given Bearer token.
-async fn mount_google_sse(server: &MockServer, bearer_token: &str, text: &str) {
+/// Mounts Code Assist setup (`loadCodeAssist`) returning a cached project, so
+/// onboarding is not triggered.
+async fn mount_code_assist_setup(server: &MockServer) {
     Mock::given(method("POST"))
-        .and(path_regex("v1beta/models/.+:streamGenerateContent"))
+        .and(path("/v1internal:loadCodeAssist"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "currentTier": { "id": "free-tier", "name": "Free", "isDefault": true },
+            "cloudaicompanionProject": "proj-123",
+        })))
+        .expect(1)
+        .mount(server)
+        .await;
+}
+
+/// Mounts the Code Assist streaming endpoint expecting the given Bearer token.
+/// The body is a Code Assist envelope `{ "response": {...} }`.
+async fn mount_code_assist_sse(server: &MockServer, bearer_token: &str, text: &str) {
+    Mock::given(method("POST"))
+        .and(path("/v1internal:streamGenerateContent"))
+        .and(query_param("alt", "sse"))
         .and(header("authorization", format!("Bearer {bearer_token}")))
         .respond_with(
             ResponseTemplate::new(200)
                 .insert_header("content-type", "text/event-stream")
-                .set_body_string(google_sse_body(text)),
+                .set_body_string(code_assist_sse_body(text)),
         )
         .expect(1)
         .mount(server)
         .await;
 }
 
+fn code_assist_sse_body(text: &str) -> String {
+    format!(
+        "data: {{\"response\":{{\"candidates\":[{{\"content\":{{\"role\":\"model\",\"parts\":[{{\"text\":\"{text}\"}}]}}}}]}}}}\n\n"
+    )
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_wire_uses_oauth_bearer_token_without_api_key() {
     let server = MockServer::start().await;
-    mount_google_sse(&server, "google-access-token", "hi there").await;
+    // Route the free Code Assist flow at the mock server. The endpoint lock
+    // serializes tests that override the global CODE_ASSIST_ENDPOINT env var.
+    let _lock = code_assist_endpoint_lock().lock().unwrap();
+    // SAFETY(test): serialized via CODE_ASSIST_ENDPOINT_LOCK; restored below.
+    unsafe { std::env::set_var("CODE_ASSIST_ENDPOINT", server.uri()) };
+    mount_code_assist_setup(&server).await;
+    mount_code_assist_sse(&server, "google-access-token", "hi there").await;
 
     let codex_home = TempDir::new().unwrap();
     seed_google_tokens(
@@ -270,6 +307,8 @@ async fn google_wire_uses_oauth_bearer_token_without_api_key() {
     let test_client = build_test_client(auth_manager, &server).await;
     run_one_turn(test_client).await;
     server.verify().await;
+    // SAFETY(test): serialized via CODE_ASSIST_ENDPOINT_LOCK.
+    unsafe { std::env::remove_var("CODE_ASSIST_ENDPOINT") };
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -305,8 +344,12 @@ async fn google_wire_api_key_auth_takes_precedence_over_oauth_tokens() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_wire_refreshes_expired_oauth_tokens_and_persists_them() {
     let server = MockServer::start().await;
+    let _lock = code_assist_endpoint_lock().lock().unwrap();
     // Point Google token refresh at the mock server for the duration of the test.
     let token_url = format!("{}/token", server.uri());
+    // Route the free Code Assist flow at the mock server too.
+    // SAFETY(test): serialized via CODE_ASSIST_ENDPOINT_LOCK; restored below.
+    unsafe { std::env::set_var("CODE_ASSIST_ENDPOINT", server.uri()) };
     // SAFETY(test): serialized with respect to other google tests; restored below.
     unsafe { std::env::set_var("CODEX_GOOGLE_OAUTH_TOKEN_URL", &token_url) };
 
@@ -322,8 +365,9 @@ async fn google_wire_refreshes_expired_oauth_tokens_and_persists_them() {
         .expect(1)
         .mount(&server)
         .await;
-    // The generateContent call must carry the refreshed token.
-    mount_google_sse(&server, "refreshed-access-token", "hi").await;
+    // The Code Assist generateContent call must carry the refreshed token.
+    mount_code_assist_setup(&server).await;
+    mount_code_assist_sse(&server, "refreshed-access-token", "hi").await;
 
     let codex_home = TempDir::new().unwrap();
     seed_google_tokens(
@@ -350,6 +394,8 @@ async fn google_wire_refreshes_expired_oauth_tokens_and_persists_them() {
     assert_eq!(stored.refresh_token, "google-refresh-token");
 
     unsafe { std::env::remove_var("CODEX_GOOGLE_OAUTH_TOKEN_URL") };
+    // SAFETY(test): serialized via CODE_ASSIST_ENDPOINT_LOCK.
+    unsafe { std::env::remove_var("CODE_ASSIST_ENDPOINT") };
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

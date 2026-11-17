@@ -3,6 +3,7 @@ use crate::client::StreamResponse;
 use crate::common::ResponseEvent;
 use crate::common::ResponseStream;
 use crate::error::ApiError;
+use crate::google::CodeAssistGenerateContentResponse;
 use crate::google::GoogleGenerateContentResponse;
 use crate::telemetry::SseTelemetry;
 use codex_protocol::models::ContentItem;
@@ -74,7 +75,27 @@ pub async fn process_sse(
             continue;
         }
 
-        match serde_json::from_str::<GoogleGenerateContentResponse>(&event.data) {
+        let event_value: serde_json::Value = match serde_json::from_str(&event.data) {
+            Ok(v) => v,
+            Err(e) => {
+                debug!("failed to parse google event: {e}, data: {}", event.data);
+                continue;
+            }
+        };
+        let event_value = if event_value.get("response").is_some() {
+            // Code Assist envelope: { "response": {...generateContentResponse} }
+            // unwrap `.response` before decoding the inner generate content response.
+            if serde_json::from_value::<CodeAssistGenerateContentResponse>(event_value.clone())
+                .is_ok()
+            {
+                event_value.get("response").cloned().unwrap_or(event_value)
+            } else {
+                event_value
+            }
+        } else {
+            event_value
+        };
+        match serde_json::from_value::<GoogleGenerateContentResponse>(event_value) {
             Ok(resp) => {
                 if let Some(candidates) = resp.candidates {
                     for candidate in candidates {

@@ -24,6 +24,7 @@ use crate::auth::ResolvedProviderAuth;
 use crate::auth::auth_manager_for_provider;
 use crate::auth::resolve_provider_auth;
 use crate::auth::resolve_provider_auth_for_scope;
+use crate::models_endpoint::GoogleModelsEndpoint;
 use crate::models_endpoint::OpenAiModelsEndpoint;
 
 /// Optional provider-backed features that Codex may expose at runtime.
@@ -343,15 +344,24 @@ impl ModelProvider for ConfiguredModelProvider {
                 model_catalog,
             )),
             None => {
-                let endpoint = Arc::new(OpenAiModelsEndpoint::new(
-                    self.info.clone(),
-                    self.auth_manager.clone(),
-                ));
+                let base_models = bundled_provider_model_infos(&self.info);
+                let endpoint: Arc<dyn codex_models_manager::manager::ModelsEndpointClient> =
+                    if self.info.is_google_provider() {
+                        Arc::new(GoogleModelsEndpoint::new(
+                            self.info.clone(),
+                            self.auth_manager.clone(),
+                        ))
+                    } else {
+                        Arc::new(OpenAiModelsEndpoint::new(
+                            self.info.clone(),
+                            self.auth_manager.clone(),
+                        ))
+                    };
                 Arc::new(OpenAiModelsManager::new_with_base_models(
                     codex_home,
                     endpoint,
                     self.auth_manager.clone(),
-                    bundled_provider_model_infos(&self.info),
+                    base_models,
                 ))
             }
         }
@@ -366,14 +376,23 @@ impl ModelProvider for ConfiguredModelProvider {
                 model_catalog,
             )),
             None => {
-                let endpoint = Arc::new(OpenAiModelsEndpoint::new(
-                    self.info.clone(),
-                    self.auth_manager.clone(),
-                ));
+                let base_models = bundled_provider_model_infos(&self.info);
+                let endpoint: Arc<dyn codex_models_manager::manager::ModelsEndpointClient> =
+                    if self.info.is_google_provider() {
+                        Arc::new(GoogleModelsEndpoint::new(
+                            self.info.clone(),
+                            self.auth_manager.clone(),
+                        ))
+                    } else {
+                        Arc::new(OpenAiModelsEndpoint::new(
+                            self.info.clone(),
+                            self.auth_manager.clone(),
+                        ))
+                    };
                 Arc::new(OpenAiModelsManager::new_without_cache_with_base_models(
                     endpoint,
                     self.auth_manager.clone(),
-                    bundled_provider_model_infos(&self.info),
+                    base_models,
                 ))
             }
         }

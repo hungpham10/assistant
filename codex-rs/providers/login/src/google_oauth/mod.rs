@@ -6,6 +6,8 @@
 
 mod login_server;
 
+pub mod code_assist;
+
 use std::io;
 use std::path::Path;
 use std::time::Duration;
@@ -37,6 +39,7 @@ pub const GOOGLE_OAUTH_SCOPES: &[&str] = &[
 pub const GOOGLE_OAUTH_CLIENT_ID_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_ID";
 pub const GOOGLE_OAUTH_CLIENT_SECRET_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_SECRET";
 pub const GOOGLE_OAUTH_TOKEN_URL_OVERRIDE_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_TOKEN_URL";
+pub const CODE_ASSIST_ENDPOINT_OVERRIDE_ENV_VAR: &str = "CODE_ASSIST_ENDPOINT";
 /// Comma- or space-separated scope list for the Google login consent screen.
 /// The built-in client ID is a Google restricted client that only permits its
 /// registered scopes, so requesting extra scopes (e.g. generative-language)
@@ -57,6 +60,10 @@ pub struct GoogleTokenData {
     pub email: Option<String>,
     /// Unix seconds at which the tokens were last refreshed.
     pub last_refresh: i64,
+    /// Code Assist `cloudaicompanionProject` id resolved during onboarding,
+    /// cached so the free-flow (oauth-personal) requests can reuse it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
 }
 
 impl GoogleTokenData {
@@ -78,6 +85,7 @@ impl GoogleTokenData {
             expires_at: now + expires_in,
             email,
             last_refresh: now,
+            project_id: None,
         }
     }
 }
@@ -154,13 +162,16 @@ pub(crate) fn google_scopes() -> Vec<String> {
             .split([',', ' '])
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
         if !scopes.is_empty() {
             return scopes;
         }
     }
-    GOOGLE_OAUTH_SCOPES.iter().map(|s| s.to_string()).collect()
+    GOOGLE_OAUTH_SCOPES
+        .iter()
+        .map(ToString::to_string)
+        .collect()
 }
 
 pub(crate) fn build_authorize_url(
@@ -303,6 +314,21 @@ pub(crate) fn save_google_oauth_tokens(
     )
 }
 
+/// Persist updated token data (e.g. with a resolved Code Assist project id).
+pub fn persist_tokens_with_project(
+    codex_home: &Path,
+    tokens: GoogleTokenData,
+    auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: crate::auth::AuthKeyringBackendKind,
+) -> io::Result<()> {
+    save_google_oauth_tokens(
+        codex_home,
+        tokens,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )
+}
+
 /// Loads Google OAuth tokens for the given home, refreshing and persisting
 /// them when they are expired or about to expire.
 ///
@@ -337,6 +363,9 @@ pub async fn refresh_google_oauth_tokens_if_needed(
             }
             if persisted.email.is_none() {
                 persisted.email = tokens.email.clone();
+            }
+            if persisted.project_id.is_none() {
+                persisted.project_id = tokens.project_id.clone();
             }
             save_google_oauth_tokens(
                 codex_home,
