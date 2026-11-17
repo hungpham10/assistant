@@ -2977,7 +2977,6 @@ impl ModelClientSession {
                     GOOGLE_AUTH_REQUIRED_ERROR.to_string(),
                 ));
             };
-
             // For the free "Login with Google" (OAuth) flow, resolve the Code
             // Assist `cloudaicompanionProject` id (cached on the token data).
             let code_assist_project = match &google_auth {
@@ -3024,7 +3023,6 @@ impl ModelClientSession {
                     (provider.clone(), provider)
                 }
             };
-            let api_provider = self.client.state.provider.api_provider().await?;
             let request_auth_context = AuthRequestTelemetryContext::new(
                 auth_mode.or(Some(AuthMode::ApiKey)),
                 &google_telemetry_provider,

@@ -11,14 +11,12 @@ use reqwest::header::AUTHORIZATION;
 use serde::Deserialize;
 use serde_json::json;
 
-pub use crate::google_oauth::CODE_ASSIST_ENDPOINT_OVERRIDE_ENV_VAR;
-
 pub const CODE_ASSIST_ENDPOINT: &str = "https://cloudcode-pa.googleapis.com";
 pub const CODE_ASSIST_API_VERSION: &str = "v1internal";
 
 /// Effective Code Assist base URL, overridable via env for testing/proxies.
 pub fn code_assist_base_url() -> String {
-    std::env::var(CODE_ASSIST_ENDPOINT_OVERRIDE_ENV_VAR)
+    std::env::var(super::CODE_ASSIST_ENDPOINT_OVERRIDE_ENV_VAR)
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| CODE_ASSIST_ENDPOINT.to_string())
@@ -111,9 +109,11 @@ struct Tier {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct LoadCodeAssistResponse {
+    #[serde(default)]
     current_tier: Option<Tier>,
     #[serde(default)]
     allowed_tiers: Vec<Tier>,
+    #[serde(default)]
     cloudaicompanion_project: Option<serde_json::Value>,
 }
 
@@ -127,6 +127,20 @@ struct OnboardOperation {
     response: Option<serde_json::Value>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BucketInfo {
+    #[serde(default)]
+    model_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RetrieveUserQuotaResponse {
+    #[serde(default)]
+    buckets: Option<Vec<BucketInfo>>,
+}
+
 fn project_from(value: Option<&serde_json::Value>) -> Option<String> {
     let v = value?;
     if let Some(s) = v.as_str() {
@@ -138,10 +152,10 @@ fn project_from(value: Option<&serde_json::Value>) -> Option<String> {
 }
 
 fn pick_tier(res: &LoadCodeAssistResponse) -> Option<&Tier> {
-    if let Some(tier) = &res.current_tier {
-        if tier.id.is_some() {
-            return Some(tier);
-        }
+    if let Some(tier) = &res.current_tier
+        && tier.id.is_some()
+    {
+        return Some(tier);
     }
     res.allowed_tiers.iter().find(|t| t.is_default)
 }
@@ -149,8 +163,6 @@ fn pick_tier(res: &LoadCodeAssistResponse) -> Option<&Tier> {
 /// Resolve the Code Assist project id for the current Google account.
 ///
 /// Flow mirrors Gemini CLI `setupUser`: `loadCodeAssist` then `onboardUser`
-/// (free tier uses a managed project, so `cloudaicompanionProject` is omitted
-/// there). The resolved id is cached on the stored token data.
 pub async fn ensure_code_assist_project(
     tokens: crate::google_oauth::GoogleTokenData,
     codex_home: &std::path::Path,
@@ -230,6 +242,28 @@ pub async fn ensure_code_assist_project(
         },
         persisted,
     ))
+}
+
+/// Returns the distinct model ids tracked by Code Assist user-quota buckets
+/// for the given project, if the backend reports them.
+///
+/// `retrieveUserQuota` is best-effort: some accounts/tiers return no buckets,
+/// in which case an empty list is returned.
+pub async fn fetch_quota_model_ids(token: &str, project_id: &str) -> io::Result<Vec<String>> {
+    let body = serde_json::json!({ "project": project_id });
+    let res: RetrieveUserQuotaResponse =
+        serde_json::from_value(ca_post(token, "retrieveUserQuota", body).await?).map_err(
+            |err| io::Error::other(format!("Code Assist retrieveUserQuota parse failed: {err}")),
+        )?;
+    let mut ids: Vec<String> = res
+        .buckets
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|bucket| bucket.model_id)
+        .collect();
+    ids.sort();
+    ids.dedup();
+    Ok(ids)
 }
 
 /// Resolved Code Assist onboarding data.

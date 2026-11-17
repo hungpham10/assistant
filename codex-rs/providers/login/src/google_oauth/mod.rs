@@ -162,13 +162,16 @@ pub(crate) fn google_scopes() -> Vec<String> {
             .split([',', ' '])
             .map(str::trim)
             .filter(|s| !s.is_empty())
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect();
         if !scopes.is_empty() {
             return scopes;
         }
     }
-    GOOGLE_OAUTH_SCOPES.iter().map(|s| s.to_string()).collect()
+    GOOGLE_OAUTH_SCOPES
+        .iter()
+        .map(ToString::to_string)
+        .collect()
 }
 
 pub(crate) fn build_authorize_url(

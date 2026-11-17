@@ -2564,6 +2564,26 @@ impl AuthManager {
         Ok(Some(result))
     }
 
+    /// Returns the Code Assist user-quota model ids for the current Google
+    /// OAuth account (best-effort; resolves the onboarding project first).
+    ///
+    /// Returns `None` when no Google OAuth tokens are available.
+    pub async fn code_assist_quota_models(&self) -> std::io::Result<Option<Vec<String>>> {
+        let Some(tokens) = self.google_oauth_tokens().await else {
+            return Ok(None);
+        };
+        let (result, persisted) = code_assist::ensure_code_assist_project(
+            tokens,
+            &self.codex_home,
+            self.auth_credentials_store_mode,
+            self.keyring_backend_kind,
+        )
+        .await?;
+        let ids =
+            code_assist::fetch_quota_model_ids(&persisted.access_token, &result.project_id).await?;
+        Ok(Some(ids))
+    }
+
     /// Returns the effective backend auth mode for the current authentication.
     pub fn auth_mode(&self) -> Option<AuthMode> {
         self.auth_cached().as_ref().map(CodexAuth::auth_mode)

@@ -5,11 +5,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use codex_api::AgentIdentityTelemetry;
+use codex_api::GoogleGenerateContentClient as ApiGoogleGenerateContentClient;
+use codex_api::GoogleModel;
 use codex_api::ModelsClient;
 use codex_api::RequestTelemetry;
 use codex_api::ReqwestTransport;
+use codex_api::SharedAuthProvider;
 use codex_api::TransportError;
 use codex_api::auth_header_telemetry;
+use codex_api::google_models_to_model_infos;
 use codex_api::map_api_error;
 use codex_feedback::FeedbackRequestTags;
 use codex_feedback::emit_feedback_request_tags_with_auth_env;
@@ -31,7 +35,10 @@ use codex_response_debug_context::extract_response_debug_context;
 use codex_response_debug_context::telemetry_transport_error_message;
 use http::HeaderMap;
 use tokio::time::timeout;
+use tracing::warn;
 
+use crate::BearerAuthProvider;
+use crate::CoreAuthProvider;
 use crate::auth::agent_identity_telemetry;
 use crate::auth::resolve_provider_auth;
 
@@ -143,6 +150,166 @@ impl ModelsEndpointClient for OpenAiModelsEndpoint {
         http_client_factory: HttpClientFactory,
     ) -> ModelsEndpointFuture<'a, CoreResult<(Vec<ModelInfo>, Option<String>)>> {
         Box::pin(OpenAiModelsEndpoint::list_models(
+            self,
+            client_version,
+            http_client_factory,
+        ))
+    }
+}
+
+/// Google Generative Language API (`v1beta/models`) model endpoint.
+///
+/// Used for the `google` provider (`WireApi::Google`). Lists models live from
+/// `GET {base_url}/v1beta/models`, keeping only models that advertise
+/// `generateContent`/`streamGenerateContent`, and maps them to `ModelInfo`.
+#[derive(Debug)]
+pub(crate) struct GoogleModelsEndpoint {
+    provider_info: ModelProviderInfo,
+    auth_manager: Option<Arc<AuthManager>>,
+}
+
+impl GoogleModelsEndpoint {
+    pub(crate) fn new(
+        provider_info: ModelProviderInfo,
+        auth_manager: Option<Arc<AuthManager>>,
+    ) -> Self {
+        Self {
+            provider_info,
+            auth_manager,
+        }
+    }
+
+    async fn auth(&self) -> Option<CodexAuth> {
+        match self.auth_manager.as_ref() {
+            Some(auth_manager) => auth_manager.auth().await,
+            None => None,
+        }
+    }
+
+    async fn uses_codex_backend(&self) -> bool {
+        self.auth()
+            .await
+            .as_ref()
+            .is_some_and(CodexAuth::uses_codex_backend)
+    }
+
+    async fn list_models(
+        &self,
+        _client_version: &str,
+        http_client_factory: HttpClientFactory,
+    ) -> CoreResult<(Vec<ModelInfo>, Option<String>)> {
+        let _timer =
+            codex_otel::start_global_timer("codex.remote_models.fetch_update.duration_ms", &[]);
+        let auth = self.auth().await;
+        let auth_mode = auth.as_ref().map(CodexAuth::auth_mode);
+        let api_provider = self.provider_info.to_api_provider(auth_mode)?;
+
+        enum GoogleAuth {
+            ApiKey(String),
+            OAuth(String),
+        }
+        let api_key = self
+            .provider_info
+            .api_key()
+            .ok()
+            .flatten()
+            .or_else(|| {
+                auth.as_ref()
+                    .and_then(CodexAuth::api_key)
+                    .map(str::to_string)
+            })
+            .or(self.provider_info.experimental_bearer_token.clone());
+        let google_auth = match api_key {
+            Some(api_key) => GoogleAuth::ApiKey(api_key),
+            None => match self.auth_manager.as_ref() {
+                Some(auth_manager) => match auth_manager.google_oauth_tokens().await {
+                    Some(tokens) => GoogleAuth::OAuth(tokens.access_token),
+                    None => return Ok((Vec::new(), None)),
+                },
+                None => return Ok((Vec::new(), None)),
+            },
+        };
+
+        let auth_provider: SharedAuthProvider = match &google_auth {
+            GoogleAuth::ApiKey(api_key) => Arc::new(CoreAuthProvider {
+                token: Some(api_key.clone()),
+                account_id: None,
+                is_fedramp_account: false,
+                token_header_name: Some("x-goog-api-key"),
+                use_bearer_prefix: false,
+            }),
+            GoogleAuth::OAuth(access_token) => Arc::new(BearerAuthProvider {
+                token: Some(access_token.clone()),
+                account_id: None,
+                is_fedramp_account: false,
+                token_header_name: None,
+                use_bearer_prefix: true,
+            }),
+        };
+
+        let request_url = api_provider.url_for_path("v1beta/models");
+        let transport = build_default_reqwest_client_for_route_async(
+            http_client_factory,
+            request_url,
+            ClientRouteClass::Api,
+        )
+        .await?;
+        let transport = ReqwestTransport::new(transport);
+
+        let client = ApiGoogleGenerateContentClient::new(transport, api_provider, auth_provider);
+        // Generative Language model list is best-effort: the bundled catalog
+        // stays authoritative when the live call is unavailable or the
+        // credential (e.g. OAuth-only free flow) is not accepted there.
+        let mut google_models: Vec<GoogleModel> =
+            match client.list_all_models(None, HeaderMap::new()).await {
+                Ok(models) => models,
+                Err(err) => {
+                    warn!("failed to list generative language models: {err}");
+                    Vec::new()
+                }
+            };
+
+        // Code Assist (free "Login with Google") discovery: the v1internal
+        // backend has no list-models RPC, so augment with the model ids
+        // tracked by user-quota buckets when running on OAuth.
+        if matches!(&google_auth, GoogleAuth::OAuth(_))
+            && let Some(auth_manager) = &self.auth_manager
+            && let Ok(Some(ids)) = auth_manager.code_assist_quota_models().await
+        {
+            for id in ids {
+                google_models.push(GoogleModel {
+                    name: format!("models/{id}"),
+                    version: None,
+                    display_name: Some(id.clone()),
+                    description: None,
+                    input_token_limit: None,
+                    output_token_limit: None,
+                    supported_generation_methods: Some(vec!["generateContent".to_string()]),
+                    full_name: None,
+                });
+            }
+        }
+
+        let models = google_models_to_model_infos(&google_models);
+        Ok((models, None))
+    }
+}
+
+impl ModelsEndpointClient for GoogleModelsEndpoint {
+    fn has_command_auth(&self) -> bool {
+        self.provider_info.has_command_auth()
+    }
+
+    fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool> {
+        Box::pin(GoogleModelsEndpoint::uses_codex_backend(self))
+    }
+
+    fn list_models<'a>(
+        &'a self,
+        client_version: &'a str,
+        http_client_factory: HttpClientFactory,
+    ) -> ModelsEndpointFuture<'a, CoreResult<(Vec<ModelInfo>, Option<String>)>> {
+        Box::pin(GoogleModelsEndpoint::list_models(
             self,
             client_version,
             http_client_factory,
@@ -293,6 +460,7 @@ mod tests {
     use codex_protocol::config_types::ModelProviderAuthInfo;
     use codex_protocol::openai_models::ModelsResponse;
     use pretty_assertions::assert_eq;
+    use serde_json::json;
     use wiremock::Mock;
     use wiremock::MockServer;
     use wiremock::ResponseTemplate;
@@ -398,5 +566,60 @@ mod tests {
                 format!("{}/models?client_version=0.0.0", server.uri()),
             ))
         );
+    }
+
+    #[tokio::test]
+    async fn google_endpoint_lists_generate_content_models() {
+        use codex_model_provider_info::WireApi;
+
+        let server = MockServer::start().await;
+        unsafe {
+            std::env::set_var("GOOGLE_API_KEY", "test-key");
+        }
+        Mock::given(method("GET"))
+            .and(path("/v1beta/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "models": [
+                    {
+                        "name": "models/gemini-2.5-flash",
+                        "displayName": "Gemini 2.5 Flash",
+                        "inputTokenLimit": 1_048_576,
+                        "outputTokenLimit": 65_536,
+                        "supportedGenerationMethods": ["generateContent", "streamGenerateContent"]
+                    },
+                    {
+                        "name": "models/text-embedding-004",
+                        "displayName": "Text Embedding 004",
+                        "supportedGenerationMethods": ["embedContent"]
+                    },
+                ]
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider_info = ModelProviderInfo {
+            name: "Google".to_string(),
+            base_url: Some(server.uri()),
+            env_key: Some("GOOGLE_API_KEY".to_string()),
+            wire_api: WireApi::Google,
+            ..Default::default()
+        };
+        let endpoint = GoogleModelsEndpoint::new(provider_info, None);
+        let (models, _etag) = endpoint
+            .list_models(
+                "0.0.0",
+                HttpClientFactory::new(OutboundProxyPolicy::ReqwestDefault),
+            )
+            .await
+            .expect("google models request should succeed");
+
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].slug, "gemini-2.5-flash");
+        assert_eq!(models[0].display_name, "Gemini 2.5 Flash");
+        assert_eq!(models[0].context_window, Some(1_048_576));
+        assert!(models[0].supported_in_api);
+        // SAFETY(test): restore env for other tests in this binary.
+        unsafe { std::env::remove_var("GOOGLE_API_KEY") };
     }
 }
