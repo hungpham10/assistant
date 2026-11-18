@@ -121,6 +121,7 @@ fn remote_control_auth_dot_json(account_id: Option<&str>) -> AuthDotJson {
         personal_access_token: None,
         bedrock_api_key: None,
         google_oauth: None,
+        zcode_oauth: None,
     }
 }
 

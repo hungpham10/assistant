@@ -204,6 +204,22 @@ pub(crate) async fn resolve_provider_auth(
         }
     }
 
+    // The ZCode provider can authenticate with stored OAuth credentials
+    // when no API key is available in the environment.
+    if is_zcode_provider(provider) {
+        if let Some(codex_home) = codex_home {
+            match codex_login::resolve_zcode_bearer_token(codex_home).await {
+                Ok(Some(token)) => return Ok(Arc::new(BearerAuthProvider::new(token))),
+                Ok(None) => {}
+                Err(err) => {
+                    return Err(CodexErr::Fatal(format!(
+                        "ZCode authentication failed: {err}"
+                    )));
+                }
+            }
+        }
+    }
+
     Ok(match auth {
         Some(auth) => auth_provider_from_auth(auth),
         None => unauthenticated_auth_provider(),
@@ -290,6 +306,17 @@ fn is_kimi_code_provider(provider: &ModelProviderInfo) -> bool {
         bundled_provider_catalog_entry_for_base_url(base_url)
             .is_some_and(|entry| entry.id == KIMI_CODE_PROVIDER_ID)
     })
+}
+
+/// Detects a ZCode (Z.AI) Coding Plan provider by its base URL.
+///
+/// There is no bundled catalog entry yet, so the base URL of the
+/// OpenAI-compatible Coding Plan endpoint is used as the marker.
+fn is_zcode_provider(provider: &ModelProviderInfo) -> bool {
+    provider
+        .base_url
+        .as_deref()
+        .is_some_and(|base_url| base_url.contains("api.z.ai/api/coding"))
 }
 
 fn bearer_auth_for_provider(

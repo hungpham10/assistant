@@ -62,6 +62,9 @@ pub struct AuthDotJson {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub google_oauth: Option<GoogleTokenData>,
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub zcode_oauth: Option<crate::zcode_oauth::ZcodeTokenData>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, PartialEq, Eq)]
