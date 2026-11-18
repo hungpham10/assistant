@@ -7,12 +7,13 @@
 //! business access token, and resolve the Coding Plan project access token
 //! used for inference.
 //!
-//! Contracts:
+//! Contracts (verified against the live broker):
 //! - `POST {base}/api/v1/oauth/cli/init`
-//!   headers: `Authorization: Bearer <pollToken>`, `Content-Type: application/json`
-//!   body: `{"provider":"zai"}` → `{authorize_url, flow_id, expires_at, poll_interval_sec}`
+//!   headers: `Authorization: Bearer <clientToken>`, `Content-Type: application/json`
+//!   body: `{"provider":"zai"}`
+//!   → `{code, msg, data:{authorize_url, flow_id, poll_token, expires_at, poll_interval_sec}}`
 //! - `GET {base}/api/v1/oauth/cli/poll/{flow_id}`
-//!   headers: `Authorization: Bearer <pollToken>` → `{status, token, zai:{access_token}}`
+//!   headers: `Authorization: Bearer <data.poll_token>` → `{code, msg, data}`
 //! - `POST https://api.z.ai/api/auth/z/login` `{token}` → `{access_token}` (business token)
 //! - `GET https://api.z.ai/api/biz/customer/getCustomerInfo` → organizations/projects
 
@@ -42,6 +43,14 @@ pub const ZCODE_OAUTH_PROVIDER: &str = "zai";
 pub const ZAI_BASE_URL: &str = "https://api.z.ai";
 pub const ZAI_LOGIN_EXCHANGE_PATH: &str = "/api/auth/z/login";
 pub const ZAI_CUSTOMER_INFO_PATH: &str = "/api/biz/customer/getCustomerInfo";
+/// Project API-key namespace: `/api/biz/v1/organization/{org}/projects/{project}/api_keys`.
+pub const ZAI_PROJECT_API_KEYS_PATH: &str = "/api/biz/v1/organization";
+/// Name of the Coding Plan API key the ZCode desktop creates for a project.
+const ZCODE_API_KEY_NAME: &str = "zcode-api-key";
+/// `usageScene` enum value for the Coding Plan (STANDARD is 2).
+const USAGE_SCENE_CODING_PLAN: i64 = 1;
+/// Client identity the broker expects on the access-token request.
+pub const ZCODE_CLIENT_VERSION: &str = "3.18.2";
 
 /// OpenAI-compatible Coding Plan endpoint used for inference.
 pub const ZAI_CODING_CHAT_BASE_URL: &str = "https://api.z.ai/api/coding/paas/v4";
@@ -69,6 +78,9 @@ pub struct ZcodeTokenData {
     /// Z.AI project id resolved during login.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    /// Z.AI organization that owns `project_id`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub email: Option<String>,
     /// Unix seconds at which the tokens were last refreshed.
@@ -151,17 +163,33 @@ pub(crate) async fn get_json(url: &str, bearer: &str) -> io::Result<serde_json::
         .map_err(|err| io::Error::other(format!("GET {url} returned invalid JSON: {err}: {text}")))
 }
 
-/// Unwraps the `{code, msg, data}` envelope used by the Z.AI business API.
+/// Unwraps the `{code, msg, data}` envelope used by the Z.AI APIs.
+///
+/// The Z.AI business API reports success as either `0` or `200` (numeric or
+/// string), so all four encodings are accepted; anything else is an error.
 pub(crate) fn unwrap_envelope(
     value: serde_json::Value,
     context: &str,
 ) -> io::Result<serde_json::Value> {
-    let code = value.get("code").and_then(serde_json::Value::as_i64);
-    if let Some(code) = code.filter(|code| *code != 0) {
+    let code = value.get("code");
+    let code_is_success = match code {
+        None => true,
+        Some(code) => {
+            if let Some(code) = code.as_i64() {
+                code == 0 || code == 200
+            } else if let Some(code) = code.as_str() {
+                code == "0" || code == "200"
+            } else {
+                false
+            }
+        }
+    };
+    if !code_is_success {
         let msg = value
             .get("msg")
             .and_then(serde_json::Value::as_str)
             .unwrap_or("unknown error");
+        let code = code.map(ToString::to_string).unwrap_or_default();
         return Err(io::Error::other(format!(
             "{context} failed (code {code}): {msg}"
         )));
@@ -173,65 +201,225 @@ pub(crate) fn unwrap_envelope(
 /// business access token (`zaiBusinessAccessToken`).
 pub(crate) async fn exchange_business_token(oauth_access_token: &str) -> io::Result<String> {
     let url = format!("{}{ZAI_LOGIN_EXCHANGE_PATH}", zai_base_url());
-    let value = post_json(
+    let raw = post_json(
         &url,
         serde_json::json!({ "token": oauth_access_token }),
         /*bearer*/ None,
     )
     .await?;
-    let access_token = value
+    let data = unwrap_envelope(raw.clone(), "z/login")?;
+    let access_token = data
         .get("access_token")
+        .or_else(|| raw.get("access_token"))
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or_else(|| io::Error::other("Z.AI login did not return a business access token."))?;
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "Z.AI login did not return a business access token: {raw}"
+            ))
+        })?;
     Ok(access_token.to_string())
 }
 
-/// Resolves the Z.AI project id for the business account (best effort).
-pub(crate) async fn resolve_project_id(business_token: &str) -> io::Result<Option<String>> {
+/// Z.AI organization/project pair that owns the Coding Plan API key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ProjectScope {
+    pub organization_id: String,
+    pub project_id: String,
+}
+
+/// Resolves the organization and project that hold the Coding Plan API key.
+///
+/// Mirrors the desktop selection: personal accounts prefer the organization
+/// named `默认机构` and the project named `默认项目`, skipping shared
+/// (`projectType == "2"`) projects, and otherwise take the first available.
+pub(crate) async fn resolve_project_scope(
+    business_token: &str,
+) -> io::Result<Option<ProjectScope>> {
     let url = format!("{}{ZAI_CUSTOMER_INFO_PATH}", zai_base_url());
-    let value = get_json(&url, business_token).await?;
-    let value = unwrap_envelope(value, "getCustomerInfo")?;
-    // organizations[0].projects[0].projectId
-    let project_id = value
+    let raw = get_json(&url, business_token).await?;
+    let value = unwrap_envelope(raw, "getCustomerInfo")?;
+    let Some(organizations) = value
         .get("organizations")
         .and_then(serde_json::Value::as_array)
-        .and_then(|orgs| orgs.first())
-        .and_then(|org| org.get("projects"))
+    else {
+        return Ok(None);
+    };
+
+    let organizations: Vec<&serde_json::Value> = organizations
+        .iter()
+        .filter(|org| !org_id(org).is_empty())
+        .collect();
+    let organization = organizations
+        .iter()
+        .copied()
+        .find(|org| {
+            org.get("organizationName")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|name| name.contains("默认机构"))
+        })
+        .or_else(|| organizations.first().copied());
+    let Some(organization) = organization else {
+        return Ok(None);
+    };
+
+    let projects: Vec<&serde_json::Value> = organization
+        .get("projects")
         .and_then(serde_json::Value::as_array)
-        .and_then(|projects| projects.first())
-        .and_then(|project| project.get("projectId"))
+        .map(|projects| {
+            projects
+                .iter()
+                .filter(|project| !project_id(project).is_empty())
+                .filter(|project| {
+                    project
+                        .get("projectType")
+                        .map(project_type_is_shared)
+                        .is_some_and(|shared| !shared)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    let project = projects
+        .iter()
+        .copied()
+        .find(|project| {
+            project
+                .get("projectName")
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|name| name.contains("默认项目"))
+        })
+        .or_else(|| projects.first().copied());
+    let Some(project) = project else {
+        return Ok(None);
+    };
+
+    Ok(Some(ProjectScope {
+        organization_id: org_id(organization),
+        project_id: project_id(project),
+    }))
+}
+
+/// `projectType` is documented as a string but the API has also returned
+/// numbers; treat both encodings as the same value.
+fn project_type_is_shared(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(value) => value.trim() == "2",
+        serde_json::Value::Number(value) => value.as_i64() == Some(2),
+        _ => false,
+    }
+}
+
+fn org_id(organization: &serde_json::Value) -> String {
+    organization
+        .get("organizationId")
         .and_then(serde_json::Value::as_str)
-        .map(str::to_string);
-    Ok(project_id)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
+}
+
+fn project_id(project: &serde_json::Value) -> String {
+    project
+        .get("projectId")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// URL of the project's API-key collection.
+fn project_api_keys_url(base: &str, scope: &ProjectScope) -> String {
+    format!(
+        "{base}{ZAI_PROJECT_API_KEYS_PATH}/{}/projects/{}/api_keys",
+        urlencoding::encode(&scope.organization_id),
+        urlencoding::encode(&scope.project_id)
+    )
+}
+
+/// Returns the project's Coding Plan API key id, creating the key when the
+/// desktop-issued `zcode-api-key` does not exist yet.
+async fn ensure_project_api_key(business_token: &str, api_keys_url: &str) -> io::Result<String> {
+    let raw = get_json(api_keys_url, business_token).await?;
+    let existing = unwrap_envelope(raw, "api_keys")?;
+    if let Some(key_id) = existing
+        .as_array()
+        .and_then(|keys| {
+            keys.iter().find(|key| {
+                key.get("name").and_then(serde_json::Value::as_str) == Some(ZCODE_API_KEY_NAME)
+            })
+        })
+        .and_then(|key| key.get("apiKey"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|key_id| !key_id.is_empty())
+    {
+        return Ok(key_id.to_string());
+    }
+
+    let raw = post_json(
+        api_keys_url,
+        serde_json::json!({
+            "name": ZCODE_API_KEY_NAME,
+            "usageScene": USAGE_SCENE_CODING_PLAN,
+        }),
+        Some(business_token),
+    )
+    .await?;
+    let created = unwrap_envelope(raw, "api_keys create")?;
+    created
+        .get("apiKey")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|key_id| !key_id.is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "api_keys create response is missing apiKey: {created}"
+            ))
+        })
 }
 
 /// Issues a Coding Plan project access token for the business account.
 ///
+/// The desktop exchanges the project's `zcode-api-key` id for a short-lived
+/// project access token; that token is what the Coding Plan endpoint accepts.
 /// Returns `(token, expires_at_unix_secs)`.
 pub(crate) async fn issue_project_token(
     business_token: &str,
-    project_id: Option<&str>,
+    scope: &ProjectScope,
 ) -> io::Result<(String, i64)> {
-    let base = zai_base_url();
-    let url = match project_id.filter(|id| !id.trim().is_empty()) {
-        Some(project_id) => format!("{base}/api/biz/customer/project/{project_id}/access_tokens"),
-        None => format!("{base}/api/biz/customer/access_tokens"),
-    };
-    let value = get_json(&url, business_token).await?;
-    let value = unwrap_envelope(value, "access_tokens")?;
+    let api_keys_url = project_api_keys_url(&zai_base_url(), scope);
+    let api_key_id = ensure_project_api_key(business_token, &api_keys_url).await?;
+    let url = format!(
+        "{api_keys_url}/{}/access_tokens",
+        urlencoding::encode(&api_key_id)
+    );
+    let raw = post_json(
+        &url,
+        serde_json::json!({
+            "clientType": "zcode",
+            "clientVersion": ZCODE_CLIENT_VERSION,
+        }),
+        Some(business_token),
+    )
+    .await?;
+    let value = unwrap_envelope(raw, "access_tokens")?;
     let token = value
         .get("accessToken")
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or_else(|| io::Error::other("access_tokens response is missing accessToken"))?;
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "access_tokens response is missing accessToken: {value}"
+            ))
+        })?;
     let now = Utc::now().timestamp();
     let expires_in = value
         .get("expiresIn")
         .and_then(serde_json::Value::as_i64)
-        .unwrap_or(3600);
+        .unwrap_or(18000);
     let expires_at = value
         .get("expiresAt")
         .and_then(serde_json::Value::as_i64)
@@ -288,11 +476,23 @@ async fn refresh_project_token(
     if !tokens.needs_project_token_refresh() {
         return Ok(tokens);
     }
-    match issue_project_token(&tokens.zai_business_token, tokens.project_id.as_deref()).await {
+    let scope = match project_scope_from_tokens(&tokens) {
+        Some(scope) => Some(scope),
+        None => resolve_project_scope(&tokens.zai_business_token)
+            .await
+            .unwrap_or(None),
+    };
+    let Some(scope) = scope else {
+        tracing::warn!("cannot refresh the ZCode project token: no project resolved");
+        return Ok(tokens);
+    };
+    match issue_project_token(&tokens.zai_business_token, &scope).await {
         Ok((project_token, expires_at)) => {
             let mut persisted = tokens;
             persisted.project_token = Some(project_token);
             persisted.project_token_expires_at = expires_at;
+            persisted.organization_id = Some(scope.organization_id);
+            persisted.project_id = Some(scope.project_id);
             persisted.last_refresh = Utc::now().timestamp();
             save_zcode_oauth_tokens(
                 codex_home,
@@ -307,6 +507,19 @@ async fn refresh_project_token(
             Ok(tokens)
         }
     }
+}
+
+/// Builds the project scope from already-stored ids, when both are present.
+fn project_scope_from_tokens(tokens: &ZcodeTokenData) -> Option<ProjectScope> {
+    let organization_id = tokens.organization_id.as_deref()?.trim();
+    let project_id = tokens.project_id.as_deref()?.trim();
+    if organization_id.is_empty() || project_id.is_empty() {
+        return None;
+    }
+    Some(ProjectScope {
+        organization_id: organization_id.to_string(),
+        project_id: project_id.to_string(),
+    })
 }
 
 /// Re-issues the Coding Plan project access token when it is missing or
