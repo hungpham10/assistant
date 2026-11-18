@@ -7,12 +7,13 @@
 //! business access token, and resolve the Coding Plan project access token
 //! used for inference.
 //!
-//! Contracts:
+//! Contracts (verified against the live broker):
 //! - `POST {base}/api/v1/oauth/cli/init`
-//!   headers: `Authorization: Bearer <pollToken>`, `Content-Type: application/json`
-//!   body: `{"provider":"zai"}` → `{authorize_url, flow_id, expires_at, poll_interval_sec}`
+//!   headers: `Authorization: Bearer <clientToken>`, `Content-Type: application/json`
+//!   body: `{"provider":"zai"}`
+//!   → `{code, msg, data:{authorize_url, flow_id, poll_token, expires_at, poll_interval_sec}}`
 //! - `GET {base}/api/v1/oauth/cli/poll/{flow_id}`
-//!   headers: `Authorization: Bearer <pollToken>` → `{status, token, zai:{access_token}}`
+//!   headers: `Authorization: Bearer <data.poll_token>` → `{code, msg, data}`
 //! - `POST https://api.z.ai/api/auth/z/login` `{token}` → `{access_token}` (business token)
 //! - `GET https://api.z.ai/api/biz/customer/getCustomerInfo` → organizations/projects
 
@@ -173,18 +174,24 @@ pub(crate) fn unwrap_envelope(
 /// business access token (`zaiBusinessAccessToken`).
 pub(crate) async fn exchange_business_token(oauth_access_token: &str) -> io::Result<String> {
     let url = format!("{}{ZAI_LOGIN_EXCHANGE_PATH}", zai_base_url());
-    let value = post_json(
+    let raw = post_json(
         &url,
         serde_json::json!({ "token": oauth_access_token }),
         /*bearer*/ None,
     )
     .await?;
-    let access_token = value
+    let data = unwrap_envelope(raw.clone(), "z/login")?;
+    let access_token = data
         .get("access_token")
+        .or_else(|| raw.get("access_token"))
         .and_then(serde_json::Value::as_str)
         .map(str::trim)
         .filter(|token| !token.is_empty())
-        .ok_or_else(|| io::Error::other("Z.AI login did not return a business access token."))?;
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "Z.AI login did not return a business access token: {raw}"
+            ))
+        })?;
     Ok(access_token.to_string())
 }
 

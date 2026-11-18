@@ -54,14 +54,21 @@ fn start_mock_zcode_server(
                 ("/api/v1/oauth/cli/init", "POST") => {
                     assert!(body.contains("\"provider\":\"zai\""), "init body: {body}");
                     json!({
-                        "authorize_url": "https://zcode.z.ai/oauth/authorize?flow=flow-123",
-                        "flow_id": "flow-123",
-                        "expires_at": chrono::Utc::now().timestamp() + 3600,
-                        "poll_interval_sec": 1,
+                        "code": 0,
+                        "msg": "",
+                        "data": {
+                            "authorize_url": "https://zcode.z.ai/oauth/authorize?flow=flow-123",
+                            "flow_id": "flow-123",
+                            "poll_token": "server-poll-token",
+                            "expires_at": chrono::Utc::now().timestamp() + 3600,
+                            "poll_interval_sec": 1,
+                            "server_time": chrono::Utc::now().timestamp(),
+                        },
                     })
                 }
                 ("/api/v1/oauth/cli/poll/flow-123", "GET") => {
-                    let expected = poll_token.lock().unwrap().clone();
+                    // The broker issues its own poll token during init and
+                    // rejects polls that reuse the caller-supplied token.
                     let actual = req
                         .headers()
                         .iter()
@@ -69,24 +76,28 @@ fn start_mock_zcode_server(
                         .map(|h| h.value.to_string());
                     assert_eq!(
                         actual.as_deref(),
-                        expected.as_deref(),
-                        "poll request must reuse the init bearer poll token"
+                        Some("Bearer server-poll-token"),
+                        "poll request must use the broker-issued poll token"
                     );
                     poll_count += 1;
                     if poll_count >= 1 {
                         json!({
-                            "status": "ready",
-                            "token": "zcode-jwt-123",
-                            "user": {"user_id": "fixture-user"},
-                            "zai": {"access_token": "zai-oauth-123"},
+                            "code": 0,
+                            "msg": "",
+                            "data": {
+                                "status": "ready",
+                                "token": "zcode-jwt-123",
+                                "user": {"user_id": "fixture-user"},
+                                "zai": {"access_token": "zai-oauth-123"},
+                            },
                         })
                     } else {
-                        json!({"status": "pending"})
+                        json!({"code": 0, "msg": "", "data": {"status": "pending"}})
                     }
                 }
                 ("/api/auth/z/login", "POST") => {
                     assert!(body.contains("\"token\":\"zai-oauth-123\""));
-                    json!({"access_token": "zai-business-123"})
+                    json!({"code": 0, "msg": "", "data": {"access_token": "zai-business-123"}})
                 }
                 ("/api/biz/customer/getCustomerInfo", "GET") => {
                     json!({
