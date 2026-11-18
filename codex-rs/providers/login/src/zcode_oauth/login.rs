@@ -31,7 +31,7 @@ use crate::zcode_oauth::exchange_business_token;
 use crate::zcode_oauth::get_json;
 use crate::zcode_oauth::issue_project_token;
 use crate::zcode_oauth::post_json;
-use crate::zcode_oauth::resolve_project_id;
+use crate::zcode_oauth::resolve_project_scope;
 use crate::zcode_oauth::save_zcode_oauth_tokens;
 use crate::zcode_oauth::unwrap_envelope;
 
@@ -92,7 +92,7 @@ const LOGIN_TIMEOUT_SECS: u64 = 15 * 60;
 /// and sends it as `Authorization: Bearer <pollToken>` on both requests.
 fn poll_token() -> String {
     let mut bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    rand::rng().fill_bytes(&mut bytes);
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -190,30 +190,43 @@ pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
             ))
         })?
         .to_string();
+    let email = ready
+        .get("user")
+        .and_then(|user| user.get("email"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|email| !email.is_empty())
+        .map(str::to_string);
 
     // 4. Exchange the OAuth token for the Z.AI business token.
     let zai_business_token = exchange_business_token(&oauth_access_token).await?;
 
     // 5. Resolve the project and issue a Coding Plan project token.
-    let project_id = resolve_project_id(&zai_business_token)
+    let scope = resolve_project_scope(&zai_business_token)
         .await
         .unwrap_or(None);
-    let (project_token, project_token_expires_at) =
-        match issue_project_token(&zai_business_token, project_id.as_deref()).await {
+    let (project_token, project_token_expires_at) = match scope.as_ref() {
+        Some(scope) => match issue_project_token(&zai_business_token, scope).await {
             Ok((token, expires_at)) => (Some(token), expires_at),
             Err(err) => {
                 tracing::warn!("could not issue a project access token: {err}");
                 (None, 0)
             }
-        };
+        },
+        None => {
+            tracing::warn!("no Z.AI organization/project resolved; skipping project token");
+            (None, 0)
+        }
+    };
 
     let tokens = ZcodeTokenData {
         zcode_jwt,
         zai_business_token,
         project_token,
         project_token_expires_at,
-        project_id,
-        email: None,
+        project_id: scope.as_ref().map(|scope| scope.project_id.clone()),
+        organization_id: scope.map(|scope| scope.organization_id),
+        email,
         last_refresh: Utc::now().timestamp(),
     };
     save_zcode_oauth_tokens(
