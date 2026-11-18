@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)]
-use std::io::Read;
 use std::net::SocketAddr;
 use std::net::TcpListener;
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 
@@ -17,12 +17,15 @@ use serde_json::json;
 static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 /// Mock ZCode broker + Z.AI API server covering the full login chain:
-/// - POST /api/v1/oauth/cli/init            → authorize_url + flow_id
-/// - POST /api/v1/oauth/cli/poll/flow       → pending, then ready
-/// - POST /api/auth/z/login                 → business access token
+/// - POST /api/v1/oauth/cli/init      (Authorization: Bearer <pollToken>,
+///   body {"provider":"zai"})           → authorize_url + flow_id + expires_at
+/// - GET  /api/v1/oauth/cli/poll/{id} (Authorization: Bearer <pollToken>) → ready
+/// - POST /api/auth/z/login           → business access token
 /// - GET  /api/biz/customer/getCustomerInfo → project id envelope
 /// - GET  /api/biz/customer/project/<id>/access_tokens → project token
-fn start_mock_zcode_server() -> (SocketAddr, thread::JoinHandle<()>) {
+fn start_mock_zcode_server(
+    poll_token: Arc<Mutex<Option<String>>>,
+) -> (SocketAddr, thread::JoinHandle<()>) {
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let addr = listener.local_addr().unwrap();
     let server = tiny_http::Server::from_listener(listener, None).unwrap();
@@ -31,36 +34,61 @@ fn start_mock_zcode_server() -> (SocketAddr, thread::JoinHandle<()>) {
         let mut poll_count = 0u32;
         while let Ok(mut req) = server.recv() {
             let url = req.url().to_string();
+            let method = req.method().to_string();
             let mut body = String::new();
             let _ = req.as_reader().read_to_string(&mut body);
-            let response_json = match url.as_str() {
-                "/api/v1/oauth/cli/init" => {
+
+            // Capture the bearer poll token from the init request so the poll
+            // request can be asserted to reuse the exact same token.
+            if url == "/api/v1/oauth/cli/init" && method == "POST" {
+                if let Some(header) = req
+                    .headers()
+                    .iter()
+                    .find(|h| h.field.to_string().eq_ignore_ascii_case("authorization"))
+                {
+                    let _ = poll_token.lock().unwrap().insert(header.value.to_string());
+                }
+            }
+
+            let response_json = match (url.as_str(), method.as_str()) {
+                ("/api/v1/oauth/cli/init", "POST") => {
+                    assert!(body.contains("\"provider\":\"zai\""), "init body: {body}");
                     json!({
-                        "authorize_url": format!(
-                            "https://zcode.z.ai/oauth/authorize?flow=flow-123"
-                        ),
+                        "authorize_url": "https://zcode.z.ai/oauth/authorize?flow=flow-123",
                         "flow_id": "flow-123",
+                        "expires_at": chrono::Utc::now().timestamp() + 3600,
                         "poll_interval_sec": 1,
                     })
                 }
-                "/api/v1/oauth/cli/poll/flow" => {
+                ("/api/v1/oauth/cli/poll/flow-123", "GET") => {
+                    let expected = poll_token.lock().unwrap().clone();
+                    let actual = req
+                        .headers()
+                        .iter()
+                        .find(|h| h.field.to_string().eq_ignore_ascii_case("authorization"))
+                        .map(|h| h.value.to_string());
+                    assert_eq!(
+                        actual.as_deref(),
+                        expected.as_deref(),
+                        "poll request must reuse the init bearer poll token"
+                    );
                     poll_count += 1;
-                    if body.contains("flow-123") && poll_count >= 1 {
+                    if poll_count >= 1 {
                         json!({
                             "status": "ready",
                             "token": "zcode-jwt-123",
-                            "user": {"email": "user@example.com"},
+                            "user": {"user_id": "fixture-user"},
                             "zai": {"access_token": "zai-oauth-123"},
                         })
                     } else {
                         json!({"status": "pending"})
                     }
                 }
-                "/api/auth/z/login" => {
+                ("/api/auth/z/login", "POST") => {
                     assert!(body.contains("\"token\":\"zai-oauth-123\""));
                     json!({"access_token": "zai-business-123"})
                 }
-                "/api/biz/customer/getCustomerInfo" => {
+                ("/api/biz/customer/getCustomerInfo", "GET") => {
                     json!({
                         "code": 0,
                         "msg": "ok",
@@ -71,7 +99,7 @@ fn start_mock_zcode_server() -> (SocketAddr, thread::JoinHandle<()>) {
                         }
                     })
                 }
-                "/api/biz/customer/project/proj-1/access_tokens" => {
+                ("/api/biz/customer/project/proj-1/access_tokens", "GET") => {
                     json!({
                         "code": 0,
                         "msg": "ok",
@@ -95,7 +123,8 @@ fn start_mock_zcode_server() -> (SocketAddr, thread::JoinHandle<()>) {
 
 #[tokio::test]
 async fn end_to_end_zcode_login_flow_persists_zcode_oauth_tokens() -> Result<()> {
-    let (addr, handle) = start_mock_zcode_server();
+    let poll_token: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    let (addr, _handle) = start_mock_zcode_server(Arc::clone(&poll_token));
     let base = format!("http://{addr}");
     let _env_guard = ENV_LOCK.lock().unwrap();
     // SAFETY(test): the overrides only affect this test process; they are
@@ -116,6 +145,22 @@ async fn end_to_end_zcode_login_flow_persists_zcode_oauth_tokens() -> Result<()>
     };
 
     codex_login::login_with_zcode_oauth(opts).await?;
+
+    // The init request must carry a bearer poll token (64 hex chars).
+    let captured = poll_token.lock().unwrap().clone();
+    let Some(header_value) = captured.as_deref() else {
+        panic!("zcode cli/init did not carry an Authorization bearer poll token");
+    };
+    assert!(
+        header_value.starts_with("Bearer "),
+        "init Authorization header: {header_value}"
+    );
+    let token = &header_value["Bearer ".len()..];
+    assert_eq!(
+        token.len(),
+        64,
+        "poll token should be 32 bytes hex: {token}"
+    );
 
     let tokens = load_zcode_oauth_tokens(
         &codex_home,

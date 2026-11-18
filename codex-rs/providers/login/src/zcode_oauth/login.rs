@@ -3,23 +3,33 @@
 //! Unlike the Google flow there is no local callback server: the ZCode
 //! broker returns an authorization URL and a flow id, and the CLI polls the
 //! broker until the user completes sign-in in the browser.
+//!
+//! Contract (confirmed from the ZCode desktop app runtime):
+//! - `POST {base}/api/v1/oauth/cli/init` with
+//!   `Authorization: Bearer <pollToken>` and body `{"provider":"zai"}`
+//!   → `{authorize_url, flow_id, expires_at, poll_interval_sec}`
+//! - `GET {base}/api/v1/oauth/cli/poll/{flow_id}` with the same bearer poll
+//!   token → `{status: "pending"|"ready", token, zai:{access_token}}`
+//! - Polling deadline is `expires_at` from the init response.
 
+use rand::RngCore;
+use serde::Deserialize;
 use std::io;
 use std::time::Duration;
 
 use chrono::Utc;
-use serde::Deserialize;
 
 use crate::zcode_oauth::ZCODE_OAUTH_INIT_PATH;
 use crate::zcode_oauth::ZCODE_OAUTH_POLL_PATH;
+use crate::zcode_oauth::ZCODE_OAUTH_PROVIDER;
 use crate::zcode_oauth::ZcodeTokenData;
 use crate::zcode_oauth::exchange_business_token;
+use crate::zcode_oauth::get_json;
 use crate::zcode_oauth::issue_project_token;
 use crate::zcode_oauth::post_json;
 use crate::zcode_oauth::resolve_project_id;
 use crate::zcode_oauth::save_zcode_oauth_tokens;
 use crate::zcode_oauth::unwrap_envelope;
-use crate::zcode_oauth::zcode_base_url;
 
 /// Options for the ZCode login flow.
 #[derive(Debug, Clone)]
@@ -51,11 +61,13 @@ impl ZcodeLoginOptions {
 struct ZcodeInitResponse {
     authorize_url: String,
     flow_id: String,
+    /// Unix seconds at which the flow expires; polling must stop by then.
+    expires_at: Option<i64>,
     #[serde(default)]
     poll_interval_sec: Option<u64>,
 }
 
-/// Response from the broker's `cli/poll/flow` endpoint.
+/// Response from the broker's `cli/poll/{flow_id}` endpoint.
 #[derive(Debug, Deserialize)]
 struct ZcodePollResponse {
     status: String,
@@ -65,19 +77,31 @@ struct ZcodePollResponse {
     zai: Option<serde_json::Value>,
 }
 
-/// Maximum time to wait for the user to complete sign-in in the browser.
+/// Maximum time to wait for the user to complete sign-in in the browser,
+/// used only when the broker does not return `expires_at`.
 const LOGIN_TIMEOUT_SECS: u64 = 15 * 60;
+
+/// Generates the client-side bearer poll token reused for init and poll.
+///
+/// The ZCode desktop client creates a random 32-byte hex token (64 chars)
+/// and sends it as `Authorization: Bearer <pollToken>` on both requests.
+fn poll_token() -> String {
+    let mut bytes = [0u8; 32];
+    rand::thread_rng().fill_bytes(&mut bytes);
+    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
 
 /// Runs the interactive ZCode login flow and persists the tokens.
 pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
-    let base = zcode_base_url();
+    let base = crate::zcode_oauth::zcode_base_url();
+    let token = poll_token();
 
     // 1. Request an authorization URL from the broker.
     let init: ZcodeInitResponse = serde_json::from_value(
         post_json(
             &format!("{base}{ZCODE_OAUTH_INIT_PATH}"),
-            serde_json::json!({}),
-            /*bearer*/ None,
+            serde_json::json!({ "provider": ZCODE_OAUTH_PROVIDER }),
+            Some(&token),
         )
         .await?,
     )
@@ -93,22 +117,28 @@ pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
 
     // 2. Poll until the user completes sign-in.
     let poll_interval = Duration::from_secs(init.poll_interval_sec.unwrap_or(1).max(1));
-    let deadline = tokio::time::Instant::now() + Duration::from_secs(LOGIN_TIMEOUT_SECS);
-    let poll_url = format!("{base}{ZCODE_OAUTH_POLL_PATH}");
+    let now = Utc::now().timestamp();
+    let deadline = match init.expires_at.filter(|expires_at| *expires_at > now) {
+        Some(expires_at) => {
+            tokio::time::Instant::now() + Duration::from_secs(expires_at.saturating_sub(now) as u64)
+        }
+        None => tokio::time::Instant::now() + Duration::from_secs(LOGIN_TIMEOUT_SECS),
+    };
+    let poll_url = format!("{base}{ZCODE_OAUTH_POLL_PATH}{}", init.flow_id);
     let poll: ZcodePollResponse = loop {
         tokio::time::sleep(poll_interval).await;
-        let value = post_json(
-            &poll_url,
-            serde_json::json!({ "flow_id": init.flow_id }),
-            /*bearer*/ None,
-        )
-        .await?;
+        let value = get_json(&poll_url, &token).await?;
         let value = unwrap_envelope(value, "cli/poll/flow")?;
         let poll: ZcodePollResponse = serde_json::from_value(value)
             .map_err(|err| io::Error::other(format!("zcode cli/poll/flow parse failed: {err}")))?;
         match poll.status.as_str() {
             "ready" => break poll,
             "pending" => {}
+            "failed" => {
+                return Err(io::Error::other(
+                    "zcode login flow failed (user did not complete sign-in)",
+                ));
+            }
             other => {
                 return Err(io::Error::other(format!(
                     "zcode login flow returned unexpected status: {other}"

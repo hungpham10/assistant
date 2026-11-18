@@ -1,13 +1,18 @@
 //! ZCode (Z.AI) OAuth login and token management.
 //!
-//! Mirrors the ZCode CLI's native polling flow: request an authorization URL
-//! from the ZCode broker, open it in the browser, poll until the user signs
-//! in, then exchange the OAuth token for the Z.AI business access token and
-//! resolve the Coding Plan project access token used for inference.
+//! Mirrors the ZCode CLI's native polling flow (contract confirmed from the
+//! ZCode desktop app runtime): request an authorization URL from the ZCode
+//! broker with a client-generated bearer poll token, open it in the browser,
+//! then poll until the user signs in, exchange the OAuth token for the Z.AI
+//! business access token, and resolve the Coding Plan project access token
+//! used for inference.
 //!
-//! Contracts confirmed from the zcode-cli runtime test fixtures:
-//! - `POST {base}/api/v1/oauth/cli/init` → `{authorize_url, flow_id, poll_interval_sec}`
-//! - `POST {base}/api/v1/oauth/cli/poll/flow` → `{status: "pending"|"ready", token, user, zai}`
+//! Contracts:
+//! - `POST {base}/api/v1/oauth/cli/init`
+//!   headers: `Authorization: Bearer <pollToken>`, `Content-Type: application/json`
+//!   body: `{"provider":"zai"}` → `{authorize_url, flow_id, expires_at, poll_interval_sec}`
+//! - `GET {base}/api/v1/oauth/cli/poll/{flow_id}`
+//!   headers: `Authorization: Bearer <pollToken>` → `{status, token, zai:{access_token}}`
 //! - `POST https://api.z.ai/api/auth/z/login` `{token}` → `{access_token}` (business token)
 //! - `GET https://api.z.ai/api/biz/customer/getCustomerInfo` → organizations/projects
 
@@ -28,7 +33,10 @@ pub use login::login_with_zcode_oauth;
 /// ZCode broker that mediates the OAuth flow (it owns the app secret).
 pub const ZCODE_BASE_URL: &str = "https://zcode.z.ai";
 pub const ZCODE_OAUTH_INIT_PATH: &str = "/api/v1/oauth/cli/init";
-pub const ZCODE_OAUTH_POLL_PATH: &str = "/api/v1/oauth/cli/poll/flow";
+/// Poll path prefix; the flow id is appended: `/api/v1/oauth/cli/poll/{flow_id}`.
+pub const ZCODE_OAUTH_POLL_PATH: &str = "/api/v1/oauth/cli/poll/";
+/// OAuth provider identifier sent in the init body.
+pub const ZCODE_OAUTH_PROVIDER: &str = "zai";
 
 /// Z.AI API used for the business-token exchange and project resolution.
 pub const ZAI_BASE_URL: &str = "https://api.z.ai";
@@ -124,7 +132,7 @@ pub(crate) async fn post_json(
 }
 
 /// GET an endpoint with a Bearer token and parse JSON.
-async fn get_json(url: &str, bearer: &str) -> io::Result<serde_json::Value> {
+pub(crate) async fn get_json(url: &str, bearer: &str) -> io::Result<serde_json::Value> {
     let resp = reqwest::Client::new()
         .get(url)
         .header(reqwest::header::AUTHORIZATION, format!("Bearer {bearer}"))
@@ -336,14 +344,36 @@ pub async fn refresh_zcode_project_token_if_needed(
 /// mode (File, Keyring, Auto) resolve consistently. Returns `Ok(None)` when
 /// no ZCode tokens are stored.
 pub async fn resolve_zcode_bearer_token(codex_home: &Path) -> io::Result<Option<String>> {
-    let store_mode = AuthCredentialsStoreMode::Auto;
-    let keyring_backend_kind = crate::auth::AuthKeyringBackendKind::default();
-    let Some(tokens) = load_zcode_oauth_tokens(codex_home, store_mode, keyring_backend_kind)?
+    resolve_zcode_bearer_token_with_store(
+        codex_home,
+        AuthCredentialsStoreMode::Auto,
+        crate::auth::AuthKeyringBackendKind::default(),
+    )
+    .await
+}
+
+/// Same as [`resolve_zcode_bearer_token`] but with an explicit credential
+/// store, so tests can use `File`/`Direct` instead of the keyring.
+pub(crate) async fn resolve_zcode_bearer_token_with_store(
+    codex_home: &Path,
+    auth_credentials_store_mode: AuthCredentialsStoreMode,
+    keyring_backend_kind: crate::auth::AuthKeyringBackendKind,
+) -> io::Result<Option<String>> {
+    let Some(tokens) = load_zcode_oauth_tokens(
+        codex_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )?
     else {
         return Ok(None);
     };
-    let tokens =
-        refresh_project_token(tokens, codex_home, store_mode, keyring_backend_kind).await?;
+    let tokens = refresh_project_token(
+        tokens,
+        codex_home,
+        auth_credentials_store_mode,
+        keyring_backend_kind,
+    )
+    .await?;
     Ok(tokens
         .project_token
         .clone()

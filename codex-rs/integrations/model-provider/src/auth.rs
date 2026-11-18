@@ -535,6 +535,29 @@ mod tests {
     }
 
     #[test]
+    fn zcode_provider_is_detected_by_base_url() {
+        let provider = ModelProviderInfo {
+            name: "ZCode (Z.AI)".to_string(),
+            base_url: Some("https://api.z.ai/api/coding/paas/v4".to_string()),
+            env_key: Some("ZAI_API_KEY".to_string()),
+            wire_api: WireApi::Chat,
+            requires_openai_auth: false,
+            ..Default::default()
+        };
+
+        assert!(is_zcode_provider(&provider));
+        assert!(!is_zcode_provider(&create_oss_provider_with_base_url(
+            "http://localhost:11434/v1",
+            WireApi::Responses,
+        )));
+        assert!(!is_zcode_provider(&ModelProviderInfo {
+            name: "Z.AI API".to_string(),
+            base_url: Some("https://api.z.ai/api/paas/v4".to_string()),
+            ..Default::default()
+        }));
+    }
+
+    #[test]
     fn header_auth_adds_predefined_headers() {
         let mut expected = HeaderMap::new();
         expected.insert(
