@@ -25,6 +25,31 @@ pub struct GoogleGenerateContentRequest {
     pub system_instruction: Option<GoogleContent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub generation_config: Option<Value>,
+    /// BLOCK_NONE safety settings mirroring gemini-cli's defaults; omitted
+    /// only when callers explicitly opt out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub safety_settings: Option<Vec<Value>>,
+}
+
+/// Safety categories gemini-cli sends with every generateContent request
+/// (all `BLOCK_NONE`) so responses are not filtered by provider defaults.
+pub fn google_default_safety_settings() -> Vec<Value> {
+    [
+        "HARM_CATEGORY_HARASSMENT",
+        "HARM_CATEGORY_HATE_SPEECH",
+        "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_DANGEROUS_CONTENT",
+        "HARM_CATEGORY_CIVIC_INTEGRITY",
+        "HARM_CATEGORY_IMAGE_DANGEROUS_CONTENT",
+        "HARM_CATEGORY_IMAGE_HARASSMENT",
+        "HARM_CATEGORY_IMAGE_HATE",
+        "HARM_CATEGORY_IMAGE_SEXUALLY_EXPLICIT",
+        "HARM_CATEGORY_UNSPECIFIED",
+        "HARM_CATEGORY_JAILBREAK",
+    ]
+    .into_iter()
+    .map(|category| serde_json::json!({ "category": category, "threshold": "BLOCK_NONE" }))
+    .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -375,6 +400,7 @@ mod tests {
                 tools: None,
                 system_instruction: None,
                 generation_config: None,
+                safety_settings: None,
             },
         };
         let v = serde_json::to_value(&req).unwrap();

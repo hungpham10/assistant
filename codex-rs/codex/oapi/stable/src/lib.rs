@@ -109,6 +109,7 @@ pub use crate::google::GoogleListModelsResponse;
 pub use crate::google::GoogleModel;
 pub use crate::google::GooglePart;
 pub use crate::google::GoogleTool;
+pub use crate::google::google_default_safety_settings;
 pub use crate::google::google_models_to_model_infos;
 pub use crate::images::ImageBackground;
 pub use crate::images::ImageData;

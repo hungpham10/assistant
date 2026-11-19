@@ -40,15 +40,14 @@ fn start_mock_zcode_server(
 
             // Capture the bearer poll token from the init request so the poll
             // request can be asserted to reuse the exact same token.
-            if url == "/api/v1/oauth/cli/init" && method == "POST" {
-                if let Some(header) = req
+            if url == "/api/v1/oauth/cli/init" && method == "POST"
+                && let Some(header) = req
                     .headers()
                     .iter()
                     .find(|h| h.field.to_string().eq_ignore_ascii_case("authorization"))
                 {
                     let _ = poll_token.lock().unwrap().insert(header.value.to_string());
                 }
-            }
 
             let response_json = match (url.as_str(), method.as_str()) {
                 ("/api/v1/oauth/cli/init", "POST") => {

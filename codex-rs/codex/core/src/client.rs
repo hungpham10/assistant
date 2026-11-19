@@ -71,6 +71,7 @@ use codex_api::WebsocketTelemetry;
 use codex_api::auth_header_telemetry;
 use codex_api::build_session_headers;
 use codex_api::create_text_param_for_request;
+use codex_api::google_default_safety_settings;
 use codex_api::response_create_client_metadata;
 use codex_chat_wire_compat::ChatCompletionsCompatClient;
 use codex_chat_wire_compat::ToolKinds;
@@ -3094,6 +3095,7 @@ impl ModelClientSession {
                 },
                 system_instruction: None,
                 generation_config: None,
+                safety_settings: Some(google_default_safety_settings()),
             };
 
             let request_url = google_provider.url_for_path("");
