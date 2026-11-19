@@ -14,6 +14,47 @@ use serde_json::json;
 pub const CODE_ASSIST_ENDPOINT: &str = "https://cloudcode-pa.googleapis.com";
 pub const CODE_ASSIST_API_VERSION: &str = "v1internal";
 
+/// Version string gemini-cli advertises in its User-Agent header.
+const GEMINI_CLI_VERSION: &str = "0.1.5";
+
+/// User-Agent that mirrors gemini-cli's `get_user_agent()`; Google may use
+/// this header to recognize the CLI client.
+fn gemini_cli_user_agent() -> String {
+    format!(
+        "GeminiCLI/{GEMINI_CLI_VERSION} ({}; {})",
+        std::env::consts::OS.to_uppercase(),
+        if cfg!(target_arch = "aarch64") {
+            "arm64"
+        } else if cfg!(target_arch = "x86_64") {
+            "x86_64"
+        } else {
+            "unknown"
+        }
+    )
+}
+
+/// Client metadata mirroring gemini-cli's `get_client_metadata()`; the Code
+/// Assist discovery endpoints use it to identify the calling IDE/plugin.
+fn client_metadata(project_id: Option<&str>) -> serde_json::Value {
+    let platform = match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => "DARWIN_ARM64",
+        ("macos", "x86_64") => "DARWIN_AMD64",
+        ("linux", "aarch64") => "LINUX_ARM64",
+        ("linux", "x86_64") => "LINUX_AMD64",
+        ("windows", _) => "WINDOWS_AMD64",
+        _ => "PLATFORM_UNSPECIFIED",
+    };
+    let mut metadata = serde_json::json!({
+        "ideType": "IDE_UNSPECIFIED",
+        "platform": platform,
+        "pluginType": "GEMINI",
+    });
+    if let Some(project) = project_id.filter(|project| !project.is_empty()) {
+        metadata["duetProject"] = serde_json::Value::String(project.to_string());
+    }
+    metadata
+}
+
 /// Effective Code Assist base URL, overridable via env for testing/proxies.
 pub fn code_assist_base_url() -> String {
     std::env::var(super::CODE_ASSIST_ENDPOINT_OVERRIDE_ENV_VAR)
@@ -40,6 +81,7 @@ async fn ca_post(
     let resp = client
         .post(method_url(method))
         .header(AUTHORIZATION, format!("Bearer {token}"))
+        .header(reqwest::header::USER_AGENT, gemini_cli_user_agent())
         .json(&body)
         .timeout(Duration::from_secs(60))
         .send()
@@ -73,6 +115,7 @@ async fn ca_get_operation(token: &str, name: &str) -> io::Result<serde_json::Val
         let resp = client
             .get(&url)
             .header(AUTHORIZATION, format!("Bearer {token}"))
+            .header(reqwest::header::USER_AGENT, gemini_cli_user_agent())
             .timeout(Duration::from_secs(60))
             .send()
             .await
@@ -178,9 +221,36 @@ pub async fn ensure_code_assist_project(
             tokens,
         ));
     }
+    // Mirror gemini-cli's project priority: an explicit `GOOGLE_CLOUD_PROJECT`
+    // wins over discovery.
+    if let Ok(project) = std::env::var("GOOGLE_CLOUD_PROJECT") {
+        let project = project.trim().to_string();
+        if !project.is_empty() {
+            let mut persisted = tokens.clone();
+            persisted.project_id = Some(project.clone());
+            crate::google_oauth::persist_tokens_with_project(
+                codex_home,
+                persisted.clone(),
+                auth_credentials_store_mode,
+                keyring_backend_kind,
+            )?;
+            return Ok((
+                GoogleProjectResult {
+                    project_id: project,
+                    tier: None,
+                },
+                persisted,
+            ));
+        }
+    }
     let token = &tokens.access_token;
     let load: LoadCodeAssistResponse = serde_json::from_value(
-        ca_post(token, "loadCodeAssist", json!({})).await?,
+        ca_post(
+            token,
+            "loadCodeAssist",
+            json!({"metadata": client_metadata(None)}),
+        )
+        .await?,
     )
     .map_err(|err| io::Error::other(format!("Code Assist loadCodeAssist parse failed: {err}")))?;
 
@@ -194,9 +264,11 @@ pub async fn ensure_code_assist_project(
     } else {
         // onboardUser: free tier onboards without an explicit project.
         let body = match &tier_id {
-            Some(id) if id == "free-tier" => json!({ "tierId": id }),
-            Some(id) => json!({ "tierId": id }),
-            None => json!({}),
+            Some(id) if id == "free-tier" => {
+                json!({ "tierId": id, "metadata": client_metadata(None) })
+            }
+            Some(id) => json!({ "tierId": id, "metadata": client_metadata(None) }),
+            None => json!({ "metadata": client_metadata(None) }),
         };
         let op: OnboardOperation =
             serde_json::from_value(ca_post(token, "onboardUser", body).await?).map_err(|err| {

@@ -13,15 +13,11 @@ use codex_login::AuthKeyringBackendKind;
 use codex_login::AuthRouteConfig;
 use codex_login::CLIENT_ID;
 use codex_login::CodexAuth;
-use codex_login::GoogleLoginOptions;
 use codex_login::ServerOptions;
-use codex_login::ZcodeLoginOptions;
 use codex_login::load_google_oauth_tokens;
 use codex_login::load_zcode_oauth_tokens;
 use codex_login::login_with_access_token;
 use codex_login::login_with_api_key;
-use codex_login::login_with_google_oauth;
-use codex_login::login_with_zcode_oauth;
 use codex_login::logout_with_revoke;
 use codex_login::run_device_code_login;
 use codex_login::run_login_server;
@@ -196,94 +192,6 @@ pub async fn run_login_with_chatgpt(cli_config_overrides: CliConfigOverrides) ->
         }
         Err(e) => {
             eprintln!("Error logging in: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
-const GOOGLE_CLIENT_SECRET_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_SECRET";
-const GOOGLE_CLIENT_ID_ENV_VAR: &str = "CODEX_GOOGLE_OAUTH_CLIENT_ID";
-
-/// Prints setup guidance for the Google OAuth credentials used by Gemini login.
-fn print_google_login_setup_guide() {
-    eprintln!(
-        "Google OAuth credentials for Gemini login:\n\
-         \n\
-         Option 1 — reuse the Gemini CLI's public installed-app client (fastest):\n\
-           The built-in client ID is used automatically. Release binaries built\n\
-           in CI already embed this client's (public, installed-app) secret, so\n\
-           nothing is needed. For locally built binaries, export it:\n\
-             export {GOOGLE_CLIENT_SECRET_ENV_VAR}=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\n\
-         \n\
-         Option 2 — create your own OAuth client on Google Cloud:\n\
-           1. Open https://console.cloud.google.com/apis/library/generativelanguage.googleapis.com\n\
-              and enable the Generative Language API for your project.\n\
-           2. Open https://console.cloud.google.com/apis/credentials\n\
-              and click \"Create credentials\" > \"OAuth client ID\".\n\
-           3. Choose application type \"Desktop app\", then Create.\n\
-           4. Copy the client ID and client secret and export them:\n\
-             export {GOOGLE_CLIENT_ID_ENV_VAR}=<your-client-id>.apps.googleusercontent.com\n\
-             export {GOOGLE_CLIENT_SECRET_ENV_VAR}=<your-client-secret>\n\
-           (CI release builds can embed both instead — set them as GitHub\n\
-            Actions repository secrets with the same names.)\n\
-           5. If the OAuth consent screen is not configured yet, follow the\n\
-              prompt at https://console.cloud.google.com/apis/consent (External\n\
-              user type; add yourself as a test user while in testing).\n\
-         \n\
-         Tip: add the exports to ~/.zshrc (or your shell profile) so they persist.\n\
-         \n"
-    );
-}
-
-/// Interactive Google OAuth login backing the Gemini provider.
-pub async fn run_login_with_google(
-    cli_config_overrides: CliConfigOverrides,
-    client_id: Option<String>,
-) -> ! {
-    let config = load_config_or_exit(cli_config_overrides).await;
-    let _login_log_guard = init_login_file_logging(&config);
-    tracing::info!("starting google oauth login flow");
-
-    print_google_login_setup_guide();
-
-    let mut opts = GoogleLoginOptions::new(
-        config.codex_home.to_path_buf(),
-        config.cli_auth_credentials_store_mode,
-        config.auth_keyring_backend_kind(),
-    );
-    if let Some(client_id) = client_id {
-        opts.client_id = client_id;
-    }
-    match login_with_google_oauth(opts).await {
-        Ok(_) => {
-            eprintln!("{LOGIN_SUCCESS_MESSAGE}");
-            std::process::exit(0);
-        }
-        Err(e) => {
-            eprintln!("Error logging in with Google: {e}");
-            std::process::exit(1);
-        }
-    }
-}
-
-/// Interactive ZCode (Z.AI) OAuth login backing the GLM Coding Plan provider.
-pub async fn run_login_with_zcode(cli_config_overrides: CliConfigOverrides) -> ! {
-    let config = load_config_or_exit(cli_config_overrides).await;
-    let _login_log_guard = init_login_file_logging(&config);
-    tracing::info!("starting zcode oauth login flow");
-
-    let opts = ZcodeLoginOptions::new(
-        config.codex_home.to_path_buf(),
-        config.cli_auth_credentials_store_mode,
-        config.auth_keyring_backend_kind(),
-    );
-    match login_with_zcode_oauth(opts).await {
-        Ok(_) => {
-            eprintln!("{LOGIN_SUCCESS_MESSAGE}");
-            std::process::exit(0);
-        }
-        Err(e) => {
-            eprintln!("Error logging in with ZCode: {e}");
             std::process::exit(1);
         }
     }

@@ -783,6 +783,44 @@ pub(crate) enum AppEvent {
         result: Result<KimiCodeLoginOutcome, String>,
     },
 
+    /// Ensure ZCode (Z.AI) OAuth credentials exist (running the browser login
+    /// flow when needed) before loading its models in `/model`.
+    StartZcodeLogin {
+        provider_id: String,
+        provider_name: String,
+    },
+
+    /// Show the ZCode browser-login authorization URL to the user.
+    ZcodeLoginVerification {
+        verification_url: String,
+    },
+
+    /// Result of the ZCode OAuth browser login flow.
+    ZcodeLoginComplete {
+        provider_id: String,
+        provider_name: String,
+        result: Result<KimiCodeLoginOutcome, String>,
+    },
+
+    /// Ensure Google OAuth credentials exist (running the browser login flow
+    /// when needed) before loading its models in `/model`.
+    StartGoogleLogin {
+        provider_id: String,
+        provider_name: String,
+    },
+
+    /// Show the Google OAuth authorization URL to the user.
+    GoogleLoginVerification {
+        verification_url: String,
+    },
+
+    /// Result of the Google OAuth browser login flow.
+    GoogleLoginComplete {
+        provider_id: String,
+        provider_name: String,
+        result: Result<KimiCodeLoginOutcome, String>,
+    },
+
     /// Result of loading the provider-specific model catalog for `/model`.
     ProviderModelsLoaded {
         provider_id: String,

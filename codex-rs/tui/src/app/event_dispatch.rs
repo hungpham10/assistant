@@ -11,8 +11,15 @@ use crate::external_agent_config_migration_flow::ExternalAgentConfigMigrationFlo
 use codex_app_server_protocol::RequestId;
 #[cfg(target_os = "windows")]
 use codex_config::types::WindowsSandboxModeToml;
+use codex_login::GoogleLoginOptions;
+use codex_login::ZcodeLoginOptions;
+use codex_login::finish_zcode_login;
 use codex_login::kimi_code;
 use codex_login::kimi_code::KimiCodeAuthError;
+use codex_login::load_google_oauth_tokens;
+use codex_login::load_zcode_oauth_tokens;
+use codex_login::run_google_login_server;
+use codex_login::start_zcode_login;
 
 const SHUTDOWN_FIRST_EXIT_TIMEOUT: Duration = Duration::from_secs(/*secs*/ 2);
 
@@ -1187,6 +1194,210 @@ impl App {
                 );
             }
             AppEvent::KimiCodeLoginComplete {
+                provider_id,
+                provider_name,
+                result,
+            } => match result {
+                Ok(outcome) => {
+                    if outcome == KimiCodeLoginOutcome::SignedIn {
+                        self.chat_widget.add_info_message(
+                            format!("Signed in to {provider_name}."),
+                            /*hint*/ None,
+                        );
+                    }
+                    self.app_event_tx.send(AppEvent::LoadProviderModels {
+                        provider_id,
+                        provider_name,
+                    });
+                }
+                Err(err) => {
+                    self.chat_widget
+                        .add_error_message(format!("{provider_name} sign-in failed: {err}"));
+                }
+            },
+            AppEvent::StartZcodeLogin {
+                provider_id,
+                provider_name,
+            } => {
+                let env_api_key_present = self
+                    .config
+                    .model_providers
+                    .get(provider_id.as_str())
+                    .and_then(|provider| provider.env_key.as_deref())
+                    .and_then(|env_key| std::env::var(env_key).ok())
+                    .is_some_and(|value| !value.trim().is_empty());
+                let codex_home = self.config.codex_home.clone();
+                let store_mode = self.config.cli_auth_credentials_store_mode;
+                let keyring_backend_kind = self.config.auth_keyring_backend_kind();
+                let tx = self.app_event_tx.clone();
+                tokio::spawn(async move {
+                    if env_api_key_present {
+                        tx.send(AppEvent::ZcodeLoginComplete {
+                            provider_id,
+                            provider_name,
+                            result: Ok(KimiCodeLoginOutcome::AlreadyAuthenticated),
+                        });
+                        return;
+                    }
+                    match load_zcode_oauth_tokens(&codex_home, store_mode, keyring_backend_kind) {
+                        Ok(Some(_)) => {
+                            tx.send(AppEvent::ZcodeLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Ok(KimiCodeLoginOutcome::AlreadyAuthenticated),
+                            });
+                            return;
+                        }
+                        Ok(None) => {}
+                        Err(err) => {
+                            tx.send(AppEvent::ZcodeLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Err(err.to_string()),
+                            });
+                            return;
+                        }
+                    }
+                    let session = match start_zcode_login().await {
+                        Ok(session) => session,
+                        Err(err) => {
+                            tx.send(AppEvent::ZcodeLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Err(err.to_string()),
+                            });
+                            return;
+                        }
+                    };
+                    let _ = webbrowser::open(&session.authorize_url);
+                    tx.send(AppEvent::ZcodeLoginVerification {
+                        verification_url: session.authorize_url.clone(),
+                    });
+                    let opts = ZcodeLoginOptions::new(
+                        PathBuf::from(codex_home),
+                        store_mode,
+                        keyring_backend_kind,
+                    );
+                    let result = finish_zcode_login(session, &opts)
+                        .await
+                        .map(|()| KimiCodeLoginOutcome::SignedIn)
+                        .map_err(|err| err.to_string());
+                    tx.send(AppEvent::ZcodeLoginComplete {
+                        provider_id,
+                        provider_name,
+                        result,
+                    });
+                });
+            }
+            AppEvent::ZcodeLoginVerification { verification_url } => {
+                self.chat_widget.add_info_message(
+                    format!("Finish signing in to ZCode in your browser: {verification_url}"),
+                    /*hint*/ None,
+                );
+            }
+            AppEvent::ZcodeLoginComplete {
+                provider_id,
+                provider_name,
+                result,
+            } => match result {
+                Ok(outcome) => {
+                    if outcome == KimiCodeLoginOutcome::SignedIn {
+                        self.chat_widget.add_info_message(
+                            format!("Signed in to {provider_name}."),
+                            /*hint*/ None,
+                        );
+                    }
+                    self.app_event_tx.send(AppEvent::LoadProviderModels {
+                        provider_id,
+                        provider_name,
+                    });
+                }
+                Err(err) => {
+                    self.chat_widget
+                        .add_error_message(format!("{provider_name} sign-in failed: {err}"));
+                }
+            },
+            AppEvent::StartGoogleLogin {
+                provider_id,
+                provider_name,
+            } => {
+                let env_api_key_present = self
+                    .config
+                    .model_providers
+                    .get(provider_id.as_str())
+                    .and_then(|provider| provider.env_key.as_deref())
+                    .and_then(|env_key| std::env::var(env_key).ok())
+                    .is_some_and(|value| !value.trim().is_empty());
+                let codex_home = self.config.codex_home.clone();
+                let store_mode = self.config.cli_auth_credentials_store_mode;
+                let keyring_backend_kind = self.config.auth_keyring_backend_kind();
+                let tx = self.app_event_tx.clone();
+                tokio::spawn(async move {
+                    if env_api_key_present {
+                        tx.send(AppEvent::GoogleLoginComplete {
+                            provider_id,
+                            provider_name,
+                            result: Ok(KimiCodeLoginOutcome::AlreadyAuthenticated),
+                        });
+                        return;
+                    }
+                    match load_google_oauth_tokens(&codex_home, store_mode, keyring_backend_kind) {
+                        Ok(Some(_)) => {
+                            tx.send(AppEvent::GoogleLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Ok(KimiCodeLoginOutcome::AlreadyAuthenticated),
+                            });
+                            return;
+                        }
+                        Ok(None) => {}
+                        Err(err) => {
+                            tx.send(AppEvent::GoogleLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Err(err.to_string()),
+                            });
+                            return;
+                        }
+                    }
+                    let opts = GoogleLoginOptions::new(
+                        PathBuf::from(codex_home),
+                        store_mode,
+                        keyring_backend_kind,
+                    );
+                    let server = match run_google_login_server(opts) {
+                        Ok(server) => server,
+                        Err(err) => {
+                            tx.send(AppEvent::GoogleLoginComplete {
+                                provider_id,
+                                provider_name,
+                                result: Err(err.to_string()),
+                            });
+                            return;
+                        }
+                    };
+                    tx.send(AppEvent::GoogleLoginVerification {
+                        verification_url: server.auth_url.clone(),
+                    });
+                    let result = server
+                        .block_until_done()
+                        .await
+                        .map(|()| KimiCodeLoginOutcome::SignedIn)
+                        .map_err(|err| err.to_string());
+                    tx.send(AppEvent::GoogleLoginComplete {
+                        provider_id,
+                        provider_name,
+                        result,
+                    });
+                });
+            }
+            AppEvent::GoogleLoginVerification { verification_url } => {
+                self.chat_widget.add_info_message(
+                    format!("Finish signing in to Google in your browser: {verification_url}"),
+                    /*hint*/ None,
+                );
+            }
+            AppEvent::GoogleLoginComplete {
                 provider_id,
                 provider_name,
                 result,
