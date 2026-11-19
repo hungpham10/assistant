@@ -206,16 +206,16 @@ pub(crate) async fn resolve_provider_auth(
 
     // The ZCode provider can authenticate with stored OAuth credentials
     // when no API key is available in the environment.
-    if is_zcode_provider(provider) {
-        if let Some(codex_home) = codex_home {
-            match codex_login::resolve_zcode_bearer_token(codex_home).await {
-                Ok(Some(token)) => return Ok(Arc::new(BearerAuthProvider::new(token))),
-                Ok(None) => {}
-                Err(err) => {
-                    return Err(CodexErr::Fatal(format!(
-                        "ZCode authentication failed: {err}"
-                    )));
-                }
+    if is_zcode_provider(provider)
+        && let Some(codex_home) = codex_home
+    {
+        match codex_login::resolve_zcode_bearer_token(codex_home).await {
+            Ok(Some(token)) => return Ok(Arc::new(BearerAuthProvider::new(token))),
+            Ok(None) => {}
+            Err(err) => {
+                return Err(CodexErr::Fatal(format!(
+                    "ZCode authentication failed: {err}"
+                )));
             }
         }
     }

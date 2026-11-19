@@ -160,6 +160,13 @@ pub struct ModelProviderInfo {
     /// Whether this provider supports the Responses API WebSocket transport.
     #[serde(default)]
     pub supports_websockets: bool,
+    /// Override tool calling support for this provider's models.
+    /// When set, this bypasses the provider's /models endpoint capability detection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_tool_calling: Option<bool>,
+    /// Override parallel tool calls support for this provider's models.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supports_parallel_tool_calls: Option<bool>,
 }
 
 /// Returns the native harness that should be used by default for a provider/model selection.
@@ -458,6 +465,8 @@ impl ModelProviderInfo {
             websocket_connect_timeout_ms: None,
             requires_openai_auth: true,
             supports_websockets: true,
+            supports_tool_calling: None,
+            supports_parallel_tool_calls: None,
         }
     }
 
@@ -488,6 +497,8 @@ impl ModelProviderInfo {
             websocket_connect_timeout_ms: None,
             requires_openai_auth: false,
             supports_websockets: false,
+            supports_tool_calling: None,
+            supports_parallel_tool_calls: None,
         }
     }
 
@@ -663,6 +674,8 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         websocket_connect_timeout_ms: None,
         requires_openai_auth: false,
         supports_websockets: false,
+        supports_tool_calling: None,
+        supports_parallel_tool_calls: None,
     }
 }
 

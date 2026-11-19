@@ -1492,7 +1492,12 @@ pub(crate) async fn built_tools(
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     });
     let demote = !jev_shadow && search_tool_enabled(turn_context);
-    let universal_jev = jev_cfg.enabled && jev_cfg.include_all_tools && question.is_some();
+    let universal_jev_question = if jev_cfg.enabled && jev_cfg.include_all_tools {
+        question.clone()
+    } else {
+        None
+    };
+    let universal_jev = universal_jev_question.is_some();
     if jev_shadow {
         tracing::info!(step = ?jev_step, universal_jev, "tool_suggest_jev shadow step");
     }
@@ -1587,12 +1592,14 @@ pub(crate) async fn built_tools(
             tool_suggest_candidates,
             extension_tool_executors: extension_tool_executors(sess),
             dynamic_tools: turn_context.dynamic_tools.as_slice(),
-            jev_universal: universal_jev.then(|| crate::tools::router::JevUniversalInput {
-                question: question.expect("checked by universal_jev"),
-                repo: repo_name(turn_context),
-                strategy: strategy_context.clone(),
-                demote,
-                recent_usage: recent_usage.clone(),
+            jev_universal: universal_jev_question.map(|question| {
+                crate::tools::router::JevUniversalInput {
+                    question,
+                    repo: repo_name(turn_context),
+                    strategy: strategy_context.clone(),
+                    demote,
+                    recent_usage: recent_usage.clone(),
+                }
             }),
         },
         &sess.services.tool_search_handler_cache,

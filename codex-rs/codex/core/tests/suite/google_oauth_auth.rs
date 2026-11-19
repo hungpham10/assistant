@@ -121,6 +121,8 @@ fn google_provider(server: &MockServer) -> ModelProviderInfo {
         websocket_connect_timeout_ms: None,
         requires_openai_auth: false,
         supports_websockets: false,
+        supports_tool_calling: None,
+        supports_parallel_tool_calls: None,
     }
 }
 
@@ -282,6 +284,7 @@ fn code_assist_sse_body(text: &str) -> String {
     )
 }
 
+#[allow(clippy::await_holding_lock)] // intentional: serializes env-var mutation across the whole test
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_wire_uses_oauth_bearer_token_without_api_key() {
     let server = MockServer::start().await;
@@ -341,6 +344,7 @@ async fn google_wire_api_key_auth_takes_precedence_over_oauth_tokens() {
     server.verify().await;
 }
 
+#[allow(clippy::await_holding_lock)] // intentional: serializes env-var mutation across the whole test
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn google_wire_refreshes_expired_oauth_tokens_and_persists_them() {
     let server = MockServer::start().await;

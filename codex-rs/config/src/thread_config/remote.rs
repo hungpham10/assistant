@@ -193,6 +193,8 @@ fn model_provider_from_proto(
         websocket_connect_timeout_ms: provider.websocket_connect_timeout_ms,
         requires_openai_auth: provider.requires_openai_auth,
         supports_websockets: provider.supports_websockets,
+        supports_tool_calling: provider.supports_tool_calling,
+        supports_parallel_tool_calls: provider.supports_parallel_tool_calls,
     };
     Ok((id, info))
 }
@@ -479,6 +481,8 @@ mod tests {
                             websocket_connect_timeout_ms: Some(10_000),
                             requires_openai_auth: false,
                             supports_websockets: true,
+                            supports_tool_calling: None,
+                            supports_parallel_tool_calls: None,
                         }],
                         features: HashMap::from([
                             ("plugins".to_string(), false),
@@ -542,6 +546,8 @@ mod tests {
             websocket_connect_timeout_ms: Some(10_000),
             requires_openai_auth: false,
             supports_websockets: true,
+            supports_tool_calling: None,
+            supports_parallel_tool_calls: None,
             aws: None,
         }
     }

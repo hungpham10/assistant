@@ -515,6 +515,9 @@ pub trait RolloutStore: Send + Sync {
     ) -> RolloutStoreFuture<'a, anyhow::Result<u64>>;
 }
 
+/// Thin shims that forward to the inherent `StateRuntime` methods of the same
+/// name. Clippy sees the same-named parameters only in the recursive call.
+#[allow(clippy::only_used_in_recursion)]
 impl RolloutStore for StateRuntime {
     fn codex_home(&self) -> &Path {
         StateRuntime::codex_home(self)

@@ -317,6 +317,8 @@ mod tests {
             stream_idle_timeout_ms: None,
             websocket_connect_timeout_ms: None,
             requires_openai_auth: false,
+            supports_tool_calling: None,
+            supports_parallel_tool_calls: None,
             supports_websockets: true,
         }
     }

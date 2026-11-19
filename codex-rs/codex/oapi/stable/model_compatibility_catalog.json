@@ -19708,6 +19708,50 @@
       "context_window": 163840
     },
     {
+      "id": "deploy/deepseek-ai/deepseek-v4.1-flash-1017",
+      "aliases": [
+        "deepseek-ai/deepseek-v4.1-flash-1017",
+        "deepseek-v4.1-flash-1017"
+      ],
+      "description": "Chat-compatible \u2022 Tool calling",
+      "visibility": "list",
+      "supported_parameters": [
+        "tools",
+        "tool_choice"
+      ],
+      "supported_reasoning_levels": [],
+      "supports_thinking_toggle": false,
+      "reasoning_control": "none",
+      "supports_parallel_tool_calls": true,
+      "supports_search_tool": false,
+      "input_modalities": [
+        "text"
+      ],
+      "context_window": 128000
+    },
+    {
+      "id": "deploy/zai-org/glm-5.3-flash",
+      "aliases": [
+        "zai-org/glm-5.3-flash",
+        "glm-5.3-flash"
+      ],
+      "description": "Chat-compatible \u2022 Tool calling",
+      "visibility": "list",
+      "supported_parameters": [
+        "tools",
+        "tool_choice"
+      ],
+      "supported_reasoning_levels": [],
+      "supports_thinking_toggle": false,
+      "reasoning_control": "none",
+      "supports_parallel_tool_calls": true,
+      "supports_search_tool": false,
+      "input_modalities": [
+        "text"
+      ],
+      "context_window": 128000
+    },
+    {
       "id": "dolphin",
       "aliases": [],
       "description": null,

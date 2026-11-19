@@ -92,3 +92,40 @@ mod tests {
         assert_eq!(entry.id, "openrouter/openai/gpt-5-codex".to_string());
     }
 }
+
+#[test]
+fn catalog_resolves_deploy_models() {
+    let entry = compatible_model_catalog_entry("deploy/deepseek-ai/deepseek-v4.1-flash-1017")
+        .expect("deploy deepseek-v4.1-flash-1017 entry");
+    assert_eq!(entry.visibility, ModelVisibility::List);
+    assert!(
+        entry
+            .supported_parameters
+            .iter()
+            .any(|parameter| parameter == "tools")
+    );
+    assert!(
+        entry
+            .supported_parameters
+            .iter()
+            .any(|parameter| parameter == "tool_choice")
+    );
+    assert_eq!(entry.supports_parallel_tool_calls, true);
+
+    let entry2 = compatible_model_catalog_entry("deepseek-v4.1-flash-1017")
+        .expect("deepseek-v4.1-flash-1017 alias");
+    assert_eq!(entry2.id, "deploy/deepseek-ai/deepseek-v4.1-flash-1017");
+
+    let entry3 = compatible_model_catalog_entry("deploy/zai-org/glm-5.3-flash")
+        .expect("deploy glm-5.3-flash entry");
+    assert_eq!(entry3.visibility, ModelVisibility::List);
+    assert!(
+        entry3
+            .supported_parameters
+            .iter()
+            .any(|parameter| parameter == "tools")
+    );
+
+    let entry4 = compatible_model_catalog_entry("glm-5.3-flash").expect("glm-5.3-flash alias");
+    assert_eq!(entry4.id, "deploy/zai-org/glm-5.3-flash");
+}

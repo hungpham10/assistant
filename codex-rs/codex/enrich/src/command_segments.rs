@@ -17,7 +17,6 @@ pub fn extract_enrich_blocks(input: &str) -> (String, Vec<String>) {
     let mut in_block = false;
     let mut fence_len: usize = 0;
     let mut block_buf = String::new();
-    let mut first_prompt_segment = true;
     let mut found_any = false;
 
     for line in input.split_inclusive('\n') {
@@ -58,12 +57,7 @@ pub fn extract_enrich_blocks(input: &str) -> (String, Vec<String>) {
         }
 
         // Regular prompt line.
-        if !first_prompt_segment || !prompt.is_empty() {
-            prompt.push_str(line);
-        } else {
-            prompt.push_str(line);
-        }
-        first_prompt_segment = false;
+        prompt.push_str(line);
     }
 
     // Handle final line without trailing newline - split_inclusive covers it,

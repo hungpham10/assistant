@@ -153,6 +153,7 @@ fn start_mock_zcode_server(
     (addr, handle)
 }
 
+#[allow(clippy::await_holding_lock)] // intentional: serializes env-var mutation across the whole test
 #[tokio::test]
 async fn end_to_end_zcode_login_flow_persists_zcode_oauth_tokens() -> Result<()> {
     let poll_token: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
