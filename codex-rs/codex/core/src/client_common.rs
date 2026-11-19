@@ -40,6 +40,20 @@ pub struct Prompt {
     /// Jev tool priority hint injected transiently into the latest user
     /// message at request-format time. Never persisted in history.
     pub jev_hint: Option<String>,
+
+    /// Request-level forcing of a single tool for this request (Jev `force`
+    /// enforcement). `None` keeps `tool_choice: auto`. Transient, like
+    /// `jev_hint`.
+    pub forced_tool: Option<ForcedTool>,
+}
+
+/// A single tool named in `tool_choice` so the provider must call it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ForcedTool {
+    /// Namespace of the tool, when the provider addresses namespaced tools.
+    pub namespace: Option<String>,
+    /// Model-visible function name.
+    pub name: String,
 }
 
 impl Default for Prompt {
@@ -53,6 +67,7 @@ impl Default for Prompt {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         }
     }
 }

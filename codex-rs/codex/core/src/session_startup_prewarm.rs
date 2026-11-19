@@ -291,7 +291,8 @@ async fn schedule_startup_prewarm_inner(
         BaseInstructions {
             text: base_instructions,
         },
-        None,
+        /*jev_hint*/ None,
+        /*forced_tool*/ None,
     );
     startup_turn_context.session_telemetry.record_startup_phase(
         "startup_prewarm_build_prompt",

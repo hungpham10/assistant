@@ -3,6 +3,7 @@ use codex_api::OpenAiVerbosity;
 use codex_api::ResponsesApiRequest;
 use codex_api::TextControls;
 use codex_api::TextFormat;
+use codex_api::ToolChoice;
 use codex_protocol::models::ContentItem;
 use codex_protocol::models::FunctionCallOutputPayload;
 use codex_protocol::models::LocalShellAction;
@@ -45,7 +46,7 @@ pub(crate) struct ChatCompletionRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tools: Option<Vec<ChatTool>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) tool_choice: Option<String>,
+    pub(crate) tool_choice: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) parallel_tool_calls: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -99,6 +100,19 @@ pub(crate) struct ChatToolCall {
 pub(crate) struct ChatFunctionCall {
     pub(crate) name: String,
     pub(crate) arguments: String,
+}
+
+fn tool_choice_to_chat_completion(tc: &ToolChoice) -> Value {
+    match tc {
+        ToolChoice::Mode(s) => json!(s),
+        ToolChoice::Function(f) => {
+            let mut function = json!({ "name": f.name });
+            if let Some(namespace) = &f.namespace {
+                function["namespace"] = json!(namespace);
+            }
+            json!({ "type": "function", "function": function })
+        }
+    }
 }
 
 pub(crate) fn convert_request(
@@ -327,7 +341,7 @@ pub(crate) fn convert_request(
         messages,
         stream: request.stream,
         tools,
-        tool_choice: Some(request.tool_choice.clone()),
+        tool_choice: Some(tool_choice_to_chat_completion(&request.tool_choice)),
         parallel_tool_calls: Some(request.parallel_tool_calls),
         response_format: convert_response_format(request.text.as_ref()),
         service_tier: request.service_tier.clone(),
@@ -839,7 +853,7 @@ mod tests {
                 "description": "Run a shell command",
                 "parameters": { "type": "object" }
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -880,7 +894,7 @@ mod tests {
                 internal_chat_message_metadata_passthrough: None,
             }],
             tools: Some(Vec::new()),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -945,7 +959,7 @@ mod tests {
                 "description": "Run a command",
                 "parameters": { "type": "object" }
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1005,7 +1019,7 @@ mod tests {
                     }
                 ]
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1146,7 +1160,7 @@ mod tests {
                 "description": "Read a file",
                 "parameters": { "type": "object" }
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1243,7 +1257,7 @@ mod tests {
                 "description": "Read a file",
                 "parameters": { "type": "object" }
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1338,7 +1352,7 @@ mod tests {
                 "description": "Run a command",
                 "parameters": { "type": "object" }
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1397,7 +1411,7 @@ mod tests {
                 "type": "tool_search",
                 "description": "Search available tools"
             })]),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,
@@ -1450,7 +1464,7 @@ mod tests {
                 internal_chat_message_metadata_passthrough: None,
             }],
             tools: Some(Vec::new()),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,

@@ -326,15 +326,30 @@ impl CoreToolRuntime for ExposureOverride {
 
 pub struct ToolRegistry {
     tools: HashMap<ToolName, Arc<dyn CoreToolRuntime>>,
+    /// Tools hidden by `strict`/`force` Jev enforcement for this turn. They
+    /// stay registered (so the lookup above is deterministic) but any call is
+    /// rejected: the model only sees the tools Jev picked.
+    enforced_hidden: std::collections::HashSet<ToolName>,
 }
 
 impl ToolRegistry {
     fn new(tools: HashMap<ToolName, Arc<dyn CoreToolRuntime>>) -> Self {
-        Self { tools }
+        Self {
+            tools,
+            enforced_hidden: std::collections::HashSet::new(),
+        }
     }
 
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn from_tools(tools: impl IntoIterator<Item = Arc<dyn CoreToolRuntime>>) -> Self {
+        Self::from_tools_with_enforced_hidden(tools, &[])
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub(crate) fn from_tools_with_enforced_hidden(
+        tools: impl IntoIterator<Item = Arc<dyn CoreToolRuntime>>,
+        enforced_hidden: &[ToolName],
+    ) -> Self {
         let mut tools_by_name = HashMap::new();
         for tool in tools {
             let name = tool.tool_name();
@@ -344,7 +359,9 @@ impl ToolRegistry {
             }
             tools_by_name.insert(name, tool);
         }
-        Self::new(tools_by_name)
+        let mut registry = Self::new(tools_by_name);
+        registry.enforced_hidden = enforced_hidden.iter().cloned().collect();
+        registry
     }
 
     #[cfg(test)]
@@ -464,6 +481,26 @@ impl ToolRegistry {
                 return Err(err);
             }
         };
+
+        if self.enforced_hidden.contains(&tool_name) {
+            let message = format!(
+                "tool {tool_name} is not available this turn; use one of the tools advertised in the current request"
+            );
+            let log_payload = invocation.payload.log_payload();
+            otel.tool_result_with_tags(
+                tool_name_flat.as_ref(),
+                &call_id_owned,
+                log_payload.as_ref(),
+                Duration::ZERO,
+                /*success*/ false,
+                &message,
+                &base_tool_result_tags,
+                /*extra_trace_fields*/ &[],
+            );
+            let err = FunctionCallError::RespondToModel(message);
+            dispatch_trace.record_failed(&err);
+            return Err(err);
+        }
 
         if invocation.session.tool_is_hidden(&tool_name).await {
             let message =

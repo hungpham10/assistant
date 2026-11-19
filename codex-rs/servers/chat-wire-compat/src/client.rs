@@ -834,7 +834,7 @@ mod tests {
                 internal_chat_message_metadata_passthrough: None,
             }],
             tools: Some(Vec::new()),
-            tool_choice: "auto".to_string(),
+            tool_choice: codex_api::ToolChoice::auto(),
             parallel_tool_calls: true,
             reasoning: None,
             store: false,

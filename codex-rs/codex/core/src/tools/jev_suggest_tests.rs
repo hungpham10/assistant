@@ -2,12 +2,14 @@
 
 use super::JevDecision;
 use super::build_planning_state;
+use super::effective_enforcement;
 use super::last_user_question;
 use super::parse_jev_reply;
 use super::suggest_direct_mcp_tools;
 use super::tool_label;
 use super::truncate_chars;
 use crate::mcp_tool_exposure::McpToolExposure;
+use codex_config::types::ToolSuggestEnforcement;
 use codex_config::types::ToolSuggestJevConfig;
 use codex_mcp::ToolInfo as McpToolInfo;
 use codex_protocol::models::ContentItem;
@@ -87,7 +89,8 @@ async fn tắt_hoặc_thiếu_token_thì_fail_open_trả_none() {
         /*turn_id*/ "test-turn",
     )
     .await;
-    assert!(matches!(out, JevDecision::Skipped { .. }));
+    // Tắt trong config → `Disabled` (không phát event), exposure giữ nguyên.
+    assert!(matches!(out, JevDecision::Disabled));
 
     // Enabled nhưng thiếu token env → vẫn fail-open.
     let cfg = ToolSuggestJevConfig {
@@ -293,6 +296,7 @@ fn create_test_jev_config(
         min_direct_tools: min_direct,
         include_all_tools: true,
         essential_tools: Vec::new(),
+        enforcement: None,
     }
 }
 
@@ -366,6 +370,49 @@ fn min_direct_tool_limit_uses_config_or_default() {
 }
 
 #[test]
+fn enforcement_resolves_legacy_and_shadow_modes() {
+    // Unset keeps the legacy behaviour: soft with a search tool, hint without.
+    let cfg = ToolSuggestJevConfig::default();
+    assert_eq!(
+        effective_enforcement(&cfg, /*search_tool_available*/ true),
+        ToolSuggestEnforcement::Soft
+    );
+    assert_eq!(
+        effective_enforcement(&cfg, /*search_tool_available*/ false),
+        ToolSuggestEnforcement::Hint
+    );
+
+    // Shadow mode never enforces anything.
+    let cfg = ToolSuggestJevConfig {
+        observe_per_step: true,
+        enforcement: Some(ToolSuggestEnforcement::Force),
+        ..ToolSuggestJevConfig::default()
+    };
+    assert_eq!(
+        effective_enforcement(&cfg, /*search_tool_available*/ true),
+        ToolSuggestEnforcement::Hint
+    );
+
+    // Soft degrades to hint without a search tool; strict/force do not.
+    let cfg = ToolSuggestJevConfig {
+        enforcement: Some(ToolSuggestEnforcement::Soft),
+        ..ToolSuggestJevConfig::default()
+    };
+    assert_eq!(
+        effective_enforcement(&cfg, /*search_tool_available*/ false),
+        ToolSuggestEnforcement::Hint
+    );
+    let cfg = ToolSuggestJevConfig {
+        enforcement: Some(ToolSuggestEnforcement::Force),
+        ..ToolSuggestJevConfig::default()
+    };
+    assert_eq!(
+        effective_enforcement(&cfg, /*search_tool_available*/ false),
+        ToolSuggestEnforcement::Force
+    );
+}
+
+#[test]
 fn to_jev_config_maps_all_fields() {
     let cfg = ToolSuggestJevConfig {
         observe_per_step: false,
@@ -380,6 +427,7 @@ fn to_jev_config_maps_all_fields() {
         min_direct_tools: Some(2),
         include_all_tools: true,
         essential_tools: Vec::new(),
+        enforcement: None,
     };
 
     let jev_cfg = super::to_jev_config(&cfg);

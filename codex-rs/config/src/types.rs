@@ -277,6 +277,39 @@ pub struct ToolSuggestConfig {
     pub disabled_tools: Vec<ToolSuggestDisabledTool>,
 }
 
+/// How strongly the Jev suggestion is enforced for a turn (`[tool_suggest_jev]
+/// enforcement`). Each level bundles tool exposure, hint wording, and (for
+/// `force`) request-level tool forcing, so one knob tunes the whole policy.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolSuggestEnforcement {
+    /// Advisory only: every tool keeps its exposure and the priority hint
+    /// merely reorders the suggestion.
+    Hint,
+    /// Non-picked tools are demoted to `Deferred` and stay discoverable
+    /// through `tool_search`.
+    #[default]
+    Soft,
+    /// Non-picked tools are hidden entirely for the turn: not advertised and
+    /// not discoverable through `tool_search`, and rejected at dispatch.
+    Strict,
+    /// Like `strict`, plus the first step of the turn forces the top pick
+    /// through `tool_choice` (falls back to `strict` when unsupported).
+    Force,
+}
+
+impl ToolSuggestEnforcement {
+    /// Whether non-picked tools lose direct exposure (`soft` and above).
+    pub fn demotes_non_picks(self) -> bool {
+        matches!(self, Self::Soft | Self::Strict | Self::Force)
+    }
+
+    /// Whether non-picked tools are hidden entirely (`strict` and above).
+    pub fn hides_non_picks(self) -> bool {
+        matches!(self, Self::Strict | Self::Force)
+    }
+}
+
 /// Question-driven MCP tool suggestion through the Jev decision model
 /// (TypeSafe SystemOne), mirroring the optional `rerank = "jev"` setting of
 /// codegraph.
@@ -333,6 +366,11 @@ pub struct ToolSuggestJevConfig {
     /// hint is never injected. Observation only.
     #[serde(default)]
     pub observe_per_step: bool,
+    /// Enforcement level for the Jev suggestion. `None` keeps the
+    /// backwards-compatible behaviour: `soft` when the model has a search
+    /// tool, otherwise `hint`. `observe_per_step` always resolves to `hint`.
+    #[serde(default)]
+    pub enforcement: Option<ToolSuggestEnforcement>,
 }
 
 /// Strategy-harness settings (`[plan_strategies]`).

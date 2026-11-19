@@ -83,6 +83,7 @@ use codex_analytics::InvocationType;
 use codex_analytics::TurnResolvedConfigFact;
 use codex_analytics::build_track_events_context;
 use codex_async_utils::OrCancelExt;
+use codex_config::types::ToolSuggestEnforcement;
 use codex_core_plugins::RecommendedPluginCandidatesInput;
 use codex_core_skills::injection::InjectedHostSkillPrompts;
 use codex_extension_api::TurnInputContext;
@@ -1196,6 +1197,7 @@ pub(crate) fn build_prompt(
     turn_context: &TurnContext,
     base_instructions: BaseInstructions,
     jev_hint: Option<String>,
+    forced_tool: Option<crate::client_common::ForcedTool>,
 ) -> Prompt {
     Prompt {
         input,
@@ -1212,6 +1214,7 @@ pub(crate) fn build_prompt(
             &turn_context.session_source,
         ),
         jev_hint,
+        forced_tool,
     }
 }
 
@@ -1240,7 +1243,7 @@ async fn run_sampling_request(
     // request-format time (see `Prompt::get_formatted_input_for_request`) so
     // conversation history and rollouts stay clean, and retried attempts
     // (which rebuild input from `clone_history`) still carry it.
-    let (router, jev_hint) = built_tools(
+    let (router, jev_hint, forced_tool) = built_tools(
         sess.as_ref(),
         step_context.as_ref(),
         &cancellation_token,
@@ -1280,6 +1283,7 @@ async fn run_sampling_request(
             turn_context.as_ref(),
             base_instructions.clone(),
             jev_hint.clone().map(|hint| hint.render()),
+            forced_tool.clone(),
         );
         let err = match try_run_sampling_request(
             tool_runtime.clone(),
@@ -1346,7 +1350,11 @@ pub(crate) async fn built_tools(
     step_context: &StepContext,
     cancellation_token: &CancellationToken,
     query: Option<&[ResponseItem]>,
-) -> CodexResult<(Arc<ToolRouter>, Option<JevToolPriorityHint>)> {
+) -> CodexResult<(
+    Arc<ToolRouter>,
+    Option<JevToolPriorityHint>,
+    Option<crate::client_common::ForcedTool>,
+)> {
     let turn_context = step_context.turn.as_ref();
     // Bounded recent tool-call sequence for the Jev planning state (Jev + HMM).
     let recent_usage = {
@@ -1482,16 +1490,21 @@ pub(crate) async fn built_tools(
     // spec planner; MCP-only mode reranks here. Both fail-open and report
     // their skip reason for the TUI.
     let jev_cfg = &turn_context.config.tool_suggest_jev;
+    let search_tool_available = search_tool_enabled(turn_context);
+    // Resolved enforcement (`[tool_suggest_jev] enforcement`): shadow mode
+    // always resolves to `hint`; unset keeps the legacy behaviour.
+    let jev_level =
+        crate::tools::jev_suggest::effective_enforcement(jev_cfg, search_tool_available);
     // Shadow mode (`observe_per_step`): Jev still runs on every step of the
     // turn's agentic loop, but observation only — no demotion, no priority
     // hint; suggestions surface as step-tagged events and logs.
     let jev_shadow = jev_cfg.observe_per_step;
-    let jev_step = jev_shadow.then(|| {
-        turn_context
-            .step_counter
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-    });
-    let demote = !jev_shadow && search_tool_enabled(turn_context);
+    // The step counter advances for every tool-building pass (shadow mode and
+    // `force` both need it); only shadow events expose it to the TUI.
+    let jev_step = turn_context
+        .step_counter
+        .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let demote = !jev_shadow && jev_level.demotes_non_picks();
     let universal_jev_question = if jev_cfg.enabled && jev_cfg.include_all_tools {
         question.clone()
     } else {
@@ -1499,10 +1512,14 @@ pub(crate) async fn built_tools(
     };
     let universal_jev = universal_jev_question.is_some();
     if jev_shadow {
-        tracing::info!(step = ?jev_step, universal_jev, "tool_suggest_jev shadow step");
+        tracing::info!(
+            step = jev_step,
+            universal_jev,
+            "tool_suggest_jev shadow step"
+        );
     }
-    let (mcp_tool_exposure, legacy_hint) = if universal_jev {
-        (mcp_tool_exposure, None)
+    let (mcp_tool_exposure, legacy_hint, legacy_forced_tool) = if universal_jev {
+        (mcp_tool_exposure, None, None)
     } else if let Some(question) = question.as_deref() {
         let repo = repo_name(turn_context);
         let original = mcp_tool_exposure.clone();
@@ -1518,8 +1535,20 @@ pub(crate) async fn built_tools(
         .await;
         match outcome {
             JevDecision::Suggested((exposure, suggested)) => {
-                let jev_hint = (!suggested.scores.is_empty())
-                    .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
+                let jev_hint = (!suggested.scores.is_empty()).then(|| {
+                    JevToolPriorityHint::new(hint_display_names(&suggested.scores), jev_level)
+                });
+                let forced_tool = forced_tool_for_level(jev_level, jev_step, &suggested.scores);
+                // `strict`/`force`: non-picked MCP tools are dropped instead of
+                // deferred, so they are neither advertised nor discoverable.
+                let picked_exposure = if jev_level.hides_non_picks() {
+                    McpToolExposure {
+                        direct_tools: exposure.direct_tools,
+                        deferred_tools: None,
+                    }
+                } else {
+                    exposure
+                };
                 sess.send_event(
                     turn_context,
                     EventMsg::JevToolSuggestion(codex_protocol::protocol::JevToolSuggestionEvent {
@@ -1530,26 +1559,37 @@ pub(crate) async fn built_tools(
                         strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                         node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
                         skip_reason: None,
-                        step: jev_step,
+                        step: jev_shadow.then_some(jev_step),
                     }),
                 )
                 .await;
                 if jev_shadow {
-                    tracing::info!(step = ?jev_step, "tool_suggest_jev shadow suggestion (exposure unchanged)");
+                    tracing::info!(
+                        step = jev_step,
+                        "tool_suggest_jev shadow suggestion (exposure unchanged)"
+                    );
                 }
-                // Hint-only without the search tool: keeping the exposure
-                // untouched means deferred MCP tools would be unreachable.
+                // Hint-level: keeping the exposure untouched means deferred MCP
+                // tools would be unreachable without a search tool.
                 if demote {
-                    (exposure, if jev_shadow { None } else { jev_hint })
+                    (
+                        picked_exposure,
+                        if jev_shadow { None } else { jev_hint },
+                        forced_tool,
+                    )
                 } else {
-                    (original, if jev_shadow { None } else { jev_hint })
+                    (
+                        original,
+                        if jev_shadow { None } else { jev_hint },
+                        forced_tool,
+                    )
                 }
             }
             JevDecision::Skipped { reason } => {
                 emit_jev_skip_event(sess, turn_context, &reason, strategy_context.as_ref()).await;
-                (original, None)
+                (original, None, None)
             }
-            JevDecision::Disabled => (original, None),
+            JevDecision::Disabled => (original, None, None),
         }
     } else {
         emit_jev_skip_event(
@@ -1563,7 +1603,7 @@ pub(crate) async fn built_tools(
             strategy_context.as_ref(),
         )
         .await;
-        (mcp_tool_exposure, None)
+        (mcp_tool_exposure, None, None)
     };
     // Strategy strong priors override the exposure split deterministically:
     // favored tools are always advertised directly (fail-open, order kept).
@@ -1577,6 +1617,7 @@ pub(crate) async fn built_tools(
         }
         _ => (mcp_tool_exposure, legacy_hint),
     };
+    let forced_tool = legacy_forced_tool;
     let mcp_tools = has_mcp_servers.then_some(mcp_tool_exposure.direct_tools);
     let deferred_mcp_tools = mcp_tool_exposure.deferred_tools;
     let tool_selection = {
@@ -1597,7 +1638,7 @@ pub(crate) async fn built_tools(
                     question,
                     repo: repo_name(turn_context),
                     strategy: strategy_context.clone(),
-                    demote,
+                    enforcement: jev_level,
                     recent_usage: recent_usage.clone(),
                 }
             }),
@@ -1605,14 +1646,16 @@ pub(crate) async fn built_tools(
         &sess.services.tool_search_handler_cache,
     )
     .await;
-    let jev_hint = if universal_jev {
+    let (jev_hint, forced_tool) = if universal_jev {
         match universal_outcome.suggested {
             Some(suggested) => {
-                let hint = (!suggested.scores.is_empty())
-                    .then(|| JevToolPriorityHint::new(hint_display_names(&suggested.scores)));
+                let hint = (!suggested.scores.is_empty()).then(|| {
+                    JevToolPriorityHint::new(hint_display_names(&suggested.scores), jev_level)
+                });
+                let forced = forced_tool_for_level(jev_level, jev_step, &suggested.scores);
                 if jev_shadow {
                     tracing::info!(
-                        step = ?jev_step,
+                        step = jev_step,
                         tools = ?suggested.suggested_names,
                         "tool_suggest_jev shadow suggestion (exposure unchanged)"
                     );
@@ -1627,28 +1670,28 @@ pub(crate) async fn built_tools(
                         strategy: strategy_context.as_ref().map(|ctx| ctx.name.clone()),
                         node: strategy_context.as_ref().map(|ctx| ctx.node.clone()),
                         skip_reason: None,
-                        step: jev_step,
+                        step: jev_shadow.then_some(jev_step),
                     }),
                 )
                 .await;
-                if jev_shadow { None } else { hint }
+                (if jev_shadow { None } else { hint }, forced)
             }
             None => {
                 if let Some(reason) = universal_outcome.skip_reason.as_deref() {
                     emit_jev_skip_event(sess, turn_context, reason, strategy_context.as_ref())
                         .await;
                 }
-                None
+                (None, forced_tool)
             }
         }
     } else {
-        strong_prior_hint
+        (strong_prior_hint, forced_tool)
     };
     {
         let mut state = sess.state.lock().await;
         state.tool_inventory = inventory;
     }
-    Ok((Arc::new(router), jev_hint))
+    Ok((Arc::new(router), jev_hint, forced_tool))
 }
 
 /// Model-visible names for the priority hint: strip the `namespace/` prefix
@@ -1664,6 +1707,28 @@ fn hint_display_names(scores: &[(String, f32)]) -> Vec<String> {
                 .to_string()
         })
         .collect()
+}
+
+/// Single-tool forcing for `force` enforcement: on the first step of a turn
+/// the top-ranked tool is sent as an explicit `tool_choice` so the provider
+/// must call it. Later steps stay on `auto` (the strict hiding plus priority
+/// hint keep the model on-track). Builtin tools have no namespace; MCP tool
+/// keys use the `server/tool` tracker format.
+fn forced_tool_for_level(
+    level: ToolSuggestEnforcement,
+    step: u32,
+    scores: &[(String, f32)],
+) -> Option<crate::client_common::ForcedTool> {
+    if level != ToolSuggestEnforcement::Force || step != 0 {
+        return None;
+    }
+    let (key, _) = scores.first()?;
+    let (namespace, name) = key.split_once('/').unwrap_or(("builtin", key));
+    let namespace = (namespace != "builtin").then(|| namespace.to_string());
+    Some(crate::client_common::ForcedTool {
+        namespace,
+        name: name.to_string(),
+    })
 }
 
 /// Maximum number of recent tool calls fed to the Jev planning state — the

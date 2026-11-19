@@ -44,6 +44,7 @@ pub(crate) fn build_request(
             "include_usage": true,
         },
         "tools": tools,
+        "tool_choice": super::tool_choice::openai_chat_tool_choice(prompt.forced_tool.as_ref()),
     });
 
     if model_info.reasoning_control == ReasoningControl::ThinkingToggle {

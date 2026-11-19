@@ -212,6 +212,53 @@ impl From<VerbosityConfig> for OpenAiVerbosity {
     }
 }
 
+/// `tool_choice` value for the Responses API: either a mode string (`"auto"`,
+/// `"none"`, `"required"`) or an explicit function to force.
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum ToolChoice {
+    Mode(String),
+    Function(ToolChoiceFunction),
+}
+
+impl ToolChoice {
+    pub fn auto() -> Self {
+        Self::Mode("auto".to_string())
+    }
+}
+
+impl From<&str> for ToolChoice {
+    fn from(mode: &str) -> Self {
+        Self::Mode(mode.to_string())
+    }
+}
+
+impl From<String> for ToolChoice {
+    fn from(mode: String) -> Self {
+        Self::Mode(mode)
+    }
+}
+
+/// Forced function selection for namespaced and plain tools.
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+pub struct ToolChoiceFunction {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
+}
+
+impl ToolChoiceFunction {
+    pub fn function(name: impl Into<String>, namespace: Option<String>) -> Self {
+        Self {
+            kind: "function".to_string(),
+            name: name.into(),
+            namespace,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Clone, PartialEq)]
 pub struct ResponsesApiRequest {
     pub model: String,
@@ -220,7 +267,7 @@ pub struct ResponsesApiRequest {
     pub input: Vec<ResponseItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<serde_json::Value>>,
-    pub tool_choice: String,
+    pub tool_choice: ToolChoice,
     pub parallel_tool_calls: bool,
     pub reasoning: Option<Reasoning>,
     pub store: bool,
@@ -272,7 +319,7 @@ pub struct ResponseCreateWsRequest {
     pub input: Vec<ResponseItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tools: Option<Vec<Value>>,
-    pub tool_choice: String,
+    pub tool_choice: ToolChoice,
     pub parallel_tool_calls: bool,
     pub reasoning: Option<Reasoning>,
     pub store: bool,

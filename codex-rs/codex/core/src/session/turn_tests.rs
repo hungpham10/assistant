@@ -141,3 +141,57 @@ fn recent_tool_calls_caps_at_limit_most_recent_first() {
     assert_eq!(keys.last().map(String::as_str), Some("tool_19"));
     assert_eq!(keys.first().map(String::as_str), Some("tool_12"));
 }
+
+#[test]
+fn forced_tool_only_applies_to_force_on_first_step() {
+    let scores = vec![
+        ("finhay/finhay_get_quote".to_string(), 0.9),
+        ("shell".to_string(), 0.5),
+    ];
+
+    let forced = super::forced_tool_for_level(ToolSuggestEnforcement::Force, 0, &scores);
+    assert_eq!(
+        forced,
+        Some(crate::client_common::ForcedTool {
+            namespace: Some("finhay".to_string()),
+            name: "finhay_get_quote".to_string(),
+        })
+    );
+}
+
+#[test]
+fn forced_tool_skips_later_steps_and_other_levels() {
+    let scores = vec![("shell".to_string(), 0.9)];
+
+    assert_eq!(
+        super::forced_tool_for_level(ToolSuggestEnforcement::Force, 1, &scores),
+        None
+    );
+    assert_eq!(
+        super::forced_tool_for_level(ToolSuggestEnforcement::Strict, 0, &scores),
+        None
+    );
+    assert_eq!(
+        super::forced_tool_for_level(ToolSuggestEnforcement::Hint, 0, &scores),
+        None
+    );
+}
+
+#[test]
+fn forced_tool_builtin_has_no_namespace_and_empty_scores_are_none() {
+    assert_eq!(
+        super::forced_tool_for_level(
+            ToolSuggestEnforcement::Force,
+            0,
+            &[("shell".to_string(), 0.9)],
+        ),
+        Some(crate::client_common::ForcedTool {
+            namespace: None,
+            name: "shell".to_string(),
+        })
+    );
+    assert_eq!(
+        super::forced_tool_for_level(ToolSuggestEnforcement::Force, 0, &[]),
+        None
+    );
+}

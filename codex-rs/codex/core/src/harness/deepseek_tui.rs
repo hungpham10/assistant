@@ -81,7 +81,7 @@ pub(crate) fn build_request(
             "include_usage": true,
         },
         "tools": tools,
-        "tool_choice": "auto",
+        "tool_choice": super::tool_choice::openai_chat_tool_choice(prompt.forced_tool.as_ref()),
     });
     Ok((request, tool_kinds))
 }
@@ -899,5 +899,27 @@ mod tests {
             "input_modalities": input_modalities
         }))
         .expect("deserialize model info")
+    }
+
+    #[test]
+    fn deepseek_tui_forced_tool_uses_function_tool_choice() {
+        let prompt = Prompt {
+            forced_tool: Some(crate::client_common::ForcedTool {
+                namespace: Some("finhay".to_string()),
+                name: "finhay_get_quote".to_string(),
+            }),
+            ..Prompt::default()
+        };
+        let (request, _) = build_request(&prompt, &model_info()).expect("request");
+        assert_eq!(
+            request["tool_choice"],
+            serde_json::json!({
+                "type": "function",
+                "function": {
+                    "name": "finhay_get_quote",
+                    "namespace": "finhay",
+                }
+            })
+        );
     }
 }
