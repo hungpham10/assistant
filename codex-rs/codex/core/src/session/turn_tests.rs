@@ -149,11 +149,7 @@ fn forced_tool_only_applies_to_force_on_first_step() {
         ("shell".to_string(), 0.5),
     ];
 
-    let forced = super::forced_tool_for_level(
-        ToolSuggestEnforcement::Force,
-        0,
-        &scores,
-    );
+    let forced = super::forced_tool_for_level(ToolSuggestEnforcement::Force, 0, &scores);
     assert_eq!(
         forced,
         Some(crate::client_common::ForcedTool {

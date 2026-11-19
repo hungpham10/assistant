@@ -136,7 +136,9 @@ pub(crate) fn build_request(
         } else {
             build_tools()?
         },
-        tool_choice: Some(json!({ "type": "auto" })),
+        tool_choice: Some(super::tool_choice::anthropic_tool_choice(
+            prompt.forced_tool.as_ref(),
+        )),
         thinking: None,
         context_management: None,
         output_config: None,
@@ -2650,5 +2652,26 @@ mod tests {
             "supports_search_tool": false
         }))
         .expect("deserialize test model")
+    }
+
+    #[test]
+    fn zcode_forced_tool_uses_named_tool_choice() {
+        let prompt = Prompt {
+            forced_tool: Some(crate::client_common::ForcedTool {
+                namespace: Some("finhay".to_string()),
+                name: "finhay_get_quote".to_string(),
+            }),
+            ..Prompt::default()
+        };
+        let request = build_request(
+            &prompt,
+            &test_model_info("zai/GLM-5.2"),
+            /*session_source*/ None,
+        )
+        .expect("zcode request");
+        assert_eq!(
+            request.tool_choice,
+            Some(json!({ "type": "tool", "name": "finhay_get_quote" }))
+        );
     }
 }

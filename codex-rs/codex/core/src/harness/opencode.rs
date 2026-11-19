@@ -86,7 +86,7 @@ pub(crate) fn build_request(
         "stream_options": {
             "include_usage": true,
         },
-        "tool_choice": "auto",
+        "tool_choice": super::tool_choice::openai_chat_tool_choice(prompt.forced_tool.as_ref()),
         "messages": messages,
         "tools": tools,
     });
