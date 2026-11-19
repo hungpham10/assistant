@@ -66,10 +66,11 @@ fn bound_session() -> Option<Arc<Session>> {
 }
 
 /// Process-global document-graph slot (lazy-opened per bound root).
-static GLOBAL_DOC_GRAPH: OnceLock<Mutex<Option<(Utf8PathBuf, Arc<SharedDocGraph>)>>> =
-    OnceLock::new();
+type GlobalDocGraph = Mutex<Option<(Utf8PathBuf, Arc<SharedDocGraph>)>>;
 
-fn global_doc_graph() -> &'static Mutex<Option<(Utf8PathBuf, Arc<SharedDocGraph>)>> {
+static GLOBAL_DOC_GRAPH: OnceLock<GlobalDocGraph> = OnceLock::new();
+
+fn global_doc_graph() -> &'static GlobalDocGraph {
     GLOBAL_DOC_GRAPH.get_or_init(|| Mutex::new(None))
 }
 
@@ -623,10 +624,7 @@ async fn dispatch_doc_search(action: &str, args: &JsonValue) -> Result<String> {
         "doc_struct" => {
             let pattern =
                 arg_str(args, "pattern").ok_or_else(|| anyhow::anyhow!("missing `pattern`"))?;
-            let tokens: Vec<DocToken> = pattern
-                .split(',')
-                .map(|label| parse_kind_label(label))
-                .collect();
+            let tokens: Vec<DocToken> = pattern.split(',').map(parse_kind_label).collect();
             if tokens.is_empty() {
                 anyhow::bail!("missing `pattern`");
             }

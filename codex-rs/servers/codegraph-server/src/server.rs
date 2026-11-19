@@ -165,9 +165,10 @@ const TOOL_DESCRIPTIONS: &[(&str, &str)] = &[
 ];
 
 fn tool_schema(schema: serde_json::Value) -> Arc<JsonObject> {
-    Arc::new(
-        serde_json::from_value(schema).expect("tool schema should be a valid JSON Schema object"),
-    )
+    match schema {
+        serde_json::Value::Object(map) => Arc::new(map),
+        other => panic!("tool schema should be a JSON object, got {other}"),
+    }
 }
 
 fn tool(name: &str, schema: serde_json::Value) -> Tool {

@@ -131,13 +131,18 @@ impl OpenAiModelsEndpoint {
         Ok((models, etag))
     }
 
-    fn apply_provider_config_overrides(models: &mut [ModelInfo], provider_info: &ModelProviderInfo) {
+    fn apply_provider_config_overrides(
+        models: &mut [ModelInfo],
+        provider_info: &ModelProviderInfo,
+    ) {
         // Override tool calling support if explicitly configured
         if let Some(supports_tool_calling) = provider_info.supports_tool_calling {
             for model in models.iter_mut() {
                 model.supports_parallel_tool_calls = supports_tool_calling;
                 if supports_tool_calling {
-                    model.experimental_supported_tools.push("functions".to_string());
+                    model
+                        .experimental_supported_tools
+                        .push("functions".to_string());
                     model.visibility = codex_protocol::openai_models::ModelVisibility::List;
                 }
             }

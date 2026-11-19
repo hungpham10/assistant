@@ -267,37 +267,57 @@ impl Session {
         // RDBMS cần repo_id — đảm bảo đã sinh (self-heal) trước khi tính route.
         let _ = ExtractConfig::ensure_repo_id(&root);
         let route = ExtractConfig::load(&root).storage_route(&root);
-        let mut st = self.state.write().await;
 
-        // Root được init giữa chừng (vd sau khi init() lỗi part-way) → chuyển
-        // từ Empty sang Ready bằng cách load storage.
-        let was_empty = matches!(&*st, SessionState::Empty);
-        if was_empty {
-            let shared_index = Arc::new(SharedGraphIndex::open_route(route.clone()).await?);
-            *st = SessionState::Ready {
-                route,
-                shared_index,
-            };
-        } else if let SessionState::Ready {
-            route: cur,
-            shared_index,
-        } = &mut *st
+        // Fast path: storage đã load đúng route thì không cần mở lại.
         {
-            // Config đổi backend giữa chừng → load lại storage.
-            if *cur != route {
-                match SharedGraphIndex::open_route(route.clone()).await {
-                    Ok(sgi) => {
-                        *shared_index = Arc::new(sgi);
-                        *cur = route;
-                    }
-                    Err(e) => eprintln!("[codegraph] open index for {route:?} failed: {e}"),
-                }
+            let st = self.state.read().await;
+            if let SessionState::Ready {
+                route: cur,
+                shared_index,
+            } = &*st
+                && *cur == route
+            {
+                return Ok(shared_index.clone());
             }
         }
 
-        match &*st {
-            SessionState::Ready { shared_index, .. } => Ok(shared_index.clone()),
-            SessionState::Empty => unreachable!("handled above"),
+        // Root được init giữa chừng (vd sau khi init() lỗi part-way) → chuyển
+        // từ Empty sang Ready bằng cách load storage. Mở storage ngoài lock để
+        // không giữ write guard qua await.
+        let was_empty = matches!(&*self.state.read().await, SessionState::Empty);
+        let opened = SharedGraphIndex::open_route(route.clone()).await;
+
+        let mut st = self.state.write().await;
+        match opened {
+            Ok(sgi) => {
+                let shared_index = Arc::new(sgi);
+                if was_empty && matches!(&*st, SessionState::Empty) {
+                    *st = SessionState::Ready {
+                        route,
+                        shared_index: Arc::clone(&shared_index),
+                    };
+                } else if let SessionState::Ready {
+                    route: cur,
+                    shared_index: current,
+                } = &mut *st
+                {
+                    // Config đổi backend giữa chừng → load lại storage.
+                    *current = Arc::clone(&shared_index);
+                    *cur = route;
+                }
+                Ok(shared_index)
+            }
+            Err(e) => {
+                if was_empty {
+                    return Err(e.into());
+                }
+                // Config đổi backend giữa chừng → giữ index cũ nếu mở lỗi.
+                eprintln!("[codegraph] open index for {route:?} failed: {e}");
+                match &*st {
+                    SessionState::Ready { shared_index, .. } => Ok(shared_index.clone()),
+                    SessionState::Empty => unreachable!("handled above"),
+                }
+            }
         }
     }
 

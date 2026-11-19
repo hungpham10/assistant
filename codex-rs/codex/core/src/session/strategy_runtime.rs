@@ -591,22 +591,24 @@ pub(crate) async fn apply_strategy_feedback(
     id: String,
     choice: StrategyFeedbackChoice,
 ) {
-    let mut state = sess.state.lock().await;
-    let Some(pending) = state.pending_strategy_feedback.take() else {
-        return;
+    let snapshot = {
+        let mut state = sess.state.lock().await;
+        let Some(pending) = state.pending_strategy_feedback.take() else {
+            return;
+        };
+        if pending.id != id || matches!(choice, StrategyFeedbackChoice::Skip) {
+            // Stale answer or no opinion: drop the prompt untouched.
+            return;
+        }
+        let Some(runtime) = state.strategy.as_mut() else {
+            return;
+        };
+        runtime.model_mut().apply_feedback(&TurnFeedback {
+            tools_called: pending.tools_called,
+            helpful: choice == StrategyFeedbackChoice::Helpful,
+        });
+        runtime.snapshot()
     };
-    if pending.id != id || matches!(choice, StrategyFeedbackChoice::Skip) {
-        // Stale answer or no opinion: drop the prompt untouched.
-        return;
-    }
-    let Some(runtime) = state.strategy.as_mut() else {
-        return;
-    };
-    runtime.model_mut().apply_feedback(&TurnFeedback {
-        tools_called: pending.tools_called,
-        helpful: choice == StrategyFeedbackChoice::Helpful,
-    });
-    let snapshot = runtime.snapshot();
     sess.persist_rollout_items(&[RolloutItem::StrategyState(snapshot)])
         .await;
 }
