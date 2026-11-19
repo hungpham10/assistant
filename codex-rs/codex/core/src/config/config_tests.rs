@@ -10922,6 +10922,7 @@ direct_tools = 4
             include_all_tools: true,
             essential_tools: Vec::new(),
             observe_per_step: false,
+            enforcement: None,
         }
     );
     Ok(())
@@ -10947,6 +10948,32 @@ observe_per_step = true
     .await?;
 
     assert!(config.tool_suggest_jev.observe_per_step);
+    Ok(())
+}
+
+#[tokio::test]
+async fn tool_suggest_jev_enforcement_loads_from_config_toml() -> std::io::Result<()> {
+    let cfg: ConfigToml = toml::from_str(
+        r#"
+[tool_suggest_jev]
+enabled = true
+enforcement = "strict"
+"#,
+    )
+    .expect("TOML deserialization should succeed");
+
+    let codex_home = TempDir::new()?;
+    let config = Config::load_from_base_config_with_overrides(
+        cfg,
+        ConfigOverrides::default(),
+        codex_home.abs(),
+    )
+    .await?;
+
+    assert_eq!(
+        config.tool_suggest_jev.enforcement,
+        Some(codex_config::types::ToolSuggestEnforcement::Strict)
+    );
     Ok(())
 }
 

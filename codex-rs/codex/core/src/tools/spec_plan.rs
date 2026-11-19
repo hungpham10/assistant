@@ -227,8 +227,12 @@ async fn build_tool_specs_and_registry(
             .await;
     append_tool_search_executor(&context, &mut planned_tools);
     prepend_code_mode_executors(&context, &mut planned_tools);
-    let (specs, registry, inventory) =
-        build_model_visible_specs_and_registry(turn_context, planned_tools, &tool_selection);
+    let (specs, registry, inventory) = build_model_visible_specs_and_registry(
+        turn_context,
+        planned_tools,
+        &tool_selection,
+        jev_outcome.enforced_hidden.as_slice(),
+    );
     (specs, registry, inventory, jev_outcome)
 }
 
@@ -293,6 +297,7 @@ async fn apply_jev_universal_selection(
         return crate::tools::jev_suggest::JevRoutingOutcome {
             suggested: None,
             skip_reason: Some("all tools essential — nothing to rerank".into()),
+            enforced_hidden: Vec::new(),
         };
     }
 
@@ -311,41 +316,69 @@ async fn apply_jev_universal_selection(
         JevDecision::Skipped { reason } => crate::tools::jev_suggest::JevRoutingOutcome {
             suggested: None,
             skip_reason: Some(reason),
+            enforced_hidden: Vec::new(),
         },
         JevDecision::Suggested(suggestion) => {
-            if jev.demote {
-                let deferred_keys: HashSet<(Option<String>, String)> = suggestion
-                    .deferred_tools
-                    .iter()
-                    .map(|tool| (tool.namespace.clone(), tool.name.clone()))
-                    .collect();
-                let direct_keys: HashSet<(Option<String>, String)> = suggestion
-                    .direct_tools
-                    .iter()
-                    .map(|tool| (tool.namespace.clone(), tool.name.clone()))
-                    .collect();
-                for runtime in &mut planned_tools.runtimes {
-                    let tool_name = runtime.tool_name();
-                    let key = (tool_name.namespace.clone(), tool_name.name);
-                    match runtime.exposure() {
-                        ToolExposure::Direct if deferred_keys.contains(&key) => {
-                            *runtime =
-                                override_tool_exposure(Arc::clone(runtime), ToolExposure::Deferred);
-                        }
-                        ToolExposure::Deferred if direct_keys.contains(&key) => {
-                            *runtime =
-                                override_tool_exposure(Arc::clone(runtime), ToolExposure::Direct);
-                        }
-                        _ => {}
-                    }
-                }
-            }
+            let enforced_hidden =
+                apply_jev_enforcement(&mut planned_tools.runtimes, &suggestion, jev.enforcement);
             crate::tools::jev_suggest::JevRoutingOutcome {
                 suggested: Some(suggestion),
                 skip_reason: None,
+                enforced_hidden,
             }
         }
     }
+}
+
+/// Applies the resolved enforcement level to the planned runtimes and returns
+/// the tools hidden by it.
+///
+/// `soft` demotes non-picked `Direct` tools to `Deferred` (still discoverable
+/// through `tool_search`); `strict`/`force` move non-picked `Direct`/`Deferred`
+/// tools to `Hidden`, so they are neither advertised nor indexed for
+/// `tool_search`. The registry keeps hidden tools and rejects dispatch.
+fn apply_jev_enforcement(
+    runtimes: &mut [PlannedRuntime],
+    suggestion: &crate::tools::jev_suggest::UniversalToolSuggestion,
+    enforcement: codex_config::types::ToolSuggestEnforcement,
+) -> Vec<ToolName> {
+    let mut enforced_hidden = Vec::new();
+    if !enforcement.demotes_non_picks() {
+        return enforced_hidden;
+    }
+    let deferred_keys: HashSet<(Option<String>, String)> = suggestion
+        .deferred_tools
+        .iter()
+        .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+        .collect();
+    let direct_keys: HashSet<(Option<String>, String)> = suggestion
+        .direct_tools
+        .iter()
+        .map(|tool| (tool.namespace.clone(), tool.name.clone()))
+        .collect();
+    let hide = enforcement.hides_non_picks();
+    for runtime in runtimes {
+        let tool_name = runtime.tool_name();
+        let key = (tool_name.namespace.clone(), tool_name.name.clone());
+        match runtime.exposure() {
+            ToolExposure::Direct if deferred_keys.contains(&key) && hide => {
+                enforced_hidden.push(tool_name);
+                *runtime = override_tool_exposure(Arc::clone(runtime), ToolExposure::Hidden);
+            }
+            ToolExposure::Deferred if !direct_keys.contains(&key) && hide => {
+                enforced_hidden.push(tool_name);
+                *runtime = override_tool_exposure(Arc::clone(runtime), ToolExposure::Hidden);
+            }
+            ToolExposure::Direct if deferred_keys.contains(&key) => {
+                *runtime = override_tool_exposure(Arc::clone(runtime), ToolExposure::Deferred);
+            }
+            ToolExposure::Deferred if direct_keys.contains(&key) => {
+                *runtime = override_tool_exposure(Arc::clone(runtime), ToolExposure::Direct);
+            }
+            _ => {}
+        }
+    }
+    enforced_hidden
 }
 
 fn apply_direct_model_only_namespace_overrides(
@@ -381,6 +414,7 @@ fn build_model_visible_specs_and_registry(
     turn_context: &TurnContext,
     planned_tools: PlannedTools,
     tool_selection: &crate::tools::selection::SessionToolSelection,
+    jev_enforced_hidden: &[ToolName],
 ) -> (Vec<ToolSpec>, ToolRegistry, Vec<ToolInventoryEntry>) {
     let PlannedTools {
         runtimes,
@@ -444,7 +478,7 @@ fn build_model_visible_specs_and_registry(
     }
     specs.extend(hosted_specs);
 
-    let registry = ToolRegistry::from_tools(runtimes);
+    let registry = ToolRegistry::from_tools_with_enforced_hidden(runtimes, jev_enforced_hidden);
     let model_visible_specs = merge_into_namespaces(specs)
         .into_iter()
         .filter(|spec| {

@@ -1673,3 +1673,65 @@ async fn hosted_web_search_and_standalone_image_generation_follow_runtime_gates(
     .await;
     unsupported_provider.assert_visible_lacks(&["web_search"]);
 }
+
+#[test]
+fn jev_enforcement_soft_demotes_and_strict_hides_non_picks() {
+    use super::PlannedRuntime;
+    use super::apply_jev_enforcement;
+    use crate::tools::handlers::extension_tools::ExtensionToolAdapter;
+    use crate::tools::jev_suggest::JevToolEntry;
+    use crate::tools::jev_suggest::ToolType;
+    use crate::tools::jev_suggest::UniversalToolSuggestion;
+    use codex_config::types::ToolSuggestEnforcement;
+
+    fn runtime(namespace: &'static str, name: &'static str) -> PlannedRuntime {
+        Arc::new(ExtensionToolAdapter::new(Arc::new(
+            TestNamespaceExtensionTool {
+                namespace,
+                tool_name: name,
+            },
+        )))
+    }
+
+    fn entry(namespace: &str, name: &str) -> JevToolEntry {
+        JevToolEntry {
+            id: 0,
+            name: name.to_string(),
+            namespace: Some(namespace.to_string()),
+            description: String::new(),
+            tool_type: ToolType::Extension,
+            essential: false,
+        }
+    }
+
+    let suggestion = UniversalToolSuggestion {
+        direct_tools: vec![entry("srv", "pick")],
+        deferred_tools: vec![entry("srv", "other")],
+        suggested_names: vec!["srv/pick".to_string()],
+        scores: vec![("srv/pick".to_string(), 0.9)],
+        no_match: false,
+    };
+
+    // `hint` leaves every exposure untouched.
+    let mut runtimes = vec![runtime("srv", "pick"), runtime("srv", "other")];
+    assert!(
+        apply_jev_enforcement(&mut runtimes, &suggestion, ToolSuggestEnforcement::Hint).is_empty()
+    );
+    assert_eq!(runtimes[0].exposure(), ToolExposure::Direct);
+    assert_eq!(runtimes[1].exposure(), ToolExposure::Direct);
+
+    // `soft` demotes the non-pick to Deferred (still searchable).
+    let mut runtimes = vec![runtime("srv", "pick"), runtime("srv", "other")];
+    assert!(
+        apply_jev_enforcement(&mut runtimes, &suggestion, ToolSuggestEnforcement::Soft).is_empty()
+    );
+    assert_eq!(runtimes[0].exposure(), ToolExposure::Direct);
+    assert_eq!(runtimes[1].exposure(), ToolExposure::Deferred);
+
+    // `strict` hides the non-pick and reports it for the dispatch guard.
+    let mut runtimes = vec![runtime("srv", "pick"), runtime("srv", "other")];
+    let hidden = apply_jev_enforcement(&mut runtimes, &suggestion, ToolSuggestEnforcement::Strict);
+    assert_eq!(hidden, vec![ToolName::namespaced("srv", "other")]);
+    assert_eq!(runtimes[0].exposure(), ToolExposure::Direct);
+    assert_eq!(runtimes[1].exposure(), ToolExposure::Hidden);
+}

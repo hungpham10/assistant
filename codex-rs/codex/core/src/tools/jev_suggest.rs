@@ -15,6 +15,7 @@ use std::collections::HashSet;
 
 use codegraph_core::JevConfig;
 use codegraph_core::NONE_OPTION;
+use codex_config::types::ToolSuggestEnforcement;
 use codex_config::types::ToolSuggestJevConfig;
 use codex_mcp::ToolInfo as McpToolInfo;
 use codex_protocol::models::ContentItem;
@@ -47,6 +48,27 @@ fn min_direct_tool_limit(cfg: &ToolSuggestJevConfig) -> usize {
     cfg.min_direct_tools
         .filter(|v| *v > 0)
         .unwrap_or(DEFAULT_MIN_DIRECT_TOOLS)
+}
+
+/// Resolves the enforcement level for one turn. `observe_per_step` (shadow
+/// mode) always resolves to `hint`, and `soft` degrades to `hint` when the
+/// model has no search tool — demoting there would make tools unreachable.
+/// An unset level keeps the legacy behaviour.
+pub(crate) fn effective_enforcement(
+    cfg: &ToolSuggestJevConfig,
+    search_tool_available: bool,
+) -> ToolSuggestEnforcement {
+    if cfg.observe_per_step {
+        return ToolSuggestEnforcement::Hint;
+    }
+    match cfg.enforcement {
+        Some(ToolSuggestEnforcement::Soft) if !search_tool_available => {
+            ToolSuggestEnforcement::Hint
+        }
+        Some(level) => level,
+        None if search_tool_available => ToolSuggestEnforcement::Soft,
+        None => ToolSuggestEnforcement::Hint,
+    }
 }
 
 /// Maps the optional TOML config onto the codegraph Jev client config.
@@ -807,6 +829,11 @@ pub(crate) struct UniversalToolSuggestion {
 pub(crate) struct JevRoutingOutcome {
     pub(crate) suggested: Option<UniversalToolSuggestion>,
     pub(crate) skip_reason: Option<String>,
+    /// Tools hidden for this turn by `strict`/`force` enforcement. The spec
+    /// planner drops them from the advertised list and from the `tool_search`
+    /// index; the registry keeps them registered but rejects dispatch so a
+    /// hallucinated call cannot slip through.
+    pub(crate) enforced_hidden: Vec<codex_tools::ToolName>,
 }
 
 impl JevRoutingOutcome {
@@ -814,6 +841,7 @@ impl JevRoutingOutcome {
         Self {
             suggested: None,
             skip_reason: None,
+            enforced_hidden: Vec::new(),
         }
     }
 }

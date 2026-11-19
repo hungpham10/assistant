@@ -1741,6 +1741,14 @@
           "minimum": 0.0,
           "type": "integer"
         },
+        "supports_parallel_tool_calls": {
+          "description": "Override parallel tool calls support for this provider's models.",
+          "type": "boolean"
+        },
+        "supports_tool_calling": {
+          "description": "Override tool calling support for this provider's models. When set, this bypasses the provider's /models endpoint capability detection.",
+          "type": "boolean"
+        },
         "supports_websockets": {
           "default": false,
           "description": "Whether this provider supports the Responses API WebSocket transport.",
@@ -3101,6 +3109,39 @@
       ],
       "type": "string"
     },
+    "ToolSuggestEnforcement": {
+      "description": "How strongly the Jev suggestion is enforced for a turn (`[tool_suggest_jev] enforcement`). Each level bundles tool exposure, hint wording, and (for `force`) request-level tool forcing, so one knob tunes the whole policy.",
+      "oneOf": [
+        {
+          "description": "Advisory only: every tool keeps its exposure and the priority hint merely reorders the suggestion.",
+          "enum": [
+            "hint"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Non-picked tools are demoted to `Deferred` and stay discoverable through `tool_search`.",
+          "enum": [
+            "soft"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Non-picked tools are hidden entirely for the turn: not advertised and not discoverable through `tool_search`, and rejected at dispatch.",
+          "enum": [
+            "strict"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Like `strict`, plus the first step of the turn forces the top pick through `tool_choice` (falls back to `strict` when unsupported).",
+          "enum": [
+            "force"
+          ],
+          "type": "string"
+        }
+      ]
+    },
     "ToolSuggestJevConfig": {
       "additionalProperties": false,
       "description": "Question-driven MCP tool suggestion through the Jev decision model (TypeSafe SystemOne), mirroring the optional `rerank = \"jev\"` setting of codegraph.\n\nOpt-in: when `enabled`, the current user question — together with the MCP tool candidates (names + descriptions, English) — is sent to Jev to pick the tools advertised directly for this turn. The remaining MCP tools stay deferred and remain discoverable through `tool_search`. Every failure (disabled, missing token, timeout, error) keeps the previous exposure: fail-open.",
@@ -3125,6 +3166,15 @@
           "default": null,
           "description": "Full URL of the SystemOne endpoint. `None` → codegraph default.",
           "type": "string"
+        },
+        "enforcement": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ToolSuggestEnforcement"
+            }
+          ],
+          "default": null,
+          "description": "Enforcement level for the Jev suggestion. `None` keeps the backwards-compatible behaviour: `soft` when the model has a search tool, otherwise `hint`. `observe_per_step` always resolves to `hint`."
         },
         "essential_tools": {
           "default": [],
