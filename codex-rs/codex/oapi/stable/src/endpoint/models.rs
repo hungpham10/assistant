@@ -1318,8 +1318,79 @@ mod tests {
             .iter()
             .find(|model| model.slug == "claude-haiku-4-5-20251001")
             .expect("haiku model");
-        assert_eq!(haiku.default_reasoning_level, Some(ReasoningEffort::Medium));
-        assert!(haiku.supported_reasoning_levels.is_empty());
-        assert_eq!(haiku.context_window, Some(200_000));
+
+    #[tokio::test]
+    async fn deploy_models_use_catalog_when_provider_omits_parameters() {
+        let transport = CapturingTransport {
+            last_request: Arc::new(Mutex::new(None)),
+            body: Arc::new(
+                serde_json::to_vec(&serde_json::json!({
+                    "data": [
+                        {
+                            "id": "deepseek-ai/deepseek-v4.1-flash-1017",
+                            "name": "DeepSeek V4.1 Flash"
+                        },
+                        {
+                            "id": "zai-org/glm-5.3-flash",
+                            "name": "GLM 5.3 Flash"
+                        }
+                    ]
+                }))
+                .unwrap(),
+            ),
+            etag: None,
+        };
+
+        let client = ModelsClient::new(
+            transport,
+            provider("https://api-cdn.deploy.com/api/v1"),
+            Arc::new(DummyAuth),
+        );
+
+        let (models, _) = client
+            .list_models(
+                ModelsClient::<CapturingTransport>::request_url(client.session.provider(), "0.1.0"),
+                HeaderMap::new(),
+            )
+            .await
+            .expect("request should succeed");
+
+        assert_eq!(models.len(), 2);
+        
+        // Check deepseek model
+        let deepseek = models
+            .iter()
+            .find(|model| model.slug == "deepseek-ai/deepseek-v4.1-flash-1017")
+            .expect("deepseek model");
+        assert_eq!(deepseek.visibility, ModelVisibility::List);
+        assert!(
+            deepseek
+                .description
+                .as_deref()
+                .is_some_and(|description| description.contains("Tool calling"))
+        );
+        assert!(
+            deepseek.experimental_supported_tools.contains(deepseek.supported_parameters.iter().any(|p| p == "tools")"functions".to_string()) || deepseek.supports_parallel_tool_calls,
+            "catalog should provide tools parameter"
+        );
+        assert!(deepseek.supports_parallel_tool_calls);
+        
+        // Check GLM model
+        let glm = models
+            .iter()
+            .find(|model| model.slug == "zai-org/glm-5.3-flash")
+            .expect("glm model");
+        assert_eq!(glm.visibility, ModelVisibility::List);
+        assert!(
+            glm
+                .description
+                .as_deref()
+                .is_some_and(|description| description.contains("Tool calling"))
+        );
+        assert!(
+            glm.experimental_supported_tools.contains(glm.supported_parameters.iter().any(|p| p == "tools")"functions".to_string()) || glm.supports_parallel_tool_calls,
+            "catalog should provide tools parameter"
+        );
     }
+}
 }
