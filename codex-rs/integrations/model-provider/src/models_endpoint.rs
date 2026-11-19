@@ -45,6 +45,32 @@ use crate::auth::resolve_provider_auth;
 const MODELS_REFRESH_TIMEOUT: Duration = Duration::from_secs(5);
 const MODELS_ENDPOINT: &str = "/models";
 
+/// Stable on-disk cache identity for a provider, derived from its base URL so
+/// different providers never share a models cache file. Providers without a
+/// base URL collapse to their display name.
+fn cache_identity_for_provider(provider_info: &ModelProviderInfo) -> String {
+    let raw = provider_info
+        .base_url
+        .as_deref()
+        .unwrap_or(provider_info.name.as_str());
+    let sanitized: String = raw
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let collapsed = sanitized
+        .split('-')
+        .filter(|segment| !segment.is_empty())
+        .collect::<Vec<_>>()
+        .join("-");
+    collapsed.to_ascii_lowercase()
+}
+
 /// Provider-owned OpenAI-compatible `/models` endpoint.
 #[derive(Debug)]
 pub(crate) struct OpenAiModelsEndpoint {
@@ -167,6 +193,16 @@ impl OpenAiModelsEndpoint {
 impl ModelsEndpointClient for OpenAiModelsEndpoint {
     fn has_command_auth(&self) -> bool {
         self.provider_info.has_command_auth()
+    }
+
+    fn has_provider_models_endpoint(&self) -> bool {
+        // API-key providers (configured via `env_key`) own a `/models` endpoint
+        // listing their models with real capability metadata.
+        self.provider_info.env_key.is_some()
+    }
+
+    fn models_cache_identity(&self) -> String {
+        cache_identity_for_provider(&self.provider_info)
     }
 
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool> {
@@ -327,6 +363,14 @@ impl GoogleModelsEndpoint {
 impl ModelsEndpointClient for GoogleModelsEndpoint {
     fn has_command_auth(&self) -> bool {
         self.provider_info.has_command_auth()
+    }
+
+    fn has_provider_models_endpoint(&self) -> bool {
+        true
+    }
+
+    fn models_cache_identity(&self) -> String {
+        cache_identity_for_provider(&self.provider_info)
     }
 
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool> {
@@ -496,6 +540,33 @@ mod tests {
     use wiremock::matchers::method;
     use wiremock::matchers::path;
     use wiremock::matchers::query_param;
+
+    fn provider_with_env_key(env_key: Option<&str>) -> ModelProviderInfo {
+        ModelProviderInfo {
+            name: "Deploy".to_string(),
+            base_url: Some("https://api-cdn.deploy.com/api/v1".to_string()),
+            env_key: env_key.map(str::to_string),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn env_key_providers_refresh_their_own_models_endpoint() {
+        let provider = provider_with_env_key(Some("DEPLOY_API_KEY"));
+        let endpoint = OpenAiModelsEndpoint::new(provider, None);
+        assert!(endpoint.has_provider_models_endpoint());
+        assert_eq!(
+            endpoint.models_cache_identity(),
+            "https-api-cdn.deploy.com-api-v1"
+        );
+    }
+
+    #[test]
+    fn providers_without_env_key_do_not_refresh_provider_models() {
+        let provider = provider_with_env_key(None);
+        let endpoint = OpenAiModelsEndpoint::new(provider, None);
+        assert!(!endpoint.has_provider_models_endpoint());
+    }
 
     #[derive(Debug)]
     struct RecordingTransportBuilder {

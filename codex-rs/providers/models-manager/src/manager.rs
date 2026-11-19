@@ -39,6 +39,19 @@ pub trait ModelsEndpointClient: fmt::Debug + Send + Sync {
     /// Returns whether the currently resolved auth can use Codex backend-only models.
     fn uses_codex_backend(&self) -> ModelsEndpointFuture<'_, bool>;
 
+    /// Returns whether this endpoint can list the provider's own `/models`
+    /// catalog. API-key providers (configured via `env_key`) expose one, so
+    /// their models get real metadata instead of fallback defaults.
+    fn has_provider_models_endpoint(&self) -> bool {
+        false
+    }
+
+    /// Stable identity used to scope the on-disk models cache so different
+    /// providers never reuse each other's entries.
+    fn models_cache_identity(&self) -> String {
+        "codex".to_string()
+    }
+
     /// Fetches the latest remote model catalog and optional ETag.
     fn list_models<'a>(
         &'a self,
@@ -250,7 +263,7 @@ impl OpenAiModelsManager {
         auth_manager: Option<Arc<AuthManager>>,
         base_models: Vec<ModelInfo>,
     ) -> Self {
-        let cache_path = codex_home.join(MODEL_CACHE_FILE);
+        let cache_path = Self::models_cache_path(codex_home, endpoint_client.as_ref());
         Self::new_with_cache_manager(
             Some(ModelsCacheManager::new(cache_path, DEFAULT_MODEL_CACHE_TTL)),
             endpoint_client,
@@ -280,6 +293,18 @@ impl OpenAiModelsManager {
             auth_manager,
             base_models,
         )
+    }
+
+    /// Cache file scoped by provider identity so switching providers never
+    /// reuses another provider's cached model list.
+    fn models_cache_path(
+        codex_home: PathBuf,
+        endpoint_client: &dyn ModelsEndpointClient,
+    ) -> PathBuf {
+        match endpoint_client.models_cache_identity().as_str() {
+            "codex" => codex_home.join(MODEL_CACHE_FILE),
+            identity => codex_home.join(format!("models_cache_{identity}.json")),
+        }
     }
 
     fn new_with_cache_manager(
@@ -454,7 +479,9 @@ impl OpenAiModelsManager {
     }
 
     async fn should_refresh_models(&self) -> bool {
-        self.endpoint_client.uses_codex_backend().await || self.endpoint_client.has_command_auth()
+        self.endpoint_client.uses_codex_backend().await
+            || self.endpoint_client.has_command_auth()
+            || self.endpoint_client.has_provider_models_endpoint()
     }
 
     async fn get_etag(&self) -> Option<String> {
@@ -511,8 +538,9 @@ impl OpenAiModelsManager {
             codex_otel::start_global_timer("codex.remote_models.load_cache.duration_ms", &[]);
         let client_version = crate::client_version_to_whole();
         info!(client_version, "models cache: evaluating cache eligibility");
-        // TODO(celia-oai): Include provider identity in cache eligibility so switching
-        // providers does not reuse a fresh models_cache.json entry from another provider.
+        // The cache file is scoped by provider identity (see
+        // `models_cache_path`), so a fresh entry from another provider is
+        // never reused.
         let cache = match cache_manager.load_fresh(&client_version).await {
             Some(cache) => cache,
             None => {
