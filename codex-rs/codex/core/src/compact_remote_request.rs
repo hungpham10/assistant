@@ -80,6 +80,7 @@ pub(super) async fn run_remote_compact_attempt(
         output_schema: None,
         output_schema_strict: true,
         jev_hint: None,
+        forced_tool: None,
     };
     let window_id = sess.current_window_id().await;
     let responses_metadata = turn_context.turn_metadata_state.to_responses_metadata(

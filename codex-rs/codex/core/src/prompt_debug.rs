@@ -102,7 +102,8 @@ pub(crate) async fn build_prompt_input_from_session(
         router.as_ref(),
         turn_context.as_ref(),
         base_instructions,
-        None,
+        /*jev_hint*/ None,
+        /*forced_tool*/ None,
     );
 
     Ok(prompt.input)

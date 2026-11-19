@@ -65,6 +65,8 @@ pub use crate::common::StreamOptions;
 pub use crate::common::TextControls;
 pub use crate::common::TextFormat;
 pub use crate::common::TextFormatType;
+pub use crate::common::ToolChoice;
+pub use crate::common::ToolChoiceFunction;
 pub use crate::common::WS_REQUEST_HEADER_TRACEPARENT_CLIENT_METADATA_KEY;
 pub use crate::common::WS_REQUEST_HEADER_TRACESTATE_CLIENT_METADATA_KEY;
 pub use crate::common::create_text_param_for_request;

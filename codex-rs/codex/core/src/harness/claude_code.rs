@@ -271,7 +271,7 @@ pub(crate) fn build_claude_code_responses_shaped_request(
         instructions: system_prompt,
         input: prompt.get_formatted_input().to_vec(),
         tools: Some(tools),
-        tool_choice: "auto".to_string(),
+        tool_choice: codex_api::ToolChoice::auto(),
         parallel_tool_calls: prompt.parallel_tool_calls,
         reasoning: None,
         store: false,
@@ -2631,6 +2631,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -2802,6 +2803,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -2870,6 +2872,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -2929,6 +2932,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
         jev_hint: None,
+        forced_tool: None,
         };
 
         let request = build_request(
@@ -2996,6 +3000,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         }
     }
 
@@ -3074,6 +3079,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3120,6 +3126,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3161,6 +3168,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3246,6 +3254,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3312,6 +3321,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3417,6 +3427,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3511,6 +3522,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3585,6 +3597,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3711,6 +3724,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3801,6 +3815,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -3866,6 +3881,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4176,6 +4192,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4238,6 +4255,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_title_request(
@@ -4318,6 +4336,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_title_request(
@@ -4409,6 +4428,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4453,6 +4473,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4497,6 +4518,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4541,6 +4563,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4585,6 +4608,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_request(
@@ -4651,6 +4675,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_claude_code_responses_shaped_request(
@@ -4707,6 +4732,7 @@ mod tests {
             output_schema: None,
             output_schema_strict: true,
             jev_hint: None,
+            forced_tool: None,
         };
 
         let request = build_claude_code_responses_shaped_request(

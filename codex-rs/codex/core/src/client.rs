@@ -971,8 +971,18 @@ impl ModelClient {
             instructions,
             input,
             tools,
-            tool_choice: "auto".to_string(),
-            parallel_tool_calls: prompt.parallel_tool_calls && !model_info.use_responses_lite,
+            tool_choice: match &prompt.forced_tool {
+                Some(forced) => {
+                    codex_api::ToolChoice::Function(codex_api::ToolChoiceFunction::function(
+                        forced.name.clone(),
+                        forced.namespace.clone(),
+                    ))
+                }
+                None => codex_api::ToolChoice::auto(),
+            },
+            parallel_tool_calls: prompt.parallel_tool_calls
+                && prompt.forced_tool.is_none()
+                && !model_info.use_responses_lite,
             reasoning,
             store: provider.is_azure_responses_endpoint(),
             stream: true,
