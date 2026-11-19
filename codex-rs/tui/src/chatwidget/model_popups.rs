@@ -5,6 +5,7 @@
 
 use super::*;
 use codex_login::KIMI_CODE_PROVIDER_ID;
+use codex_login::ZCODE_PROVIDER_ID;
 use codex_model_provider_info::WireApi;
 use codex_model_provider_info::bundled_provider_catalog_entry;
 use codex_model_provider_info::default_harness_for_provider_model;
@@ -79,6 +80,16 @@ impl ChatWidget {
                     actions: vec![Box::new(move |tx| {
                         if provider_id == KIMI_CODE_PROVIDER_ID {
                             tx.send(AppEvent::StartKimiCodeLogin {
+                                provider_id: provider_id.clone(),
+                                provider_name: provider_name.clone(),
+                            });
+                        } else if provider_id == ZCODE_PROVIDER_ID {
+                            tx.send(AppEvent::StartZcodeLogin {
+                                provider_id: provider_id.clone(),
+                                provider_name: provider_name.clone(),
+                            });
+                        } else if provider.is_google_provider() {
+                            tx.send(AppEvent::StartGoogleLogin {
                                 provider_id: provider_id.clone(),
                                 provider_name: provider_name.clone(),
                             });
@@ -1072,6 +1083,10 @@ fn provider_description(
 ) -> String {
     let description = if provider_id == KIMI_CODE_PROVIDER_ID {
         "Sign in with Kimi Code".to_string()
+    } else if provider_id == ZCODE_PROVIDER_ID {
+        "Sign in with ZCode".to_string()
+    } else if provider.is_google_provider() {
+        "Sign in with Google".to_string()
     } else if provider.requires_openai_auth {
         "Sign in with ChatGPT".to_string()
     } else if let Some(env_key) = provider.env_key.as_deref() {
@@ -1268,6 +1283,39 @@ mod tests {
     use codex_model_provider_info::WireApi;
 
     use super::harness_choices_for_provider_model;
+    use super::provider_description;
+
+    #[test]
+    fn zcode_provider_description_prompts_sign_in() {
+        let provider = ModelProviderInfo {
+            name: "Z.AI Coding Plan".to_string(),
+            base_url: Some("https://api.z.ai/api/coding/paas/v4".to_string()),
+            env_key: Some("ZAI_API_KEY".to_string()),
+            wire_api: WireApi::Chat,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            provider_description("zai-coding-plan", &provider),
+            "Sign in with ZCode"
+        );
+    }
+
+    #[test]
+    fn google_provider_description_prompts_sign_in() {
+        let provider = ModelProviderInfo {
+            name: "Google".to_string(),
+            base_url: Some("https://generativelanguage.googleapis.com".to_string()),
+            env_key: Some("GOOGLE_API_KEY".to_string()),
+            wire_api: WireApi::Google,
+            ..Default::default()
+        };
+
+        assert_eq!(
+            provider_description("google", &provider),
+            "Sign in with Google"
+        );
+    }
 
     #[test]
     fn standalone_harness_picker_shows_all_harnesses_for_responses_models() {

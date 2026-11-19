@@ -31,11 +31,15 @@ pub use server::run_login_server;
 pub use success_page::CODEX_OPEN_APP_URL;
 pub use success_page::LoginSuccessPage;
 pub use success_page::LoginSuccessPageBrand;
+pub use zcode_oauth::ZCODE_PROVIDER_ID;
 pub use zcode_oauth::ZcodeLoginOptions;
+pub use zcode_oauth::ZcodeLoginSession;
 pub use zcode_oauth::ZcodeTokenData;
+pub use zcode_oauth::finish_zcode_login;
 pub use zcode_oauth::load_zcode_oauth_tokens;
 pub use zcode_oauth::login_with_zcode_oauth;
 pub use zcode_oauth::resolve_zcode_bearer_token;
+pub use zcode_oauth::start_zcode_login;
 
 pub use auth::AgentIdentityAuthPolicy;
 pub use auth::AuthConfig;

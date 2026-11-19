@@ -29,10 +29,16 @@ use serde::Serialize;
 pub mod login;
 
 pub use login::ZcodeLoginOptions;
+pub use login::ZcodeLoginSession;
+pub use login::finish_zcode_login;
 pub use login::login_with_zcode_oauth;
+pub use login::start_zcode_login;
 
 /// ZCode broker that mediates the OAuth flow (it owns the app secret).
 pub const ZCODE_BASE_URL: &str = "https://zcode.z.ai";
+/// Catalog provider id whose inference is backed by the ZCode (Z.AI) OAuth
+/// login; the TUI provider picker triggers the login flow for this id.
+pub const ZCODE_PROVIDER_ID: &str = "zai-coding-plan";
 pub const ZCODE_OAUTH_INIT_PATH: &str = "/api/v1/oauth/cli/init";
 /// Poll path prefix; the flow id is appended: `/api/v1/oauth/cli/poll/{flow_id}`.
 pub const ZCODE_OAUTH_POLL_PATH: &str = "/api/v1/oauth/cli/poll/";

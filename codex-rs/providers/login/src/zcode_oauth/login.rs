@@ -96,12 +96,23 @@ fn poll_token() -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-/// Runs the interactive ZCode login flow and persists the tokens.
-pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
+/// Session state returned by [`start_zcode_login`] and consumed by
+/// [`finish_zcode_login`], so callers (the TUI) can surface the authorization
+/// URL before the polling wait begins.
+pub struct ZcodeLoginSession {
+    pub authorize_url: String,
+    pub flow_id: String,
+    pub poll_token: String,
+    pub expires_at: Option<i64>,
+    pub server_time: Option<i64>,
+    pub poll_interval_sec: Option<u64>,
+}
+
+/// Starts the ZCode login flow: requests an authorization URL from the broker
+/// without waiting for the user to complete sign-in.
+pub async fn start_zcode_login() -> io::Result<ZcodeLoginSession> {
     let base = crate::zcode_oauth::zcode_base_url();
     let token = poll_token();
-
-    // 1. Request an authorization URL from the broker.
     let raw = post_json(
         &format!("{base}{ZCODE_OAUTH_INIT_PATH}"),
         serde_json::json!({ "provider": ZCODE_OAUTH_PROVIDER }),
@@ -111,19 +122,6 @@ pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
     let data = unwrap_envelope(raw.clone(), "cli/init")?;
     let init: ZcodeInitResponse = serde_json::from_value(data)
         .map_err(|err| io::Error::other(format!("zcode cli/init parse failed: {err}: {raw}")))?;
-
-    eprintln!(
-        "Open this URL in your browser to sign in with Z.AI:\n\n{}",
-        init.authorize_url
-    );
-    if opts.open_browser {
-        let _ = webbrowser::open(&init.authorize_url);
-    }
-
-    // 2. Poll until the user completes sign-in.
-    //
-    // The broker issues its own poll token in the init response; polling with
-    // the caller-supplied token fails with `3004 invalid_flow`.
     let poll_token = init
         .poll_token
         .as_deref()
@@ -131,15 +129,43 @@ pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
         .filter(|value| !value.is_empty())
         .unwrap_or(&token)
         .to_string();
-    let poll_interval = Duration::from_secs(init.poll_interval_sec.unwrap_or(1).max(1));
-    let now = init.server_time.unwrap_or_else(|| Utc::now().timestamp());
-    let deadline = match init.expires_at.filter(|expires_at| *expires_at > now) {
+    Ok(ZcodeLoginSession {
+        authorize_url: init.authorize_url,
+        flow_id: init.flow_id,
+        poll_token,
+        expires_at: init.expires_at,
+        server_time: init.server_time,
+        poll_interval_sec: init.poll_interval_sec,
+    })
+}
+
+/// Polls a session started by [`start_zcode_login`] until the user completes
+/// sign-in, then persists the tokens.
+pub async fn finish_zcode_login(
+    session: ZcodeLoginSession,
+    opts: &ZcodeLoginOptions,
+) -> io::Result<()> {
+    let base = crate::zcode_oauth::zcode_base_url();
+    if opts.open_browser {
+        let _ = webbrowser::open(&session.authorize_url);
+    }
+
+    // Poll until the user completes sign-in.
+    //
+    // The broker issues its own poll token in the init response; polling with
+    // the caller-supplied token fails with `3004 invalid_flow`.
+    let poll_token = session.poll_token;
+    let poll_interval = Duration::from_secs(session.poll_interval_sec.unwrap_or(1).max(1));
+    let now = session
+        .server_time
+        .unwrap_or_else(|| Utc::now().timestamp());
+    let deadline = match session.expires_at.filter(|expires_at| *expires_at > now) {
         Some(expires_at) => {
             tokio::time::Instant::now() + Duration::from_secs(expires_at.saturating_sub(now) as u64)
         }
         None => tokio::time::Instant::now() + Duration::from_secs(LOGIN_TIMEOUT_SECS),
     };
-    let poll_url = format!("{base}{ZCODE_OAUTH_POLL_PATH}{}", init.flow_id);
+    let poll_url = format!("{base}{ZCODE_OAUTH_POLL_PATH}{}", session.flow_id);
     let (ready, ready_raw) = loop {
         tokio::time::sleep(poll_interval).await;
         let raw = get_json(&poll_url, &poll_token).await?;
@@ -235,4 +261,14 @@ pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
         opts.auth_credentials_store_mode,
         opts.auth_keyring_backend_kind,
     )
+}
+
+/// Runs the interactive ZCode login flow and persists the tokens.
+pub async fn login_with_zcode_oauth(opts: ZcodeLoginOptions) -> io::Result<()> {
+    let session = start_zcode_login().await?;
+    eprintln!(
+        "Open this URL in your browser to sign in with Z.AI:\n\n{}",
+        session.authorize_url
+    );
+    finish_zcode_login(session, &opts).await
 }
