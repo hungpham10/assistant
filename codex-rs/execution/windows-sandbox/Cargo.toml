@@ -39,7 +39,7 @@ serde_json = "1.0"
 tempfile = "3"
 tokio = { workspace = true, features = ["sync", "rt", "macros", "signal", "time"] }
 tracing-appender = { workspace = true }
-windows = { version = "0.58", features = [
+windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_NetworkManagement_WindowsFirewall",
     "Win32_System_Com",
