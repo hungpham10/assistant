@@ -608,7 +608,9 @@ pub struct PipelineConfigToml {
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct CodegraphToml {
-    /// Register the `codegraph.call` agent tool (default: `true`).
+    /// Enable the in-process codegraph MCP server (default: `true`). When enabled,
+    /// codegraph search tools are exposed to the model as `mcp__codegraph_*`
+    /// tools through the normal MCP surface.
     pub enabled: Option<bool>,
     /// Symbol-match modes permitted for search (default: `["lexical"]`).
     pub permit_modes: Option<Vec<String>>,
@@ -706,7 +708,7 @@ pub struct ToolsToml {
     /// Defaults to "direct".
     #[serde(default)]
     pub default_exposure: Option<String>,
-    /// Per-tool exposure overrides. Key is tool name or namespace (e.g., "codegraph" or "codegraph.call").
+    /// Per-tool exposure overrides. Key is tool name or namespace (e.g., "mcp__codegraph" or "codegraph").
     #[serde(default)]
     pub tool_exposure: Option<std::collections::HashMap<String, String>>,
 }

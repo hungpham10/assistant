@@ -36,9 +36,7 @@ codex-chat-wire-compat = { workspace = true }
 codex-code-mode = { workspace = true }
 codex-connectors = { workspace = true }
 codex-context-fragments = { workspace = true }
-codegraph-context = { workspace = true }
 codegraph-core = { workspace = true }
-codex-codegraph-server = { workspace = true }
 camino = { workspace = true }
 codex-config = { workspace = true }
 codex-core-plugins = { workspace = true }

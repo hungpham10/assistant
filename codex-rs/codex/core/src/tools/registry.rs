@@ -357,7 +357,14 @@ impl ToolRegistry {
                 error_or_panic(format!("tool {name} already registered"));
                 continue;
             }
-            tools_by_name.insert(name, tool);
+            tools_by_name.insert(name.clone(), Arc::clone(&tool));
+            // Some wires (Claude Code, chat-compat) advertise namespaced tools as a
+            // single flattened name `{namespace}_{tool}`. Register an alias so the
+            // router can dispatch those calls back to the same handler.
+            if let Some(namespace) = &name.namespace {
+                let flat = ToolName::plain(format!("{namespace}_{}", name.name));
+                tools_by_name.entry(flat).or_insert(tool);
+            }
         }
         let mut registry = Self::new(tools_by_name);
         registry.enforced_hidden = enforced_hidden.iter().cloned().collect();
