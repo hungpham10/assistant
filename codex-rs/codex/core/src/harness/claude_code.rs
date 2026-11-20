@@ -33,8 +33,7 @@ use codex_protocol::protocol::SKILLS_INSTRUCTIONS_CLOSE_TAG;
 use codex_protocol::protocol::SKILLS_INSTRUCTIONS_OPEN_TAG;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::SubAgentSource;
-use codex_tools::ResponsesApiNamespaceTool;
-use codex_tools::ToolSpec;
+use codex_tools::{ResponsesApiNamespaceTool, ToolName, ToolSpec};
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -44,6 +43,7 @@ use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
+use tracing::debug;
 
 pub(crate) const CLAUDE_CODE_BETA_HEADER: &str = "claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advisor-tool-2026-03-01,effort-2025-11-24";
 pub(crate) const CLAUDE_CODE_BARE_BETA_HEADER: &str = "claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24";
@@ -1652,7 +1652,10 @@ fn build_tools(
         if let ToolSpec::Namespace(namespace) = spec {
             for ns_tool in &namespace.tools {
                 if let ResponsesApiNamespaceTool::Function(tool) = ns_tool {
-                    let flat_name = format!("{}_{}", namespace.name, tool.name);
+                    // Uses the same flattening rule as chat-wire-compat so the
+                    // flat name always matches the MCP server's advertised name
+                    // and the alias registered in ToolRegistry.
+                    let flat_name = ToolName::flat_namespaced(&namespace.name, &tool.name);
                     if profile.is_bare() && !flat_name.starts_with("mcp__") {
                         continue;
                     }
@@ -1710,6 +1713,13 @@ fn build_tools(
         "Write" => 26,
         _ => 26,
     });
+    debug!(
+        target: "codex_core::harness::claude_code",
+        profile = ?profile,
+        tool_count = out.len(),
+        tools = ?out.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+        "claude-code shaped tools"
+    );
     Ok(out)
 }
 
