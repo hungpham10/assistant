@@ -124,7 +124,7 @@ impl ChatWidget {
             self.add_info_message(
                 format!("Codegraph index finished.\n{text}"),
                 Some(
-                    "Call codegraph.call begin(path) again to search the fresh index.".to_string(),
+                    "Codegraph search tools (`mcp__codegraph_*`) are now available against the fresh index.".to_string(),
                 ),
             );
         } else {

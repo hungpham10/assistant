@@ -475,3 +475,52 @@ fn test_invocation(
         },
     }
 }
+
+#[test]
+fn flat_alias_resolves_to_same_handler_including_nested_underscore() {
+    // MCP canonical name for a `codex_apps__pets` tool named `_adopt` is
+    // namespaced("mcp__codex_apps__pets", "_adopt"). The flat wire/advertised
+    // name must be `mcp__codex_apps__pets_adopt` (no double underscore).
+    let canonical = codex_tools::ToolName::namespaced("mcp__codex_apps__pets", "_adopt");
+    let flat_name = codex_tools::ToolName::plain("mcp__codex_apps__pets_adopt");
+
+    let handler = Arc::new(TestHandler {
+        tool_name: canonical.clone(),
+    }) as Arc<dyn CoreToolRuntime>;
+
+    let registry = ToolRegistry::from_tools_with_enforced_hidden([handler], &[]);
+
+    let via_canonical = registry.tool(&canonical);
+    let via_flat = registry.tool(&flat_name);
+    assert!(via_canonical.is_some());
+    assert!(via_flat.is_some());
+    assert!(Arc::ptr_eq(
+        via_canonical.as_ref().unwrap(),
+        via_flat.as_ref().unwrap()
+    ));
+}
+
+#[test]
+fn flat_alias_registered_even_when_enforced_hidden() {
+    // The flat alias must still be registered (so lookup is deterministic) even
+    // when the canonical namespaced tool is Jev-hidden. Hiding is enforced at
+    // dispatch time against the canonical handler name.
+    let canonical = codex_tools::ToolName::namespaced("mcp__codex_apps__pets", "adopt");
+    let flat_name = codex_tools::ToolName::plain("mcp__codex_apps__pets_adopt");
+
+    let handler = Arc::new(TestHandler {
+        tool_name: canonical.clone(),
+    }) as Arc<dyn CoreToolRuntime>;
+
+    let registry =
+        ToolRegistry::from_tools_with_enforced_hidden([handler], std::slice::from_ref(&canonical));
+
+    // Both names resolve to the same handler; enforced_hidden is checked at
+    // dispatch against the canonical handler name, not the lookup key.
+    assert!(registry.tool(&canonical).is_some());
+    assert!(registry.tool(&flat_name).is_some());
+    assert!(Arc::ptr_eq(
+        registry.tool(&canonical).as_ref().unwrap(),
+        registry.tool(&flat_name).as_ref().unwrap()
+    ));
+}

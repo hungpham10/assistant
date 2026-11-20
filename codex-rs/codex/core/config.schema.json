@@ -393,7 +393,7 @@
           "type": "string"
         },
         "enabled": {
-          "description": "Register the `codegraph.call` agent tool (default: `true`).",
+          "description": "Enable the in-process codegraph MCP server (default: `true`). When enabled, codegraph search tools are exposed to the model as `mcp__codegraph_*` tools through the normal MCP surface.",
           "type": "boolean"
         },
         "mode": {
@@ -3245,7 +3245,7 @@
             "type": "string"
           },
           "default": null,
-          "description": "Per-tool exposure overrides. Key is tool name or namespace (e.g., \"codegraph\" or \"codegraph.call\").",
+          "description": "Per-tool exposure overrides. Key is tool name or namespace (e.g., \"mcp__codegraph\" or \"codegraph\").",
           "type": "object"
         },
         "web_search": {

@@ -11,6 +11,7 @@ use core_test_support::apps_test_server::AppsTestServer;
 use core_test_support::apps_test_server::SEARCH_CALENDAR_CREATE_TOOL;
 use core_test_support::apps_test_server::SEARCH_CALENDAR_NAMESPACE;
 use core_test_support::apps_test_server::apps_enabled_builder;
+use core_test_support::apps_test_server::recorded_apps_tool_call_by_call_id;
 use core_test_support::apps_test_server::search_capable_apps_builder;
 use core_test_support::responses;
 use core_test_support::responses::ev_assistant_message;
@@ -324,5 +325,166 @@ async fn later_follow_up_uses_background_recovered_apps_after_mid_thread_startup
     );
     assert_eq!(startup_control.initialize_attempts(), 3);
 
+    Ok(())
+}
+
+fn mcp_tool_names(body: &Value) -> Vec<String> {
+    body.get("tools")
+        .and_then(Value::as_array)
+        .map(|tools| {
+            tools
+                .iter()
+                .filter_map(|tool| {
+                    tool.get("name")
+                        .or_else(|| tool.get("type"))
+                        .and_then(Value::as_str)
+                        .map(str::to_string)
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn claude_code_full_flattens_mcp_tools_to_flat_function_tools() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    let server = responses::start_mock_server().await;
+    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let response = responses::mount_sse_once(
+        &server,
+        sse(vec![
+            responses::ev_response_created("resp-1"),
+            responses::ev_assistant_message("msg-1", "done"),
+            responses::ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+    let mut builder = search_capable_apps_builder(apps_server.chatgpt_base_url.clone())
+        .with_config(|config| {
+            config
+                .code_mode
+                .direct_only_tool_namespaces
+                .push(SEARCH_CALENDAR_NAMESPACE.to_string());
+            config.harness = Some("claude-code".to_string());
+        });
+    let test = builder.build(&server).await?;
+    test.submit_turn("list available tools").await?;
+    let body = response.single_request().body_json();
+    let names = mcp_tool_names(&body);
+    let tools = body
+        .get("tools")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    // No namespace-type tools: everything is flattened to function tools.
+    assert!(
+        tools
+            .iter()
+            .all(|tool| tool.get("type").and_then(Value::as_str) == Some("function")),
+        "expected all function tools, got {body}"
+    );
+    // Flat MCP tool names are advertised.
+    assert!(
+        names
+            .iter()
+            .any(|n| n == "mcp__codex_apps__calendar_create_event"),
+        "expected flat mcp__ calendar tool, got {names:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn claude_code_bare_keeps_mcp_tools() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    let server = responses::start_mock_server().await;
+    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let response = responses::mount_sse_once(
+        &server,
+        sse(vec![
+            responses::ev_response_created("resp-1"),
+            responses::ev_assistant_message("msg-1", "done"),
+            responses::ev_completed("resp-1"),
+        ]),
+    )
+    .await;
+    let mut builder = search_capable_apps_builder(apps_server.chatgpt_base_url.clone())
+        .with_config(|config| {
+            config
+                .code_mode
+                .direct_only_tool_namespaces
+                .push(SEARCH_CALENDAR_NAMESPACE.to_string());
+            config.harness = Some("claude-code-bare".to_string());
+        });
+    let test = builder.build(&server).await?;
+    test.submit_turn("list available tools").await?;
+    let body = response.single_request().body_json();
+    let names = mcp_tool_names(&body);
+    assert!(
+        names.iter().any(|n| n == "Bash"),
+        "bare keeps Bash, got {names:?}"
+    );
+    assert!(
+        names
+            .iter()
+            .any(|n| n == "mcp__codex_apps__calendar_create_event"),
+        "bare keeps mcp tools, got {names:?}"
+    );
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn claude_code_flat_name_dispatch_reaches_mcp_server() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    let server = responses::start_mock_server().await;
+    let apps_server = AppsTestServer::mount_searchable(&server).await?;
+    let call_id = "call-mcp-flat-1";
+    let _response = responses::mount_sse_sequence(
+        &server,
+        vec![
+            // First response: model decides to call the flat MCP tool.
+            sse(vec![
+                responses::ev_response_created("resp-1"),
+                responses::ev_function_call(
+                    call_id,
+                    "mcp__codex_apps__calendar_create_event",
+                    &json!({ "title": "integration test" }).to_string(),
+                ),
+                responses::ev_completed("resp-1"),
+            ]),
+            // Second response: function call output then completion.
+            sse(vec![
+                responses::ev_response_created("resp-2"),
+                serde_json::json!({
+                    "type": "response.output_item.done",
+                    "item": {
+                        "type": "function_call_output",
+                        "call_id": call_id,
+                        "output": "created"
+                    }
+                }),
+                responses::ev_assistant_message("msg-2", "done"),
+                responses::ev_completed("resp-2"),
+            ]),
+        ],
+    )
+    .await;
+    let mut builder = search_capable_apps_builder(apps_server.chatgpt_base_url.clone())
+        .with_config(|config| {
+            config
+                .code_mode
+                .direct_only_tool_namespaces
+                .push(SEARCH_CALENDAR_NAMESPACE.to_string());
+            config.harness = Some("claude-code".to_string());
+        });
+    let test = builder.build(&server).await?;
+    test.submit_turn("create a calendar event").await?;
+    // The flat name was dispatched to the same McpHandler; the MCP server
+    // should have received a tools/call for this call_id.
+    let apps_call = recorded_apps_tool_call_by_call_id(&server, call_id).await;
+    assert_eq!(
+        apps_call.pointer("/params/name").and_then(Value::as_str),
+        Some("calendar_create_event"),
+        "MCP server should receive the original tool name: {apps_call}"
+    );
     Ok(())
 }

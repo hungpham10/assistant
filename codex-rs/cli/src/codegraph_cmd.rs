@@ -1,6 +1,6 @@
 //! `codex codegraph index` — host-driven indexing for the codegraph data
-//! layer. This is the only indexing entry point; the agent tool
-//! (`codegraph.call`) never indexes.
+//! layer. This is the only indexing entry point; the agent exposes codegraph
+//! search through the MCP surface (`mcp__codegraph_*`) and never indexes.
 
 use std::path::PathBuf;
 

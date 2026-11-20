@@ -357,7 +357,15 @@ impl ToolRegistry {
                 error_or_panic(format!("tool {name} already registered"));
                 continue;
             }
-            tools_by_name.insert(name, tool);
+            tools_by_name.insert(name.clone(), Arc::clone(&tool));
+            // Some wires (Claude Code, chat-compat) advertise namespaced tools as a
+            // single flattened name `{namespace}_{tool}`. Register an alias so the
+            // router can dispatch those calls back to the same handler. Uses the
+            // same flattening rule as chat-wire-compat so names always match.
+            if let Some(namespace) = &name.namespace {
+                let flat = ToolName::flat_namespaced(namespace, &name.name);
+                tools_by_name.entry(ToolName::plain(flat)).or_insert(tool);
+            }
         }
         let mut registry = Self::new(tools_by_name);
         registry.enforced_hidden = enforced_hidden.iter().cloned().collect();
@@ -482,7 +490,9 @@ impl ToolRegistry {
             }
         };
 
-        if self.enforced_hidden.contains(&tool_name) {
+        // Check against the canonical handler name so a flat alias (e.g.
+        // `{namespace}_{tool}` used by Claude Code) cannot bypass Jev hiding.
+        if self.enforced_hidden.contains(&tool.tool_name()) {
             let message = format!(
                 "tool {tool_name} is not available this turn; use one of the tools advertised in the current request"
             );

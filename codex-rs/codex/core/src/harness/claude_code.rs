@@ -33,7 +33,7 @@ use codex_protocol::protocol::SKILLS_INSTRUCTIONS_CLOSE_TAG;
 use codex_protocol::protocol::SKILLS_INSTRUCTIONS_OPEN_TAG;
 use codex_protocol::protocol::SessionSource;
 use codex_protocol::protocol::SubAgentSource;
-use codex_tools::ToolSpec;
+use codex_tools::{ResponsesApiNamespaceTool, ToolName, ToolSpec};
 use serde_json::Value;
 use serde_json::json;
 use sha2::Digest;
@@ -43,6 +43,7 @@ use std::collections::HashSet;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hash;
 use std::hash::Hasher;
+use tracing::debug;
 
 pub(crate) const CLAUDE_CODE_BETA_HEADER: &str = "claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,advisor-tool-2026-03-01,effort-2025-11-24";
 pub(crate) const CLAUDE_CODE_BARE_BETA_HEADER: &str = "claude-code-20250219,interleaved-thinking-2025-05-14,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24";
@@ -1195,7 +1196,7 @@ fn build_tools(
     profile: ClaudeCodeProfile,
 ) -> Result<Vec<AnthropicTool>, serde_json::Error> {
     let allowed_names = claude_code_allowed_tool_names();
-    let mut tools = tools
+    let mut out = tools
         .iter()
         .filter_map(|tool| match tool {
             ToolSpec::Function(tool) => {
@@ -1644,21 +1645,45 @@ fn build_tools(
             | ToolSpec::Freeform(_) => None,
         })
         .collect::<Result<Vec<_>, serde_json::Error>>()?;
+    // Flatten `ToolSpec::Namespace` (e.g. MCP servers) into flat Anthropic tools so
+    // the Claude Code harness can advertise them. The flat name
+    // `{namespace}_{tool}` is the same name the tool registry dispatches against.
+    for spec in tools.iter() {
+        if let ToolSpec::Namespace(namespace) = spec {
+            for ns_tool in &namespace.tools {
+                if let ResponsesApiNamespaceTool::Function(tool) = ns_tool {
+                    // Uses the same flattening rule as chat-wire-compat so the
+                    // flat name always matches the MCP server's advertised name
+                    // and the alias registered in ToolRegistry.
+                    let flat_name = ToolName::flat_namespaced(&namespace.name, &tool.name);
+                    if profile.is_bare() && !flat_name.starts_with("mcp__") {
+                        continue;
+                    }
+                    let input_schema = serde_json::to_value(&tool.parameters)?;
+                    out.push(AnthropicTool {
+                        name: flat_name,
+                        description: tool.description.clone(),
+                        input_schema: add_json_schema_draft(input_schema),
+                    });
+                }
+            }
+        }
+    }
     if !profile.is_bare() {
-        let existing_names = tools
+        let existing_names = out
             .iter()
             .map(|tool| tool.name.as_str())
             .collect::<HashSet<_>>();
-        tools.extend(reference_claude_supplemental_tools(
+        out.extend(reference_claude_supplemental_tools(
             &existing_names,
             is_child_agent_request,
             allowed_names.as_ref(),
         )?);
     }
     if !profile.is_bare() {
-        normalize_reference_claude_tool_descriptions(&mut tools);
+        normalize_reference_claude_tool_descriptions(&mut out);
     }
-    tools.sort_by_key(|tool| match tool.name.as_str() {
+    out.sort_by_key(|tool| match tool.name.as_str() {
         "Agent" => 0,
         "AskUserQuestion" => 1,
         "Bash" => 2,
@@ -1688,7 +1713,14 @@ fn build_tools(
         "Write" => 26,
         _ => 26,
     });
-    Ok(tools)
+    debug!(
+        target: "codex_core::harness::claude_code",
+        profile = ?profile,
+        tool_count = out.len(),
+        tools = ?out.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+        "claude-code shaped tools"
+    );
+    Ok(out)
 }
 
 fn is_hidden_claude_code_source_tool(name: &str) -> bool {
@@ -4750,5 +4782,72 @@ mod tests {
         let tools = request.tools.as_ref().expect("tools");
         assert!(tools.iter().all(|tool| tool["type"] == "function"));
         assert!(tools.iter().any(|tool| tool["name"] == "Bash"));
+    }
+
+    fn test_mcp_namespace_spec() -> ToolSpec {
+        ToolSpec::Namespace(codex_tools::ResponsesApiNamespace {
+            name: "mcp__codegraph".to_string(),
+            description: "Tools for working with codegraph".to_string(),
+            tools: vec![codex_tools::ResponsesApiNamespaceTool::Function(
+                codex_tools::ResponsesApiTool {
+                    name: "search_symbol".to_string(),
+                    description: "search code symbols".to_string(),
+                    strict: false,
+                    defer_loading: None,
+                    parameters: codex_tools::JsonSchema::object(
+                        BTreeMap::new(),
+                        /*required*/ None,
+                        /*additional_properties*/ None,
+                    ),
+                    output_schema: None,
+                },
+            )],
+        })
+    }
+
+    #[test]
+    fn build_tools_flattens_mcp_namespace_to_flat_anthropic_tools() {
+        let specs = vec![test_mcp_namespace_spec()];
+        let out = build_tools(&specs, false, ClaudeCodeProfile::Full).expect("build full");
+        let names: Vec<&str> = out.iter().map(|t| t.name.as_str()).collect();
+        assert!(
+            names.contains(&"mcp__codegraph_search_symbol"),
+            "expected flattened mcp tool, got {names:?}"
+        );
+    }
+
+    fn test_write_tool() -> ToolSpec {
+        ToolSpec::Function(codex_tools::ResponsesApiTool {
+            name: "Write".to_string(),
+            description: "write".to_string(),
+            strict: false,
+            defer_loading: None,
+            parameters: codex_tools::JsonSchema::object(
+                BTreeMap::new(),
+                /*required*/ None,
+                /*additional_properties*/ None,
+            ),
+            output_schema: None,
+        })
+    }
+
+    #[test]
+    fn build_tools_bare_keeps_only_mcp_namespace_tools() {
+        let specs = vec![
+            test_bash_tool(),
+            test_write_tool(),
+            test_mcp_namespace_spec(),
+        ];
+        let out = build_tools(&specs, false, ClaudeCodeProfile::Bare).expect("build bare");
+        let names: Vec<&str> = out.iter().map(|t| t.name.as_str()).collect();
+        assert!(names.contains(&"Bash"), "bare keeps Bash, got {names:?}");
+        assert!(
+            !names.contains(&"Write"),
+            "bare drops non-Bash/Edit/Read, got {names:?}"
+        );
+        assert!(
+            names.contains(&"mcp__codegraph_search_symbol"),
+            "bare keeps mcp tools, got {names:?}"
+        );
     }
 }
