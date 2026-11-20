@@ -1446,7 +1446,7 @@ fn loop_condition_node<'a>(node: &Node<'a>, spec: &'static LangSpec) -> Option<N
     let body = node.child_by_field_name(spec.markers.body_field);
     for i in 0..node.child_count() {
         let Some(ch) = node.child(i) else { continue };
-        if !ch.is_named() || Some(ch) == body || node.field_name_for_child(i as u32).is_some() {
+        if !ch.is_named() || Some(ch) == body || node.field_name_for_child({ i }).is_some() {
             continue;
         }
         // Go `for_clause` bọc init/cond/post — field nằm trên child.

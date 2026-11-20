@@ -345,7 +345,7 @@ impl GoogleModelsEndpoint {
                 google_models.push(GoogleModel {
                     name: format!("models/{id}"),
                     version: None,
-                    display_name: Some(id.clone()),
+                    display_name: Some(id),
                     description: None,
                     input_token_limit: None,
                     output_token_limit: None,

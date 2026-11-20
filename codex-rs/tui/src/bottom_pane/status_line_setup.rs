@@ -285,7 +285,7 @@ impl StatusLineSetupView {
                     continue;
                 };
                 let item_id = item.to_string();
-                if !used_ids.insert(item_id.clone()) {
+                if !used_ids.insert(item_id) {
                     continue;
                 }
                 items.push(Self::status_line_select_item(

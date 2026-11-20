@@ -193,9 +193,9 @@ impl ChatWidget {
             if let Some(install_url) = connector.install_url.clone() {
                 let app_id = connector.id.clone();
                 let is_enabled = connector.is_enabled;
-                let title = connector_title.clone();
+                let title = connector_title;
                 let instructions = instructions.to_string();
-                let description = link_description.clone();
+                let description = link_description;
                 item.actions = vec![Box::new(move |tx| {
                     tx.send(AppEvent::OpenAppLink {
                         app_id: app_id.clone(),

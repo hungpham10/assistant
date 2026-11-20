@@ -3475,7 +3475,6 @@ impl GraphIndex {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     async fn run_flow_sim(
         &self,
         root_func_id: u64,

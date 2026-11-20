@@ -3898,7 +3898,7 @@ impl ChatComposer {
                 let search_terms = vec![display_name.clone(), connector.id.clone(), slug.clone()];
                 let connector_id = connector.id.as_str();
                 mentions.push(MentionItem {
-                    display_name: display_name.clone(),
+                    display_name: display_name,
                     description,
                     insert_text: format!("${slug}"),
                     search_terms,

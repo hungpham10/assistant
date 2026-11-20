@@ -1164,7 +1164,7 @@ async fn read_head_summary(path: &Path, head_limit: usize) -> io::Result<HeadTai
                         .as_ref()
                         .and_then(|git| git.repository_url.clone());
                     summary.cli_version = Some(session_meta_line.meta.cli_version);
-                    summary.created_at = Some(session_meta_line.meta.timestamp.clone());
+                    summary.created_at = Some(session_meta_line.meta.timestamp);
                     summary.saw_session_meta = true;
                 }
             }

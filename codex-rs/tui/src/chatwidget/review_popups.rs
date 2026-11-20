@@ -98,7 +98,7 @@ impl ChatWidget {
         let mut items: Vec<SelectionItem> = Vec::with_capacity(commits.len());
         for entry in commits {
             let subject = entry.subject.clone();
-            let sha = entry.sha.clone();
+            let sha = entry.sha;
             let search_val = format!("{subject} {sha}");
 
             items.push(SelectionItem {

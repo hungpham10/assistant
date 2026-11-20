@@ -55,7 +55,7 @@ pub(crate) fn compose_agents_summary(config: &Config, paths: &[PathUri]) -> Stri
             .unwrap_or_else(|| "<unknown>".to_string());
         let display = if let Some(parent) = p.parent() {
             if parent == config.cwd.as_path() {
-                file_name.clone()
+                file_name
             } else {
                 let mut cur = config.cwd.as_path();
                 let mut ups = 0usize;

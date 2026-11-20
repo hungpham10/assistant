@@ -960,7 +960,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             if env.as_deref() != app.env_filter.as_deref() {
                                 append_error_log(format!(
                                     "refresh.drop: env={} current={}",
-                                    env.clone().unwrap_or_else(|| "<all>".to_string()),
+                                    env.unwrap_or_else(|| "<all>".to_string()),
                                     app.env_filter.clone().unwrap_or_else(|| "<all>".to_string())
                                 ));
                                 continue;
@@ -970,7 +970,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 Ok(tasks) => {
                                     append_error_log(format!(
                                         "refresh.apply: env={} count={}",
-                                        env.clone().unwrap_or_else(|| "<all>".to_string()),
+                                        env.unwrap_or_else(|| "<all>".to_string()),
                                         tasks.len()
                                     ));
                                     app.tasks = tasks;
@@ -1106,17 +1106,17 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 ov.title = title;
                                 {
                                     let base = ov.base_attempt_mut();
-                                    base.diff_lines = diff_lines.clone();
-                                    base.diff_raw = Some(diff.clone());
+                                    base.diff_lines = diff_lines;
+                                    base.diff_raw = Some(diff);
                                 }
                                 ov.base_can_apply = true;
                                 ov.apply_selection_to_fields();
                             } else {
-                                let mut overlay = app::DiffOverlay::new(id.clone(), title, /*attempt_total_hint*/ None);
+                                let mut overlay = app::DiffOverlay::new(id, title, /*attempt_total_hint*/ None);
                                 {
                                     let base = overlay.base_attempt_mut();
-                                    base.diff_lines = diff_lines.clone();
-                                    base.diff_raw = Some(diff.clone());
+                                    base.diff_lines = diff_lines;
+                                    base.diff_raw = Some(diff);
                                 }
                                 overlay.base_can_apply = true;
                                 overlay.current_view = app::DetailView::Diff;
@@ -1143,11 +1143,11 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                 }
                             let conv = conversation_lines(prompt.clone(), &messages);
                             if let Some(ov) = app.diff_overlay.as_mut() {
-                                ov.title = title.clone();
+                                ov.title = title;
                                 {
                                     let base = ov.base_attempt_mut();
-                                    base.text_lines = conv.clone();
-                                    base.prompt = prompt.clone();
+                                    base.text_lines = conv;
+                                    base.prompt = prompt;
                                     base.turn_id = turn_id.clone();
                                     base.status = attempt_status;
                                     base.attempt_placement = attempt_placement;
@@ -1159,11 +1159,11 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                     ov.current_view = app::DetailView::Prompt;
                                 }
                                 ov.apply_selection_to_fields();
-                                if let (Some(turn_id), true) = (turn_id.clone(), !sibling_turn_ids.is_empty())
+                                if let (Some(turn_id), true) = (turn_id, !sibling_turn_ids.is_empty())
                                     && ov.attempts.len() == 1 {
                                         let backend = Arc::clone(&backend);
                                         let tx = tx.clone();
-                                        let task_id = id.clone();
+                                        let task_id = id;
                                         tokio::spawn(async move {
                                             match codex_cloud_tasks_client::CloudBackend::list_sibling_attempts(
                                                 &*backend,
@@ -1185,16 +1185,16 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         });
                                     }
                             } else {
-                                let mut overlay = app::DiffOverlay::new(id.clone(), title, /*attempt_total_hint*/ None);
+                                let mut overlay = app::DiffOverlay::new(id, title, /*attempt_total_hint*/ None);
                                 {
                                     let base = overlay.base_attempt_mut();
-                                    base.text_lines = conv.clone();
-                                    base.prompt = prompt.clone();
+                                    base.text_lines = conv;
+                                    base.prompt = prompt;
                                     base.turn_id = turn_id.clone();
                                     base.status = attempt_status;
                                     base.attempt_placement = attempt_placement;
                                 }
-                                overlay.base_turn_id = turn_id.clone();
+                                overlay.base_turn_id = turn_id;
                                 overlay.sibling_turn_ids = sibling_turn_ids.clone();
                                 overlay.attempt_total_hint = Some(sibling_turn_ids.len().saturating_add(1));
                                 overlay.current_view = app::DetailView::Prompt;
@@ -1231,7 +1231,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         diff_lines,
                                         text_lines,
                                         prompt: None,
-                                        diff_raw: attempt.diff.clone(),
+                                        diff_raw: attempt.diff,
                                     });
                                 }
                                 if ov.attempts.len() > 1 {
@@ -1259,18 +1259,18 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                             append_error_log(format!("details failed for {}: {error}", id.0));
                             let pretty = pretty_lines_from_error(&error);
                             if let Some(ov) = app.diff_overlay.as_mut() {
-                                ov.title = title.clone();
+                                ov.title = title;
                                 {
                                     let base = ov.base_attempt_mut();
                                     base.diff_lines.clear();
-                                    base.text_lines = pretty.clone();
+                                    base.text_lines = pretty;
                                     base.prompt = None;
                                 }
                                 ov.base_can_apply = false;
                                 ov.current_view = app::DetailView::Prompt;
                                 ov.apply_selection_to_fields();
                             } else {
-                                let mut overlay = app::DiffOverlay::new(id.clone(), title, /*attempt_total_hint*/ None);
+                                let mut overlay = app::DiffOverlay::new(id, title, /*attempt_total_hint*/ None);
                                 {
                                     let base = overlay.base_attempt_mut();
                                     base.text_lines = pretty;
@@ -1860,7 +1860,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                         needs_redraw = true;
                                         // Spawn background details load (diff first, then messages fallback)
                                         let id = task.id.clone();
-                                        let title = task.title.clone();
+                                        let title = task.title;
                                         {
                                             let backend = Arc::clone(&backend);
                                             let tx = tx.clone();
@@ -1951,7 +1951,7 @@ pub async fn run_main(cli: Cli, _codex_linux_sandbox_exe: Option<PathBuf>) -> an
                                     if let Some(task) = app.tasks.get(app.selected).cloned() {
                                         match codex_cloud_tasks_client::CloudBackend::get_task_diff(&*backend, task.id.clone()).await {
                                             Ok(Some(diff)) => {
-                                                let diff_override = Some(diff.clone());
+                                                let diff_override = Some(diff);
                                                 let task_id = task.id.clone();
                                                 let title = task.title.clone();
                                                 let job = ApplyJob {

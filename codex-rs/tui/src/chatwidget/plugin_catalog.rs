@@ -930,7 +930,7 @@ impl ChatWidget {
                 MarketplaceProduct::from_marketplace(marketplace).tab_order(),
                 SelectionTab {
                     id: tab_id,
-                    label: label.clone(),
+                    label: label,
                     header,
                     items: self.plugin_selection_items(
                         entries,
