@@ -776,7 +776,7 @@ pub(crate) fn configured_marketplace_snapshot_issues(
             issues.push(ConfiguredMarketplaceSnapshotIssue {
                 marketplace_name: configured_name.clone(),
                 path: PathBuf::from("<invalid config>"),
-                message: err.to_string(),
+                message: err,
             });
             continue;
         }

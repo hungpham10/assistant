@@ -312,7 +312,7 @@ impl ExternalAgentConfigRequestProcessor {
                             record_import_error(
                                 &mut item_result,
                                 "plugin_import",
-                                error.message.clone(),
+                                error.message,
                                 /*source*/ None,
                             );
                         }

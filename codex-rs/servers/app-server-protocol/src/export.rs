@@ -1054,7 +1054,7 @@ fn build_schema_bundle(schemas: Vec<GeneratedSchema>) -> Result<Value> {
         }
 
         if let Some(ref ns) = namespace {
-            insert_into_namespace(&mut definitions, ns, logical_name.clone(), value)?;
+            insert_into_namespace(&mut definitions, ns, logical_name, value)?;
         } else {
             definitions.insert(logical_name, value);
         }

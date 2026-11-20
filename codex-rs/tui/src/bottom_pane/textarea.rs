@@ -1986,7 +1986,7 @@ impl TextArea {
             let r = &lines[idx];
             let y = area.y + row as u16;
             let line_range = r.start..r.end - 1;
-            let masked = self.text[line_range.clone()]
+            let masked = self.text[line_range]
                 .chars()
                 .map(|_| mask_char)
                 .collect::<String>();

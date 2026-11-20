@@ -625,7 +625,7 @@ impl McpConnectionManager {
                 continue;
             };
             let timeout = managed_client.tool_timeout;
-            let client = managed_client.client.clone();
+            let client = managed_client.client;
 
             join_set.spawn(async move {
                 let mut collected: Vec<Resource> = Vec::new();

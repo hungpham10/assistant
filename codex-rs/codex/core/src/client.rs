@@ -1016,14 +1016,8 @@ impl ModelClient {
             return false;
         };
 
-        if !provider_info.supports_websockets
-            || !route.supports_responses_websocket()
-            || self.state.disable_websockets.load(Ordering::Relaxed)
-        {
-            return false;
-        }
-
-        true
+        !(!provider_info.supports_websockets
+            || !route.supports_responses_websocket() || self.state.disable_websockets.load(Ordering::Relaxed))
     }
 
     /// Returns auth + provider configuration resolved from the current session auth state.

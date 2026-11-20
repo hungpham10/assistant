@@ -383,7 +383,11 @@ pulldown-cmark = "0.10"
 quick-xml = "0.41.0"
 rand = "0.9"
 ratatui = "0.29.0"
-ratatui-macros = "0.7.2"
+# Pinned to 0.6.x: 0.7+ emits `ratatui_core::text::{Span,Line}` while our
+# `[patch.crates-io]` ratatui points at a pre-modularization 0.29 fork, so the
+# macro output cannot be converted into `ratatui::prelude` types. Bump only
+# together with a ratatui patch that re-exports `ratatui-core`.
+ratatui-macros = "=0.6.0"
 rcgen = { version = "0.14.7", default-features = false, features = [
     "aws_lc_rs",
     "pem",

@@ -83,8 +83,8 @@ impl ChatWidget {
             );
             if preset.id == "auto" {
                 items.push(SelectionItem {
-                    name: base_name.clone(),
-                    description: base_description.clone(),
+                    name: base_name,
+                    description: base_description,
                     is_current: current_review_policy == ApprovalsReviewer::User
                         && Self::preset_matches_current(
                             current_approval,
